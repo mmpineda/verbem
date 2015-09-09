@@ -24,7 +24,6 @@ metadata {
 
         // custom attributes
         attribute "networkId", "string"
-        attribute "deviceType", "string"
 
 
         // custom commands

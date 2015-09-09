@@ -34,7 +34,6 @@ metadata {
 
         // custom attributes
         attribute "networkId", "string"
-        attribute "deviceType", "string"
 
         // custom commands
         command "parse"     // (String "<attribute>:<value>[,<attribute>:<value>]")
