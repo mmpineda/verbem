@@ -59,16 +59,12 @@ metadata {
                 action:"close"
         }
 
-        valueTile("networkId", "device.networkId", decoration:"flat", inactiveLabel:false) {
-            state "default", label:'${currentValue}', inactiveLabel:false
-        }
-
         standardTile("debug", "device.motion", inactiveLabel: false, decoration: "flat") {
             state "default", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
         }
 
         main(["Status"])
-        details(["Status", "open", "stop", "close", "networkId", "debug"])
+        details(["Status", "open", "stop", "close", "debug"])
 
     }    
 }
