@@ -180,20 +180,21 @@ private def setupDomoticz() {
     def inputIpAddress = [
         name        : "domoticzIpAddress",
         type        : "string",
-        title       : "What is your Domoticz Server IP Address?"
+        title       : "Local Domoticz IP Address",
+        defaultValue: "0.0.0.0"
     ]
 
     def inputTcpPort = [
         name        : "domoticzTcpPort",
         type        : "number",
-        title       : "What is your Domoticz Server TCP Port?",
+        title       : "Local Domoticz TCP Port",
         defaultValue: "8080"
     ]
 
     def inputProtocol = [
         name        : "domoticzProtocol",
         type        : "enum",
-        title       : "What type of devices do you want to add?",
+        title       : "Devices you want to add",
         options	    : ["ALL", "Blinds", "On/Off"],
         defaultValue: "ALL"
     ]
@@ -203,17 +204,13 @@ private def setupDomoticz() {
         title       : "Configure Domoticz Server",
         nextPage    : "setupMenu",
         install     : false,
-        uninstall   : state.installed
+        uninstall   : false
     ]
 
     return dynamicPage(pageProperties) {
-      section("Enter IP, Port and Device SwitchType") {
-          	paragraph textPara1
+      section {
             input inputIpAddress
             input inputTcpPort
-            }
-      section("Device SwitchTypes") {
-            paragraph "Domoticz SwitchType devices"
 	        input inputProtocol
         	}
     }
@@ -234,7 +231,7 @@ private def setupTestConnection() {
         title       : "Test Domoticz Connection",
         nextPage    : "setupActionTest",
         install     : false,
-        uninstall   : state.installed
+        uninstall   : false
     ]
 
     return dynamicPage(pageProperties) {
@@ -254,7 +251,7 @@ private def setupActionTest() {
         title       : "Domoticz Connection Test",
         nextPage    : "setupMenu",
         install     : false,
-        uninstall   : state.installed
+        uninstall   : false
     ]
 
     
@@ -314,10 +311,10 @@ private def setupListDevices() {
 
     def pageProperties = [
         name        : "setupListDevices",
-        title       : "Installed Devices",
+        title       : "Connected Devices idx - name",
         nextPage    : "setupMenu",
         install     : false,
-        uninstall   : state.setup.installed
+        uninstall   : false
     ]
 
     if (state.devices.size() == 0) {
@@ -331,9 +328,6 @@ private def setupListDevices() {
     def switches = getDeviceListAsText('switch')
     return dynamicPage(pageProperties) {
         section {
-            paragraph "Tap Done to continue."
-        }
-        section("Switches") {
             paragraph switches
         }
     }
