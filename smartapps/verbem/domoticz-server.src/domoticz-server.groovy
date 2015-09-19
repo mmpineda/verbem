@@ -1,4 +1,4 @@
-/**
+/*
  *  Domoticz (server)
  *
  *  Copyright 2015 Martin Verbeek
@@ -75,6 +75,7 @@ private def setupInit() {
     state.setup = [:]
     state.setup.installed = false
     state.devices = [:]
+    
     subscribe(location, null, onLocation, [filterEvents:false])
 
     return setupWelcome()
@@ -474,7 +475,7 @@ private def getDeviceListAsText(type) {
         if (v.type == type) {
             def dev = getChildDevice(v.dni)
             if (dev) {
-                s += "${k} - ${dev.displayName}\n"
+                s += "${k.padLeft(4)} - ${dev.displayName}\n"
             }
         }
     }
@@ -536,6 +537,14 @@ def domoticz_on(nid) {
 }
 
 /*-----------------------------------------------------------------------------------------*/
+/*		Excecute 'toggle' command on behalf of child device
+/*-----------------------------------------------------------------------------------------*/
+def domoticz_toggle(nid) {
+	TRACE("domoticz toggle(${nid})")
+    socketSend("toggle", nid, 16)
+}
+
+/*-----------------------------------------------------------------------------------------*/
 /*		Excecute 'stop' command on behalf of child device
 /*-----------------------------------------------------------------------------------------*/
 def domoticz_stop(nid) {
@@ -567,6 +576,9 @@ private def socketSend(message, addr, level) {
 			break;
         case "off":
         	rooPath = "/json.htm?type=command&param=switchlight&idx=${addr}&switchcmd=Off"
+            break;
+        case "toggle":
+        	rooPath = "/json.htm?type=command&param=switchlight&idx=${addr}&switchcmd=Toggle"
             break;
         case "on":
         	rooPath = "/json.htm?type=command&param=switchlight&idx=${addr}&switchcmd=On"
