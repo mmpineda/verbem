@@ -557,7 +557,8 @@ def domoticz_stop(nid) {
 /*-----------------------------------------------------------------------------------------*/
 def domoticz_setlevel(nid, xLevel) {
 	TRACE("domoticz setlevel(${nid})")
-    socketSend("setlevel", nid, xLevel)
+    if (xLevel.toInteger() == 0) {socketSend("off", nid, 0)}
+    else {socketSend("on", nid, xLevel)}
 }
 
 /*-----------------------------------------------------------------------------------------*/
