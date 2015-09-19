@@ -33,38 +33,40 @@ metadata {
         command "stop"
     }
 
-    tiles {
-	    
-        valueTile("Status", "device.status", width:3, height:1, inactiveLabel:false, canChangeIcon: true) {
-            state "default", label:'${currentValue}', inactiveLabel:false
-            state "Open", label:" Open ", backgroundColor:"#19f028"
-            state "Off", label:" Open ", backgroundColor:"#19f028"
-            state "Stopped", label:"Stopped", backgroundColor:"#11A81C"
-            state "Closed", label:"Closed",  backgroundColor:"#08540E"
-            state "On", label:"Closed",  backgroundColor:"#08540E"
+    tiles (scale: 2) {
+	    multiAttributeTile(name:"richDomoticzBlind", type:"generic",  width:6, height:4, canChangeIcon: true) {
+        	tileAttribute("device.status", key: "PRIMARY_CONTROL") {
+                attributeState "default", label:'${currentValue}', inactiveLabel:false
+                attributeState "Open", label:" Open ", backgroundColor:"#19f028"
+                attributeState "Off", label:" Open ", backgroundColor:"#19f028"
+                attributeState "Stopped", label:"Stopped", backgroundColor:"#11A81C"
+                attributeState "Closed", label:"Closed",  backgroundColor:"#08540E"
+                attributeState "On", label:"Closed",  backgroundColor:"#08540E"
+            }
         }
+ 
         
-        standardTile("open", "device.switch", inactiveLabel:false, decoration:"flat") {
+        standardTile("open", "device.switch", inactiveLabel:false, decoration:"flat", width:2, height:2) {
             state "default", label:'Open', icon:"st.doors.garage.garage-opening",
                 action:"open"
         }
 
-        standardTile("stop", "device.switch", inactiveLabel:false, decoration:"flat") {
+        standardTile("stop", "device.switch", inactiveLabel:false, decoration:"flat", width:2, height:2) {
             state "default", label:'Stopped/My', icon:"st.doors.garage.garage-open",
                 action:"stop"
         }
 
-        standardTile("close", "device.switch", inactiveLabel:false, decoration:"flat") {
+        standardTile("close", "device.switch", inactiveLabel:false, decoration:"flat", width:2, height:2) {
             state "default", label:'Close', icon:"st.doors.garage.garage-closing",
                 action:"close"
         }
 
-        standardTile("debug", "device.motion", inactiveLabel: false, decoration: "flat") {
+        standardTile("debug", "device.motion", inactiveLabel: false, decoration: "flat", width:2, height:2) {
             state "default", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
         }
 
-        main(["Status"])
-        details(["Status", "open", "stop", "close", "debug"])
+        main(["richDomoticzBlind"])
+        details(["richDomoticzBlind", "open", "stop", "close", "debug"])
 
     }    
 }

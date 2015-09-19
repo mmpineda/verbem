@@ -29,41 +29,34 @@ metadata {
     definition (name:"domoticzOnOff", namespace:"verbem", author:"Martin Verbeek") {
         capability "Actuator"
         capability "Switch"
+        capability "Switch Level"
         capability "Refresh"
         capability "Polling"
-
-        // custom attributes
-        attribute "networkId", "string"
-
+        
         // custom commands
         command "parse"     // (String "<attribute>:<value>[,<attribute>:<value>]")
-       	command "setlevel"
+       	command "setLevel"
+        command "toggle"
     }
 
-    tiles {
-        standardTile("switch", "device.switch", width:2, height:2, canChangeIcon:true) {
-		    state "off", label:'Off', icon:"st.switches.switch.off", backgroundColor:"#ffffff",
-		        action:"switch.on" //, nextState:"on"
-		    state "on", label:'On', icon:"st.switches.switch.on", backgroundColor:"#79b821",
-		        action:"switch.off" //, nextState:"off"
-        }
-		
-        controlTile("levelSliderControl", "device.level", "slider", height: 1,
-          	width: 3, inactiveLabel: false, range:"(0..16)") {
-            state "level", action:"setlevel"   
+    tiles(scale:2) {
+    	multiAttributeTile(name:"richDomoticzOnOff", type:"lighting",  width:6, height:4, canChangeIcon: true) {
+        	tileAttribute("device.switch", key: "PRIMARY_CONTROL") {
+                attributeState "off", label:'Off', icon:"st.switches.switch.off", backgroundColor:"#ffffff", action:"switch.on"
+                attributeState "on", label:'On', icon:"st.switches.switch.on", backgroundColor:"#79b821", action:"switch.off"
+            }
+            tileAttribute("device.level", key: "SLIDER_CONTROL", range:"0..16") {
+            	attributeState "level", action:"setLevel" 
+            }
         }
         
-        valueTile("networkId", "device.networkId", decoration:"flat", inactiveLabel:false) {
-            state "default", label:'${currentValue}', inactiveLabel:false
-        }
-
-        standardTile("debug", "device.motion", inactiveLabel: false, decoration: "flat") {
+        standardTile("debug", "device.motion", inactiveLabel: false, decoration: "flat", width:2, height:2) {
             state "default", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
         }
 
-        main(["switch"])
+        main(["richDomoticzOnOff"])
         
-        details(["switch", "levelSliderControl", "networkId", "debug"])
+        details(["richDomoticzOnOff", "debug"])
 
         simulator {
             // status messages
@@ -121,6 +114,15 @@ def on() {
     }
 }
 
+// switch.toggle() command handler
+def toggle() {
+
+    if (parent) {
+        TRACE("toggle() ${device.deviceNetworkId}")
+        parent.domoticz_toggle(getIDXAddress())
+    }
+}
+
 // switch.off() command handler
 def off() {
 
@@ -131,10 +133,10 @@ def off() {
 }
 
 // Custom setlevel() command handler
-def setlevel(level) {
+def setLevel(level) {
     
     if (parent) {
-        TRACE("setlevel()" + level)
+        TRACE("setlevel() " + level)
         parent.domoticz_setlevel(getIDXAddress(), level)
     }
 }
