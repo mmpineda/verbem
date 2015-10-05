@@ -1,0 +1,430 @@
+/**
+ *  Smart Screens
+ *
+ *  Copyright 2015 Martin Verbeek
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ *  in compliance with the License. You may obtain a copy of the License at:
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
+ *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
+ *  for the specific language governing permissions and limitations under the License.
+ *
+ *
+ *	App is using forecast.io to get conditions for your location, you need to get an APIKEY
+ * 	from developer.forecast.io and your longitude and latitude is being pulled from the location object
+ *  position of the sun is from JSON return at sunpath.azurewebsites.net/api/sunpath/latitude/longitude
+ *
+ *	Select the blinds you want to configure (it will use commands Open/Stop/Close) so they need to be on the device.
+ *  Select the position they are facing (North-East-South-West) or multiple...these are the positions that they will need protection from wind or sun
+ *  WindForce protection Select condition to Close or to Open (Shutters you may want to close when lots of wind, sunscreens you may want to Open
+ *  cloudCover percentage is the condition to Close (Sun is shining into your room)
+ *  Select interval to check conditions
+ * 
+ */
+
+import groovy.json.*
+
+definition(
+    name: "Smart Screens",
+    namespace: "verbem",
+    author: "Martin Verbeek",
+    description: "Automate Open and Close of Sun Screens, Blinds and Shutters based on Weather Conditions",
+    category: "Convenience",
+    iconUrl: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience.png",
+    iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png",
+    iconX3Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png")
+
+
+preferences {
+    page name:"pageSetupForecastIO"
+    page name:"pageConfigureBlinds"
+}
+
+def pageSetupForecastIO() {
+    TRACE("pageSetupForecastIO()")
+
+    //if (state.version != getVersion()) {
+    //    return setupInit() ? pageAbout() : pageUninstall()
+    //}
+    
+    def pageSetupLatitude = location.latitude.toString()
+    def pageSetupLongitude = location.longitude.toString()
+	
+    log.info getSunpath()
+    
+    def pageSetupAPI = [
+        name:       "pageSetupAPI",
+        type:       "string",
+        title:      "ForecastAPI key",
+        multiple:   false,
+        required:   true
+    	]
+        
+    def inputBlinds = [
+        name:       "z_blinds",
+        type:       "capability.switch",
+        title:      "Which blinds/screens/shutters?",
+        multiple:   true,
+        required:   false
+    ] 
+    
+    def pageProperties = [
+        name:       "pageSetupForecastIO",
+        //title:      "Status",
+        nextPage:   null,
+        install:    true,
+        uninstall:  true
+    ]
+
+
+    def inputWindForceMetric = [
+        name:       "z_windForceMetric",
+        type:       "enum",
+        options:	["mph", "km/h"],
+        title:      "Select wind metric system",
+        multiple:   false,
+        required:   true
+    ]
+    
+        def inputTRACE = [
+        name:       "z_TRACE",
+        type:       "bool",
+        default:	false,
+        title:      "Put out trace log",
+        multiple:   false,
+        required:   true
+    ]
+    
+    return dynamicPage(pageProperties) {
+
+        section("ForecastIO API and API Website") {
+            input pageSetupAPI
+
+        	href(name: "hrefNotRequired",
+             title: "ForecastIO APi page",
+             required: false,
+             style: "external",
+             url: "https://developer.forecast.io/",
+             description: "tap to view ForecastIO website in mobile browser")
+
+		}
+        
+        section("Setup Menu") {
+            input inputBlinds
+
+            if(inputBlinds) {
+                    href "pageConfigureBlinds", title:"Configure Blinds", description:"Tap to open"
+                    input inputWindForceMetric
+                }
+        }
+        section([title:"Options", mobileOnly:true]) {
+            label title:"Assign a name", required:false
+            input inputTRACE
+        }
+    }
+}
+
+/*-----------------------------------------------------------------------*/
+// Show Configure Blinds Page
+/*-----------------------------------------------------------------------*/
+
+def pageConfigureBlinds() {
+    TRACE("pageConfigureBlinds()")
+
+def pageProperties = [
+        name:       "pageConfigureBlinds",
+        title:      "Configure Blinds",
+        nextPage:   "pageSetupForecastIO",
+        uninstall:  false
+    ]
+
+    return dynamicPage(pageProperties) {
+        z_blinds.each {
+        	def devId = it.id
+            section(it.name) 
+            	{           	
+                input 	"z_blindsOrientation_${devId}", "enum", options:["N", "NW", "W", "SW", "S", "SE", "E", "NE"],title:"Select Relevent Orientation",multiple:true,required:true  
+                input	"z_windForceCloseMax_${devId}","number",title:"Allow closing under which windforce ${z_windForceMetric}",multiple:false,required:false,default:0                 
+                input 	"z_cloudCover_${devId}","enum",title:"Close under cloudcover% (0=clear sky)", options:	["10","20","30","40","50","60","70","80","90","100"],multiple:false,required:false,default:30                
+                input 	"z_windForceCloseMin_${devId}","number",title:"Force close above which windforce ${z_windForceMetric}",multiple:false,required:false,default:999                     
+                }
+        }
+    }
+}
+def installed() {
+	TRACE("Installed with settings: ${settings}")
+
+	initialize()
+}
+
+def updated() {
+	TRACE("Updated with settings: ${settings}")
+
+	unsubscribe()
+	initialize()
+}
+
+def initialize() {
+	
+    state.sunBearing = ""
+    state.windBearing = ""
+    state.windSpeed = 0
+    state.cloudCover = 100
+        
+    subscribe(location, "sunset", stopSunpath,  [filterEvents:true])
+    subscribe(location, "sunrise", startSunpath,  [filterEvents:true])
+    
+    checkForWind()
+    checkForSun()
+    
+    runEvery1Hour(checkForSun)
+    runEvery10Minutes(checkForWind)
+}
+
+def handlerLocation(evt) {
+	TRACE("handlerLocation")
+
+}
+
+/*-----------------------------------------------------------------------------------------*/
+/*	This routine will get information relating to the weather at location and current time
+/*-----------------------------------------------------------------------------------------*/
+def getForecastIO() {
+
+    TRACE("getForecastIO for Lon:${location.longitude} Lat:${location.latitude}")
+	TRACE("/forecast/${pageSetupAPI}/${location.latitude},${location.longitude}")
+    def units = "si"
+    if (settings.z_windForceMetric == "mph") {units = "us"}
+    def params = [
+        uri: "https://api.forecast.io",
+        path: "/forecast/${pageSetupAPI}/${location.latitude},${location.longitude}",
+        entType: "application/json", 
+        query: ["units" : units, "exclude" : "minutely,hourly,daily,alerts,flags"]
+    ]
+
+    try {
+        httpGet(params) { resp ->
+       
+            TRACE(resp.data.timezone)
+            TRACE(resp.data.currently)
+            return ["windBearing" : calcBearing(resp.data.currently.windBearing), "windSpeed" : resp.data.currently.windSpeed, "cloudCover" : resp.data.currently.cloudCover]
+        	}
+    	} 
+        catch (e) {
+        	log.error "something went wrong: $e"
+            return ["windBearing" : "not found", "windSpeed" : "not found", "cloudCover" : "not found"]
+    	}
+}
+
+/*-----------------------------------------------------------------------------------------*/
+/*	This routine will get information relating to the SUN´s position
+/*-----------------------------------------------------------------------------------------*/
+def getSunpath() {
+
+    TRACE("getSunpath")
+
+    def params = [
+        uri: "http://sunpath.azurewebsites.net",
+        path: "/api/values/${location.latitude}/${location.longitude}/1/2"
+    ]
+
+    try {
+        httpGet(params) { resp ->
+        
+            TRACE("Zenith: ${resp.data.zenith} Azimuth: ${resp.data.azimuth}")
+
+            def azimuth = resp.data.azimuth as int 
+            return calcBearing(azimuth)
+	    	} 
+    	
+    	} catch (e) {
+        log.error "something went wrong: $e"
+        return "not found"
+		}
+}
+
+/*-----------------------------------------------------------------------------------------*/
+/*	This is a scheduled event that will get latest SUN related info on position
+/*	and will check the blinds that provide sun protection if they need to be closed or opened
+/*-----------------------------------------------------------------------------------------*/
+def checkForSun(evt) {
+
+TRACE("checkForSun")
+state.sunBearing = getSunpath()
+
+settings.z_blinds.each {
+
+	String findID = it.id
+    def blindParams = [:]
+    
+    /*-----------------------------------------------------------------------------------------*/
+    /*	SUN Fill the blindParams MAP object 
+	/*-----------------------------------------------------------------------------------------*/    
+    settings.each {
+            if(it.key == "z_blindsOrientation_${findID}") { blindParams.blindsOrientation = it.value }
+            if(it.key == "z_windForceCloseMax_${findID}") { blindParams.windForceCloseMax = it.value }
+            if(it.key == "z_windForceCloseMin_${findID}") { blindParams.windForceCloseMin = it.value }
+            if(it.key == "z_cloudCover_${findID}") { blindParams.cloudCover = it.value }
+            }
+            
+	/*-----------------------------------------------------------------------------------------*/
+    /*	SUN determine if we need to close or open again if cloudcover above defined
+    /*		Only if SUN is in position to shine nto the blinds
+    /*		Only if windspeed is below defined point (above it may damage sun screens)
+    /*			this is only needed if direction of wind is on the screens
+    /*	 
+    /*-----------------------------------------------------------------------------------------*/                 
+    if(blindParams.blindsOrientation.contains(state.sunBearing)) {
+        TRACE("Relevent Sunbearing ${state.sunBearing} for ${it.name} ")
+        
+        if(blindParams.cloudCover.toInteger() > state.cloudCover.toInteger()) {
+            TRACE("Relevent cloudCover ${state.cloudCover.toInteger()}% for ${it.name} ")
+            
+            if(blindParams.windForceCloseMax.toInteger() > state.windSpeed.toInteger()) {
+            
+            	if(blindParams.blindsOrientation.contains(state.windBearing)) {
+                	TRACE("Wind is below allowed windSpeed(${state.windSpeed.toInteger()} ${settings.z_windForceMetric}), status ${it.currentStatus}")
+                    if(["OFF", "Off", "Open"].contains(it.currentStatus)) {
+                        TRACE("Wind is below allowed windSpeed(${state.windSpeed.toInteger()} ${settings.z_windForceMetric}), closing ${it.name}")
+                        it.stop()
+                        }
+                	}
+                }
+            else {
+					if(["OFF", "Off", "Open"].contains(it.currentStatus)) {
+                        TRACE("Wind is not relevant (${state.windSpeed.toInteger()} ${settings.z_windForceMetric}), closing ${it.name}")
+                        it.stop()
+                        }            	
+            	}
+            }
+        else {
+                TRACE("Above defined cloudCover(${state.cloudCover.toInteger()}), opening ${it.name}")
+                //it.open()
+        	}
+    	}
+    }
+
+return null
+}
+
+/*-----------------------------------------------------------------------------------------*/
+/*	This is a scheduled event that will get latest WIND related info on position
+/*	and will check the blinds if they need to be closed or can be opened
+/*-----------------------------------------------------------------------------------------*/
+def checkForWind(evt) {
+
+def windParms = getForecastIO()
+state.windBearing = windParms.windBearing
+state.windSpeed = windParms.windSpeed
+if (settings.z_windForceMetric == "km/h") {state.windSpeed = windParms.windSpeed * 3.6}
+state.cloudCover = windParms.cloudCover * 100
+
+TRACE("checkForWind Bearing: ${state.windBearing} Speed: ${state.windSpeed} ${settings.z_windForceMetric} Cloudcover: ${state.cloudCover} ")
+
+settings.z_blinds.each {
+
+	String findID = it.id
+    def blindParams = [:]
+    
+    /*-----------------------------------------------------------------------------------------*/
+    /*	WIND Fill the blindParams MAP object 
+	/*-----------------------------------------------------------------------------------------*/          
+    settings.each {
+            if(it.key == "z_blindsOrientation_${findID}") { blindParams.blindsOrientation = it.value }
+            if(it.key == "z_windForceCloseMax_${findID}") { blindParams.windForceCloseMax = it.value }
+            if(it.key == "z_windForceCloseMin_${findID}") { blindParams.windForceCloseMin = it.value }
+            if(it.key == "z_cloudCover_${findID}") { blindParams.cloudCover = it.value }
+            }
+            
+	/*-----------------------------------------------------------------------------------------*/
+    /*	WIND determine if we need to close (or OPEN if wind speed is above allowed max for blind)
+    /*-----------------------------------------------------------------------------------------*/      
+    if(blindParams.blindsOrientation.contains(state.windBearing)) {
+        TRACE("Relevent Windbearing ${state.windBearing} for ${it.name} ")
+        if(blindParams.windForceCloseMin.toInteger() < state.windSpeed.toInteger()) {
+            TRACE("Above force closing windSpeed(${state.windSpeed.toInteger()} ${settings.z_windForceMetric}), status ${it.currentStatus}")
+            if(["OFF", "Off", "Open"].contains(it.currentStatus)) {
+            	TRACE("Above force closing windSpeed(${state.windSpeed.toInteger()} ${settings.z_windForceMetric}), closing ${it.name}")
+            	it.close()
+                }
+        	}
+        if(blindParams.windForceCloseMax.toInteger() < state.windSpeed.toInteger()) {
+            TRACE("Above allowed windSpeed(${state.windSpeed.toInteger()}${settings.z_windForceMetric}), status ${it.currentStatus}")
+            if(["ON", "On", "Closed", "Stopped"].contains(it.currentStatus)) {
+            	TRACE("Above allowed windSpeed(${state.windSpeed.toInteger()} ${settings.z_windForceMetric}), opening ${it.name}")
+            	it.open()
+                }
+        	}
+    	}
+    }
+
+return null
+}
+
+/*-----------------------------------------------------------------------------------------*/
+/*	this will stop the scheduling of events called at SUNSET
+/*-----------------------------------------------------------------------------------------*/
+def stopSunpath(evt) {
+	TRACE("Stop Scheduling")
+	unschedule(checkForSun)
+    unschedule(checkForWind)
+	return null
+}
+
+/*-----------------------------------------------------------------------------------------*/
+/*	this will start the scheduling of events called at SUNRISE
+/*-----------------------------------------------------------------------------------------*/
+def startSunpath(evt) {
+	TRACE("start Scheduling")
+	runEvery1Hour(checkForSun)
+    runEvery10Minutes(checkForWind)
+	return null
+}
+
+/*-----------------------------------------------------------------------------------------*/
+/*	this routine will return the wind or sun direction
+/*-----------------------------------------------------------------------------------------*/
+private def calcBearing(degree) {
+
+        switch (degree) {
+        case 0..23:
+            return "N"
+            break;
+        case 23..68:
+            return "NE"
+            break;
+        case 68..113:
+            return "E"
+            break;
+        case 113..158:
+            return "SE"
+            break;
+        case 158..203:
+            return "S"
+            break;
+        case 203..248:
+            return "SW"
+            break;
+        case 248..293:
+            return "W"
+            break;
+        case 293..338:
+            return "NW"
+            break;
+        case 338..360:
+            return "N"
+            break;
+		default :
+        	return "not found"
+        	break;
+        } 
+ 
+}
+private def TRACE(message) {
+
+if(settings.z_TRACE) {log.trace message}
+
+}
