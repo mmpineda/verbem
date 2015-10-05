@@ -161,7 +161,6 @@ private def setupMenu() {
         }
         section([title:"Options", mobileOnly:true]) {
             label title:"Assign a name", required:false
-            //mode title:"Set for specific mode(s)", required:false
         }
         section("About") {
             paragraph "${app.name}. ${textVersion()}\n${textCopyright()}"
