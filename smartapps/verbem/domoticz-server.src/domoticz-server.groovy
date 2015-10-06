@@ -228,7 +228,7 @@ private def setupTestConnection() {
 
     def pageProperties = [
         name        : "setupTestConnection",
-        title       : "Test Domoticz Connection",
+        title       : "Add Domoticz Devices?",
         nextPage    : "setupActionTest",
         install     : false,
         uninstall   : false
@@ -248,7 +248,7 @@ private def setupActionTest() {
 
     def pageProperties = [
         name        : "setupActionTest",
-        title       : "Domoticz Connection Test",
+        title       : "Adding Devices",
         nextPage    : "setupMenu",
         install     : false,
         uninstall   : false
