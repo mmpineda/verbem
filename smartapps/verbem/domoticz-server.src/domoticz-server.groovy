@@ -199,6 +199,13 @@ private def setupDomoticz() {
         defaultValue: "ALL"
     ]
 
+    def inputTrace = [
+        name        : "domoticzTrace",
+        type        : "bool",
+        title       : "Debug trace output in IDE log",
+        defaultValue: true
+    ]
+
     def pageProperties = [
         name        : "setupDomoticz",
         title       : "Configure Domoticz Server",
@@ -212,6 +219,7 @@ private def setupDomoticz() {
             input inputIpAddress
             input inputTcpPort
 	        input inputProtocol
+            input inputTrace
         	}
     }
 }
@@ -503,12 +511,14 @@ private def textCopyright() {
 }
 
 private def TRACE(message) {
-    //log.debug message
+    if(domoticzTrace) {log.debug message}
 }
 
 private def STATE() {
-    //log.debug "state: ${state}"
-    //log.debug "settings: ${settings}"
+	if(domoticzTrace) {
+    	log.debug "state: ${state}"
+    	log.debug "settings: ${settings}"
+        }
 }
 
 
