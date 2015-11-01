@@ -351,6 +351,8 @@ def onLocation(evt) {
     try {
         def header = new String(hMap.headers.decodeBase64())
     } catch (e) {
+        log.error "Error in decodeBase64 of Header. Error: ${e}"
+        log.error description
         return
     }
     
