@@ -356,11 +356,12 @@ def onLocation(evt) {
     
     def lstDomoticz = []
     def body = new String(hMap.body.decodeBase64())
-    def statusrsp = new JsonSlurper().parseText(body) 
+    def statusrsp = new JsonSlurper().parseText(body)
+     
     statusrsp = statusrsp.result
     statusrsp.each 
     	{ 
-        	TRACE ("${it.SwitchType} ${it.Name} ${it.Status}")
+        	TRACE("${it.SwitchType} ${it.Name} ${it.Status}")
             if (it.SwitchType == domoticzProtocol || domoticzProtocol == "ALL") 
             {
                 lstDomoticz.add(it.Name)
@@ -575,43 +576,54 @@ def domoticz_setlevel(nid, xLevel) {
 /*-----------------------------------------------------------------------------------------*/
 private def socketSend(message, addr, level) {
 	def rooPath = ""
+    def rooLog = ""
     TRACE("IDX = ${addr}") 
     
 	switch (message) {
 		case "list":
-        	rooPath = "/json.htm?type=devices&filter=all&used=true&order=Name"
+        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings List Devices"
+        	rooPath = "/json.htm?type=devices&filter=light&used=true&order=Name"
  			break;
 		case "status":
+        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings Status for ${addr}"
 			rooPath = "/json.htm?type=devices&rid=${addr}"
 			break;
         case "off":
+        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings Off for ${addr}"
         	rooPath = "/json.htm?type=command&param=switchlight&idx=${addr}&switchcmd=Off"
             break;
         case "toggle":
+        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings Toggle for ${addr}"
         	rooPath = "/json.htm?type=command&param=switchlight&idx=${addr}&switchcmd=Toggle"
             break;
         case "on":
+        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings On for ${addr}"
         	rooPath = "/json.htm?type=command&param=switchlight&idx=${addr}&switchcmd=On"
             break;
         case "stop":
+        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings Stop for ${addr}"
         	rooPath = "/json.htm?type=command&param=switchlight&idx=${addr}&switchcmd=Stop"
             break;
         case "setlevel":
+        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings Level ${level} for ${addr}"
         	rooPath = "/json.htm?type=command&param=switchlight&idx=${addr}&switchcmd=On,level=${level}"
             break;
 	}
-    
-    try {
-       	def hubAction = new physicalgraph.device.HubAction(
-            method: "GET",
-            path: rooPath,
-            headers: [HOST: "${domoticzIpAddress}:${domoticzTcpPort}"])
-       	sendHubCommand(hubAction)
-    }
-    catch (Exception e) {
-    	log.error "socketSend ERROR"
-        sendPush("Hit Exception $e on $hubAction")
-    }
+    /*
+    def hubActionLog = new physicalgraph.device.HubAction(
+        method: "GET",
+        path: rooLog,
+        headers: [HOST: "${domoticzIpAddress}:${domoticzTcpPort}"])
+
+    sendHubCommand(hubActionLog)
+	*/
+    def hubAction = new physicalgraph.device.HubAction(
+        method: "GET",
+        path: rooPath,
+        headers: [HOST: "${domoticzIpAddress}:${domoticzTcpPort}"])
+
+    sendHubCommand(hubAction)
+	
 }
 /*-----------------------------------------------------------------------------------------*/
 /*		Domotics will send an event message to ST for all devices THAT HAVE BEEN SELECTED to do that
