@@ -581,42 +581,42 @@ private def socketSend(message, addr, level) {
     
 	switch (message) {
 		case "list":
-        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings List Devices"
+        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20ListDevices"
         	rooPath = "/json.htm?type=devices&filter=light&used=true&order=Name"
  			break;
 		case "status":
-        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings Status for ${addr}"
+        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20Status%20for%20${addr}"
 			rooPath = "/json.htm?type=devices&rid=${addr}"
 			break;
         case "off":
-        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings Off for ${addr}"
+        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20Off%20for%20${addr}"
         	rooPath = "/json.htm?type=command&param=switchlight&idx=${addr}&switchcmd=Off"
             break;
         case "toggle":
-        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings Toggle for ${addr}"
+        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20Toggle%20for%20${addr}"
         	rooPath = "/json.htm?type=command&param=switchlight&idx=${addr}&switchcmd=Toggle"
             break;
         case "on":
-        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings On for ${addr}"
+        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20On%20for%20${addr}"
         	rooPath = "/json.htm?type=command&param=switchlight&idx=${addr}&switchcmd=On"
             break;
         case "stop":
-        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings Stop for ${addr}"
+        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20Stop%20for%20${addr}"
         	rooPath = "/json.htm?type=command&param=switchlight&idx=${addr}&switchcmd=Stop"
             break;
         case "setlevel":
-        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings Level ${level} for ${addr}"
+        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20Level%20${level}%20for%20${addr}"
         	rooPath = "/json.htm?type=command&param=switchlight&idx=${addr}&switchcmd=On,level=${level}"
             break;
 	}
-    /*
+    
     def hubActionLog = new physicalgraph.device.HubAction(
         method: "GET",
         path: rooLog,
         headers: [HOST: "${domoticzIpAddress}:${domoticzTcpPort}"])
 
     sendHubCommand(hubActionLog)
-	*/
+	
     def hubAction = new physicalgraph.device.HubAction(
         method: "GET",
         path: rooPath,
