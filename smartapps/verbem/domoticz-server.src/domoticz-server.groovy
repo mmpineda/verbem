@@ -51,6 +51,8 @@ mappings {
 /*-----------------------------------------------------------------------------------------*/
 private def setupInit() {
     TRACE("setupInit()")
+    unsubscribe()
+    subscribe(location, null, onLocation, [filterEvents:false])
     /*-------------------------------------------------------------------------------------*/
     /* get oAUTH token which you need to plug in Domoticz Notifications system
     /* to do this go to domotics Setup / settings / notifications and add it to the HTTP 
@@ -64,6 +66,7 @@ private def setupInit() {
     /* look in domoticz under switches and in every switch you will see the notifications 
     /*
     /*-------------------------------------------------------------------------------------*/
+
     if (!state.accessToken) {
         initRestApi()
     }
@@ -76,8 +79,6 @@ private def setupInit() {
     state.setup.installed = false
     state.devices = [:]
     
-    subscribe(location, null, onLocation, [filterEvents:false])
-
     return setupWelcome()
 }
 /*-----------------------------------------------------------------------------------------*/
@@ -361,7 +362,7 @@ def onLocation(evt) {
     statusrsp = statusrsp.result
     statusrsp.each 
     	{ 
-        	TRACE("${it.SwitchType} ${it.Name} ${it.Status}")
+        	log.info("${it.SwitchType} ${it.Name} ${it.Status}")
             if (it.SwitchType == domoticzProtocol || domoticzProtocol == "ALL") 
             {
                 lstDomoticz.add(it.Name)
@@ -392,6 +393,7 @@ private def initialize() {
     STATE()
 
 	// Subscribe to location events with filter disabled
+    TRACE ("Subcribe to Location")
     subscribe(location, null, onLocation, [filterEvents:false])
 
     state.setup.installed = true
@@ -451,12 +453,16 @@ private def addSwitch(addr, passedFile, passedName, passedStatus) {
 private def updateDeviceList() {
     TRACE("updateDeviceList()")
 
-    state.devices.each { k,v ->
-        if (!getChildDevice(v.dni)) {
-            TRACE("Removing deleted device ${v.dni}")
-            state.devices.remove(k)
+    /* avoid ConcurrentModificationException that will happen */
+     
+    try {
+        state.devices.each { k,v ->
+            if (!getChildDevice(v.dni)) {
+                TRACE("Removing deleted device ${v.dni}")
+                state.devices.remove(k)
+            }
         }
-    }
+    } catch (e) {TRACE(e)}
 
     // refresh all devices
     def devices = getChildDevices()
