@@ -348,18 +348,27 @@ def onLocation(evt) {
 	log.info "evt.source ${evt.source}"
 
     def description = evt.description
+    log.info "description : " + description
     def hMap = stringToMap(description)
+    log.info "hmap : " + hMap
     try {
         def header = new String(hMap.headers.decodeBase64())
     } catch (e) {
         return
     }
     
+    log.info "header : " + header
+
     def lstDomoticz = []
     def body = new String(hMap.body.decodeBase64())
+    log.info "body : " + body
+
     def statusrsp = new JsonSlurper().parseText(body)
-     
+    log.info "statusrsp : " + statusrsp
+    
     statusrsp = statusrsp.result
+    log.info "statusrsp result : " + statusrsp
+    
     statusrsp.each 
     	{ 
         	log.info("${it.SwitchType} ${it.Name} ${it.Status}")
