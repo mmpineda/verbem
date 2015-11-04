@@ -464,11 +464,12 @@ private def updateDeviceList() {
         }
     } catch (e) {TRACE(e)}
 
-    // refresh all devices
+    /* refresh all devices
     def devices = getChildDevices()
     devices?.each {
         it.refresh()
     }
+    */
 }
 
 private def getDeviceMap() {
