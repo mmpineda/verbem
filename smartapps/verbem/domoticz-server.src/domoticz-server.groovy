@@ -405,6 +405,12 @@ private def initialize() {
     TRACE ("Subcribe to Location")
     subscribe(location, null, onLocation, [filterEvents:false])
 
+    if (state.accessToken) {
+        def url = getApiServerUrl() - ":443" + "/api/smartapps/installations/${app.id}/" + "EventDomoticz?access_token=" + state.accessToken + "&message=#MESSAGE"
+        log.info url
+        state.urlCustomActionHttp = url
+	}
+
     state.setup.installed = true
     state.networkId = settings.domoticzIpAddress + ":" + settings.domoticzTcpPort
     updateDeviceList()
@@ -679,7 +685,9 @@ private def initRestApi() {
             def token = createAccessToken()
             TRACE("Created new access token: ${token}")
         }
-        state.url = "https://graph.api.smartthings.com/api/smartapps/installations/${app.id}/"
-        log.info "https://graph.api.smartthings.com/api/smartapps/installations/${app.id}/"
+        def url = getApiServerUrl() - ":443" + "/api/smartapps/installations/${app.id}/" + "EventDomoticz?access_token=" + state.accessToken + "&message=#MESSAGE"
+        log.info url
+        state.urlCustomActionHttp = url
+
 }
 //-----------------------------------------------------------
