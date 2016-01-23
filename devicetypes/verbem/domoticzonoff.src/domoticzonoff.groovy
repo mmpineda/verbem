@@ -43,7 +43,13 @@ metadata {
     	multiAttributeTile(name:"richDomoticzOnOff", type:"lighting",  width:6, height:4, canChangeIcon: true) {
         	tileAttribute("device.switch", key: "PRIMARY_CONTROL") {
                 attributeState "off", label:'Off', icon:"st.switches.switch.off", backgroundColor:"#ffffff", action:"switch.on"
+                attributeState "Off", label:'Off', icon:"st.switches.switch.off", backgroundColor:"#ffffff", action:"switch.on"
+                attributeState "OFF", label:'Off', icon:"st.switches.switch.off", backgroundColor:"#ffffff", action:"switch.on"
+                attributeState "Turning Off", label:'Turning Off', icon:"st.switches.switch.off", backgroundColor:"#FE9A2E", action:"switch.on"
                 attributeState "on", label:'On', icon:"st.switches.switch.on", backgroundColor:"#79b821", action:"switch.off"
+                attributeState "On", label:'On', icon:"st.switches.switch.on", backgroundColor:"#79b821", action:"switch.off"
+                attributeState "ON", label:'On', icon:"st.switches.switch.on", backgroundColor:"#79b821", action:"switch.off"
+                attributeState "Turning On", label:'Turning On', icon:"st.switches.switch.on", backgroundColor:"#FE9A2E", action:"switch.off"
             }
             tileAttribute("device.level", key: "SLIDER_CONTROL", range:"0..16") {
             	attributeState "level", action:"setLevel" 
@@ -100,7 +106,6 @@ def poll() {
 def refresh() {
 
     if (parent) {
-        TRACE("refresh() ${device.deviceNetworkId}")
         parent.domoticz_poll(getIDXAddress())
     }
 }
@@ -109,7 +114,7 @@ def refresh() {
 def on() {
 
     if (parent) {
-        TRACE("on() ${device.deviceNetworkId}")
+        sendEvent(name:"switch", value:"Turning On")
         parent.domoticz_on(getIDXAddress())
     }
 }
@@ -118,7 +123,6 @@ def on() {
 def toggle() {
 
     if (parent) {
-        TRACE("toggle() ${device.deviceNetworkId}")
         parent.domoticz_toggle(getIDXAddress())
     }
 }
@@ -127,7 +131,7 @@ def toggle() {
 def off() {
 
     if (parent) {
-        TRACE("off() ${device.deviceNetworkId}")
+        sendEvent(name:"switch", value:"Turning Off")
         parent.domoticz_off(getIDXAddress())
     }
 }
@@ -136,7 +140,6 @@ def off() {
 def setLevel(level) {
     
     if (parent) {
-        TRACE("setlevel() " + level)
         parent.domoticz_setlevel(getIDXAddress(), level)
     }
 }
