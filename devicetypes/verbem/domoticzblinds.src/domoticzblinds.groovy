@@ -38,30 +38,32 @@ metadata {
         	tileAttribute("device.status", key: "PRIMARY_CONTROL") {
                 attributeState "default", label:'${currentValue}', inactiveLabel:false
                 attributeState "Open", label:" Open ", backgroundColor:"#19f028"
-                attributeState "Off", label:" Open ", backgroundColor:"#19f028"
+                attributeState "Off", label:" Open ", backgroundColor:"#19f028"	
+                attributeState "Opening", label:"Opening", backgroundColor:"#FE9A2E"
                 attributeState "Stopped", label:"Stopped", backgroundColor:"#11A81C"
                 attributeState "Closed", label:"Closed",  backgroundColor:"#08540E"
                 attributeState "On", label:"Closed",  backgroundColor:"#08540E"
+                attributeState "Closing", label:"Closing",  backgroundColor:"#FE9A2E"
             }
         }
  
         
-        standardTile("open", "device.switch", inactiveLabel:false, decoration:"flat", width:2, height:2) {
+        standardTile("open", "device.switch", inactiveLabel:false, decoration:"flat") {
             state "default", label:'Open', icon:"st.doors.garage.garage-opening",
                 action:"open"
         }
 
-        standardTile("stop", "device.switch", inactiveLabel:false, decoration:"flat", width:2, height:2) {
+        standardTile("stop", "device.switch", inactiveLabel:false, decoration:"flat") {
             state "default", label:'Stopped/My', icon:"st.doors.garage.garage-open",
                 action:"stop"
         }
 
-        standardTile("close", "device.switch", inactiveLabel:false, decoration:"flat", width:2, height:2) {
+        standardTile("close", "device.switch", inactiveLabel:false, decoration:"flat") {
             state "default", label:'Close', icon:"st.doors.garage.garage-closing",
                 action:"close"
         }
 
-        standardTile("debug", "device.motion", inactiveLabel: false, decoration: "flat", width:2, height:2) {
+        standardTile("debug", "device.motion", inactiveLabel: false, decoration: "flat") {
             state "default", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
         }
 
@@ -107,8 +109,8 @@ open()
 }
 
 def close() {
-    sendEvent(name:'status', value:"Closed" as String)
     if (parent) {
+        sendEvent(name:'status', value:"Closing" as String)
         parent.domoticz_on(getIDXAddress())
     }
 }
@@ -128,6 +130,7 @@ def poll() {
 def open() {
     sendEvent(name:'status', value:"Open" as String)
     if (parent) {
+        sendEvent(name:'status', value:"Opening" as String)
         parent.domoticz_off(getIDXAddress())
     }
 }
