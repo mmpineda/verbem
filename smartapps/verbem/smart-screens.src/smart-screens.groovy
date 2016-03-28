@@ -15,7 +15,7 @@
  *
  *	App is using forecast.io to get conditions for your location, you need to get an APIKEY
  * 	from developer.forecast.io and your longitude and latitude is being pulled from the location object
- *  position of the sun is from JSON return at sunpath.azurewebsites.net/api/sunpath/latitude/longitude
+ *  position of the sun is calculated in this app, thanks to the formaula´s of Mourner at suncalc github
  *
  *	Select the blinds you want to configure (it will use commands Open/Stop/Close) so they need to be on the device.
  *  Select the position they are facing (North-East-South-West) or multiple...these are the positions that they will need protection from wind or sun
@@ -26,6 +26,7 @@
  */
 
 import groovy.json.*
+import java.Math.*
 
 definition(
     name: "Smart Screens",
@@ -41,15 +42,12 @@ definition(
 preferences {
     page name:"pageSetupForecastIO"
     page name:"pageConfigureBlinds"
+    page name:"pageForecastIO"
 }
 
 def pageSetupForecastIO() {
     TRACE("pageSetupForecastIO()")
 
-    //if (state.version != getVersion()) {
-    //    return setupInit() ? pageAbout() : pageUninstall()
-    //}
-    
     def pageSetupLatitude = location.latitude.toString()
     def pageSetupLongitude = location.longitude.toString()
 	
@@ -120,6 +118,13 @@ def pageSetupForecastIO() {
                     input inputWindForceMetric
                 }
         }
+        
+        section("Info Page") {
+
+              href "pageForecastIO", title:"Environment Info", description:"Tap to open"
+              
+        }
+
         section([title:"Options", mobileOnly:true]) {
             label title:"Assign a name", required:false
             input inputTRACE
@@ -154,6 +159,46 @@ def pageProperties = [
         }
     }
 }
+
+/*-----------------------------------------------------------------------*/
+// Show Sun/Wind ForecastIO API last output Page
+/*-----------------------------------------------------------------------*/
+
+def pageForecastIO() {
+    TRACE("pageForecastIO()")
+    state.sunBearing = getSunpath()
+    def sc = sunCalc()
+
+def pageProperties = [
+        name:       "pageForecastIO",
+        title:      "Current Sun and Wind Info",
+        nextPage:   "pageSetupForecastIO",
+        refreshInterval: 10,
+        uninstall:  false
+    ]    
+   
+   	    return dynamicPage(pageProperties) {
+
+        section("Wind") {
+        	paragraph "Speed ${state.windSpeed}" 
+        	paragraph "Direction ${state.windBearing}"
+		}
+        
+        section("Sun") {
+            paragraph "cloud Cover ${state.cloudCover}"
+            paragraph "Direction ${state.sunBearing}"
+		}
+        
+        section("SunCalc") {
+        	paragraph "Latitude ${state.lat}"
+        	paragraph "Longitude ${state.lng}"
+            paragraph "Suncoord ${state.c}"
+            paragraph "Azimuth ${sc.azimuth}"
+            paragraph "Altitude ${sc.altitude}"
+		}
+    }
+}
+
 def installed() {
 	TRACE("Installed with settings: ${settings}")
 
@@ -225,25 +270,9 @@ def getForecastIO() {
 def getSunpath() {
 
     TRACE("getSunpath")
-
-    def params = [
-        uri: "http://sunpath.azurewebsites.net",
-        path: "/api/values/${location.latitude}/${location.longitude}/1/2"
-    ]
-
-    try {
-        httpGet(params) { resp ->
-        
-            TRACE("Zenith: ${resp.data.zenith} Azimuth: ${resp.data.azimuth}")
-
-            def azimuth = resp.data.azimuth as int 
-            return calcBearing(azimuth)
-	    	} 
-    	
-    	} catch (e) {
-        log.error "something went wrong: $e"
-        return "not found"
-		}
+    def sp = sunCalc()
+    return calcBearing(sp.azimuth)
+   
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -388,8 +417,10 @@ def startSunpath(evt) {
 /*	this routine will return the wind or sun direction
 /*-----------------------------------------------------------------------------------------*/
 private def calcBearing(degree) {
-
-        switch (degree) {
+		
+        log.trace degree.toInteger()
+	
+        switch (degree.toInteger()) {
         case 0..23:
             return "N"
             break;
@@ -428,3 +459,107 @@ private def TRACE(message) {
 if(settings.z_TRACE) {log.trace message}
 
 }
+/*-----------------------------------------------------------------------------------------*/
+/*	Return Sun Azimuth and Alitude for current Time
+/*-----------------------------------------------------------------------------------------*/
+def sunCalc() {
+
+	def lng = location.longitude
+   	def lat = location.latitude
+
+    state.lat = lat
+    state.lng = lng
+    state.julian = toJulian()
+    
+    def lw  = rad() * -lng
+    state.lw = lw
+    
+    def phi = rad() * lat
+    state.phi = phi
+    
+    def d   = toDays()
+    state.d = d
+
+    def c  = sunCoords(d)
+    state.c = c
+    log.trace "sunCoords c:" + c + " c.ra: " + c.ra + " c.dec: " + c.dec
+    
+    def H  = siderealTime(d, lw) - c.ra
+    state.H = H
+     
+    def az = azimuth(H, phi, c.dec)
+    az = (az*180/Math.PI)+180
+    def al = altitude(H, phi, c.dec)
+    al = al*180/Math.PI
+    
+    return [
+        azimuth: az,
+        altitude: al
+    ]
+}
+/*-----------------------------------------------------------------------------------------*/
+/*	Return the Julian date 
+/*-----------------------------------------------------------------------------------------*/
+def toJulian() { 
+    def date = new Date()
+    date = date.getTime() / dayMs() - 0.5 + J1970() // ms time/ms in a day = days - 0.5 + number of days 1970.... 
+    return date   
+}
+/*-----------------------------------------------------------------------------------------*/
+/*	Return the number of days since J2000
+/*-----------------------------------------------------------------------------------------*/
+def toDays(){ return toJulian() - J2000()}
+/*-----------------------------------------------------------------------------------------*/
+/*	Return Sun RA
+/*-----------------------------------------------------------------------------------------*/
+def rightAscension(l, b) { 
+	return Math.atan2(Math.sin(l) * Math.cos(e()) - Math.tan(b) * Math.sin(e()), Math.cos(l)) 
+}
+/*-----------------------------------------------------------------------------------------*/
+/*	Return Sun Declination
+/*-----------------------------------------------------------------------------------------*/
+def declination(l, b)    { return Math.asin(Math.sin(b) * Math.cos(e()) + Math.cos(b) * Math.sin(e()) * Math.sin(l)) } 
+/*-----------------------------------------------------------------------------------------*/
+/*	Return Sun Azimuth
+/*-----------------------------------------------------------------------------------------*/
+def azimuth(H, phi, dec)  { return Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(phi) - Math.tan(dec) * Math.cos(phi)) }
+/*-----------------------------------------------------------------------------------------*/
+/*	Return Sun Altitude
+/*-----------------------------------------------------------------------------------------*/
+def altitude(H, phi, dec) { return Math.asin(Math.sin(phi) * Math.sin(dec) + Math.cos(phi) * Math.cos(dec) * Math.cos(H)) }
+/*-----------------------------------------------------------------------------------------*/
+/*	compute sidereal time (One sidereal day corresponds to the time taken for the Earth to rotate once with respect to the stars and lasts approximately 23 h 56 min.
+/*-----------------------------------------------------------------------------------------*/
+def siderealTime(d, lw) { return rad() * (280.16 + 360.9856235 * d) - lw }
+/*-----------------------------------------------------------------------------------------*/
+/*	Compute Sun Mean Anomaly
+/*-----------------------------------------------------------------------------------------*/
+def solarMeanAnomaly(d) { return rad() * (357.5291 + 0.98560028 * d) }
+/*-----------------------------------------------------------------------------------------*/
+/*	Compute Sun Ecliptic Longitude
+/*-----------------------------------------------------------------------------------------*/
+def eclipticLongitude(M) {
+
+	def C = rad() * (1.9148 * Math.sin(M) + 0.02 * Math.sin(2 * M) + 0.0003 * Math.sin(3 * M))
+	def P = rad() * 102.9372 // perihelion of the Earth
+
+    return M + C + P + Math.PI 
+}
+/*-----------------------------------------------------------------------------------------*/
+/*	Return Sun Coordinates
+/*-----------------------------------------------------------------------------------------*/
+def sunCoords(d) {
+
+    def M = solarMeanAnomaly(d)
+    def L = eclipticLongitude(M)
+
+	return [dec: declination(L, 0), ra: rightAscension(L, 0)]
+}
+/*-----------------------------------------------------------------------------------------*/
+/*	Some auxilliary routines for readabulity in the code
+/*-----------------------------------------------------------------------------------------*/
+def dayMs() { return 1000 * 60 * 60 * 24 }
+def J1970() { return 2440588}
+def J2000() { return 2451545}
+def rad() { return  Math.PI / 180}
+def e() { return  rad() * 23.4397}
