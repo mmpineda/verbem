@@ -23,7 +23,8 @@ definition(
     description: "Connects to local Domoticz server and define Domoticz devices in ST",
     category: "My Apps",
     iconUrl: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience.png",
-    iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png",
+    iconX2Url: "http://www.thermosmart.nl/wp-content/uploads/2015/09/domoticz-450x450.png",
+    //iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png",
     iconX3Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png"
 )
 /*-----------------------------------------------------------------------------------------*/
@@ -348,28 +349,19 @@ def onLocation(evt) {
 	log.info "evt.source ${evt.source}"
 
     def description = evt.description
-    log.info "description : " + description
     def hMap = stringToMap(description)
-    log.info "hmap : " + hMap
     try {
         def header = new String(hMap.headers.decodeBase64())
     } catch (e) {
         return
     }
     
-    log.info "header : " + header
-
     def lstDomoticz = []
     def body = new String(hMap.body.decodeBase64())
-    log.info "body : " + body
-
     def statusrsp = new JsonSlurper().parseText(body)
-    log.info "statusrsp : " + statusrsp
     
     statusrsp = statusrsp.result
-    log.info "statusrsp result : " + statusrsp
-    
-    statusrsp.each 
+	statusrsp.each 
     	{ 
         	log.info("${it.SwitchType} ${it.Name} ${it.Status}")
             if (it.SwitchType == domoticzProtocol || domoticzProtocol == "ALL") 
@@ -648,7 +640,7 @@ private def socketSend(message, addr, level) {
 	
 }
 /*-----------------------------------------------------------------------------------------*/
-/*		Domotics will send an event message to ST for all devices THAT HAVE BEEN SELECTED to do that
+/*		Domoticz will send an event message to ST for all devices THAT HAVE BEEN SELECTED to do that
 /*-----------------------------------------------------------------------------------------*/
 def eventDomoticz() {
 	TRACE("eventDomoticz" + params)
