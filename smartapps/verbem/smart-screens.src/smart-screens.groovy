@@ -281,7 +281,7 @@ def getSunpath() {
 /*-----------------------------------------------------------------------------------------*/
 def checkForSun(evt) {
 
-TRACE("checkForSun")
+TRACE("SUN checkForSun")
 state.sunBearing = getSunpath()
 
 settings.z_blinds.each {
@@ -307,30 +307,30 @@ settings.z_blinds.each {
     /*	 
     /*-----------------------------------------------------------------------------------------*/                 
     if(blindParams.blindsOrientation.contains(state.sunBearing)) {
-        TRACE("Relevent Sunbearing ${state.sunBearing} for ${it.name} ")
+        TRACE("SUN Relevent Sunbearing ${state.sunBearing} for ${it.name} ")
         
         if(blindParams.cloudCover.toInteger() > state.cloudCover.toInteger()) {
-            TRACE("Relevent cloudCover ${state.cloudCover.toInteger()}% for ${it.name} ")
+            TRACE("SUN Relevent cloudCover ${state.cloudCover.toInteger()}% for ${it.name} ")
             
             if(blindParams.windForceCloseMax.toInteger() > state.windSpeed.toInteger()) {
             
             	if(blindParams.blindsOrientation.contains(state.windBearing)) {
-                	TRACE("Wind is below allowed windSpeed(${state.windSpeed.toInteger()} ${settings.z_windForceMetric}), status ${it.currentStatus}")
-                    if(["OFF", "Off", "Open"].contains(it.currentStatus)) {
-                        TRACE("Wind is below allowed windSpeed(${state.windSpeed.toInteger()} ${settings.z_windForceMetric}), closing ${it.name}")
+                	TRACE("SUN Wind is below allowed windSpeed(${state.windSpeed.toInteger()} ${settings.z_windForceMetric}), status ${it.currentStatus}")
+                    if(["OFF", "Off", "Open", "Opening"].contains(it.currentStatus)) {
+                        TRACE("SUN Wind is below allowed windSpeed(${state.windSpeed.toInteger()} ${settings.z_windForceMetric}), closing ${it.name}")
                         it.stop()
                         }
                 	}
                 }
             else {
-					if(["OFF", "Off", "Open"].contains(it.currentStatus)) {
-                        TRACE("Wind is not relevant (${state.windSpeed.toInteger()} ${settings.z_windForceMetric}), closing ${it.name}")
+					if(["OFF", "Off", "Open", "Opening"].contains(it.currentStatus)) {
+                        TRACE("SUN Wind is not relevant (${state.windSpeed.toInteger()} ${settings.z_windForceMetric}), closing ${it.name}")
                         it.stop()
                         }            	
             	}
             }
         else {
-                TRACE("Above defined cloudCover(${state.cloudCover.toInteger()}), opening ${it.name}")
+                TRACE("SUN Above defined cloudCover(${state.cloudCover.toInteger()}), opening ${it.name}")
                 //it.open()
         	}
     	}
@@ -351,7 +351,7 @@ state.windSpeed = windParms.windSpeed
 if (settings.z_windForceMetric == "km/h") {state.windSpeed = windParms.windSpeed * 3.6}
 state.cloudCover = windParms.cloudCover * 100
 
-TRACE("checkForWind Bearing: ${state.windBearing} Speed: ${state.windSpeed} ${settings.z_windForceMetric} Cloudcover: ${state.cloudCover} ")
+TRACE("WIND checkForWind Bearing: ${state.windBearing} Speed: ${state.windSpeed} ${settings.z_windForceMetric} Cloudcover: ${state.cloudCover} ")
 
 settings.z_blinds.each {
 
@@ -372,18 +372,18 @@ settings.z_blinds.each {
     /*	WIND determine if we need to close (or OPEN if wind speed is above allowed max for blind)
     /*-----------------------------------------------------------------------------------------*/      
     if(blindParams.blindsOrientation.contains(state.windBearing)) {
-        TRACE("Relevent Windbearing ${state.windBearing} for ${it.name} ")
+        TRACE("WIND Relevent Windbearing ${state.windBearing} for ${it.name} ")
         if(blindParams.windForceCloseMin.toInteger() < state.windSpeed.toInteger()) {
-            TRACE("Above force closing windSpeed(${state.windSpeed.toInteger()} ${settings.z_windForceMetric}), status ${it.currentStatus}")
+            TRACE("WIND Above force closing windSpeed(${state.windSpeed.toInteger()} ${settings.z_windForceMetric}), status ${it.currentStatus}")
             if(["OFF", "Off", "Open"].contains(it.currentStatus)) {
-            	TRACE("Above force closing windSpeed(${state.windSpeed.toInteger()} ${settings.z_windForceMetric}), closing ${it.name}")
+            	TRACE("WIND Above force closing windSpeed(${state.windSpeed.toInteger()} ${settings.z_windForceMetric}), closing ${it.name}")
             	it.close()
                 }
         	}
         if(blindParams.windForceCloseMax.toInteger() < state.windSpeed.toInteger()) {
-            TRACE("Above allowed windSpeed(${state.windSpeed.toInteger()}${settings.z_windForceMetric}), status ${it.currentStatus}")
+            TRACE("WIND Above allowed windSpeed(${state.windSpeed.toInteger()}${settings.z_windForceMetric}), status ${it.currentStatus}")
             if(["ON", "On", "Closed", "Stopped"].contains(it.currentStatus)) {
-            	TRACE("Above allowed windSpeed(${state.windSpeed.toInteger()} ${settings.z_windForceMetric}), opening ${it.name}")
+            	TRACE("WIND Above allowed windSpeed(${state.windSpeed.toInteger()} ${settings.z_windForceMetric}), opening ${it.name}")
             	it.open()
                 }
         	}
