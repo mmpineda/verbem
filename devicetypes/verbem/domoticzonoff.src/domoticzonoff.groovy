@@ -42,14 +42,14 @@ metadata {
     tiles(scale:2) {
     	multiAttributeTile(name:"richDomoticzOnOff", type:"lighting",  width:6, height:4, canChangeIcon: true) {
         	tileAttribute("device.switch", key: "PRIMARY_CONTROL") {
-                attributeState "off", label:'Off', icon:"st.switches.switch.off", backgroundColor:"#ffffff", action:"switch.on"
-                attributeState "Off", label:'Off', icon:"st.switches.switch.off", backgroundColor:"#ffffff", action:"switch.on"
-                attributeState "OFF", label:'Off', icon:"st.switches.switch.off", backgroundColor:"#ffffff", action:"switch.on"
-                attributeState "Turning Off", label:'Turning Off', icon:"st.switches.switch.off", backgroundColor:"#FE9A2E", action:"switch.on"
-                attributeState "on", label:'On', icon:"st.switches.switch.on", backgroundColor:"#79b821", action:"switch.off"
-                attributeState "On", label:'On', icon:"st.switches.switch.on", backgroundColor:"#79b821", action:"switch.off"
-                attributeState "ON", label:'On', icon:"st.switches.switch.on", backgroundColor:"#79b821", action:"switch.off"
-                attributeState "Turning On", label:'Turning On', icon:"st.switches.switch.on", backgroundColor:"#FE9A2E", action:"switch.off"
+                attributeState "off", label:'Off', icon:"st.lights.philips.hue-single", backgroundColor:"#ffffff", action:"switch.on"
+                attributeState "Off", label:'Off', icon:"st.lights.philips.hue-single", backgroundColor:"#ffffff", action:"switch.on"
+                attributeState "OFF", label:'Off',icon:"st.lights.philips.hue-single", backgroundColor:"#ffffff", action:"switch.on"
+                attributeState "Turning Off", label:'Turning Off', icon:"st.lights.philips.hue-single", backgroundColor:"#FE9A2E", action:"switch.on"
+                attributeState "on", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#79b821", action:"switch.off"
+                attributeState "On", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#79b821", action:"switch.off"
+                attributeState "ON", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#79b821", action:"switch.off"
+                attributeState "Turning On", label:'Turning On', icon:"st.lights.philips.hue-single", backgroundColor:"#FE9A2E", action:"switch.off"
             }
             tileAttribute("device.level", key: "SLIDER_CONTROL", range:"0..16") {
             	attributeState "level", action:"setLevel" 

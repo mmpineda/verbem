@@ -13,12 +13,15 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  */
- 
+preferences {
+	input("Somfy", "boolean", title: "Somfy stop supported?", description: "Is the Somfy STOP defined?", defaultValue : false)
+}   
 metadata {
 	definition (name: "domoticzBlinds", namespace: "verbem", author: "Martin Verbeek") {
     
         capability "Actuator"
         capability "Switch"
+        capability "Switch Level"
         capability "Refresh"
         capability "Polling"
 
@@ -31,6 +34,8 @@ metadata {
         command "close"
         command "open"
         command "stop"
+        command "setLevel"
+
     }
 
     tiles (scale: 2) {
@@ -128,7 +133,6 @@ def poll() {
 }
 
 def open() {
-    sendEvent(name:'status', value:"Open" as String)
     if (parent) {
         sendEvent(name:'status', value:"Opening" as String)
         parent.domoticz_off(getIDXAddress())
@@ -136,8 +140,15 @@ def open() {
 }
 
 def stop() {
-   	sendEvent(name:'status', value:"Stopped" as String)
     if (parent) {
+   		sendEvent(name:'status', value:"Stopped" as String)
+        parent.domoticz_stop(getIDXAddress())
+    }
+}
+/* special implementation through setlevel for STOP somfy command if device setting.Somfy = true */
+def setLevel() {
+    if (parent && settings.Somfy) {
+   		sendEvent(name:'status', value:"Stopped" as String)
         parent.domoticz_stop(getIDXAddress())
     }
 }
