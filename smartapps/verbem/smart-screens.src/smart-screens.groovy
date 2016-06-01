@@ -306,25 +306,24 @@ settings.z_blinds.each {
     /*			this is only needed if direction of wind is on the screens
     /*	 
     /*-----------------------------------------------------------------------------------------*/                 
-    if(blindParams.blindsOrientation.contains(state.sunBearing)) {
+    if(blindParams.blindsOrientation.contains(state.sunBearing)) 
+    {
         TRACE("SUN Relevent Sunbearing ${state.sunBearing} for ${it.name} defined ${blindParams.blindsOrientation} ")
-        
         if(blindParams.cloudCover.toInteger() > state.cloudCover.toInteger()) 
         {
-            TRACE("SUN Relevent cloudCover ${state.cloudCover.toInteger()}% for ${it.name} defined ${blindParams.cloudCover} ")
-            
+            TRACE("SUN Sunny enough ${state.cloudCover.toInteger()}% for ${it.name} defined ${blindParams.cloudCover} ")
             if(blindParams.windForceCloseMax.toInteger() > state.windSpeed.toInteger()) {
             	if(blindParams.blindsOrientation.contains(state.windBearing)) {
-                    TRACE("SUN Wind is below allowed windSpeed(${state.windSpeed.toInteger()} ${settings.z_windForceMetric}), closing ${it.name}")
+                    TRACE("SUN Screens allow to close windspeed(${state.windSpeed.toInteger()} ${settings.z_windForceMetric}), closing ${it.name}")
                     it.stop()
                 }
             }
         }
-        else 
+        /*else 
         {
             TRACE("SUN Above defined cloudCover(${state.cloudCover.toInteger()}), opening ${it.name} defined ${blindParams.cloudCover}")
             it.open()
-        }	
+        }*/	
     }
 }
 
@@ -366,11 +365,11 @@ settings.z_blinds.each {
     if(blindParams.blindsOrientation.contains(state.windBearing)) {
         TRACE("WIND Relevent Windbearing ${state.windBearing} for ${it.name} ")
         if(blindParams.windForceCloseMin.toInteger() < state.windSpeed.toInteger()) {
-            TRACE("WIND Above force closing windSpeed(${state.windSpeed.toInteger()} ${settings.z_windForceMetric}), closing ${it.name}")
+            TRACE("WIND High wind force closing shutters windSpeed(${state.windSpeed.toInteger()} ${settings.z_windForceMetric}), closing ${it.name}")
             it.close()
         	}
         if(blindParams.windForceCloseMax.toInteger() < state.windSpeed.toInteger()) {
-            TRACE("WIND Above allowed windSpeed(${state.windSpeed.toInteger()} ${settings.z_windForceMetric}), opening ${it.name}")
+            TRACE("WIND High wind force opening screens windSpeed(${state.windSpeed.toInteger()} ${settings.z_windForceMetric}), opening ${it.name}")
             it.open()
             }
     	}
@@ -404,8 +403,6 @@ def startSunpath(evt) {
 /*-----------------------------------------------------------------------------------------*/
 private def calcBearing(degree) {
 		
-        log.trace degree.toInteger()
-	
         switch (degree.toInteger()) {
         case 0..23:
             return "N"
