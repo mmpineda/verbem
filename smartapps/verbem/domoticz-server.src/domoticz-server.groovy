@@ -641,13 +641,13 @@ private def socketSend(message, addr, level) {
 
     sendHubCommand(hubAction)
 	
-        def hubActionLog = new physicalgraph.device.HubAction(
+ /*       def hubActionLog = new physicalgraph.device.HubAction(
         method: "GET",
         path: rooLog,
         headers: [HOST: "${domoticzIpAddress}:${domoticzTcpPort}"])
 
     sendHubCommand(hubActionLog)
-
+*/
     
 }
 /*-----------------------------------------------------------------------------------------*/
