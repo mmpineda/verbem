@@ -373,6 +373,9 @@ def onLocation(evt) {
                 case "Blinds Inverted":
                 	addSwitch(it.idx, "domoticzBlinds", it.Name, it.Status)
                     break;
+                case "Blinds Percentage":
+                	addSwitch(it.idx, "domoticzBlinds", it.Name, it.Status)
+                    break;
                 case "On/Off":
                     addSwitch(it.idx, "domoticzOnOff", it.Name, it.Status)
                     break;
@@ -422,10 +425,18 @@ private def addSwitch(addr, passedFile, passedName, passedStatus) {
 
     def dni = settings.domoticzIpAddress + ":" + settings.domoticzTcpPort + ":" + addr
     
-    /*	the device already exists */
+    /*	the device already exists old style DNI */
     if (getChildDevice(dni)) {
        	return 
     }
+	
+    dni = app.id + "-IDX:" + addr
+	
+/*	the device already exists new style DNI */
+     if (getChildDevice(dni)) {
+       	return 
+    }
+
 
     def devFile = passedFile
     def devParams = [
