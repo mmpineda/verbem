@@ -255,6 +255,8 @@ private def setupTestConnection() {
 private def setupActionTest() {
     TRACE("setupActionTest()")
 
+	updateDeviceList()
+
     def pageProperties = [
         name        : "setupActionTest",
         title       : "Adding Devices",
@@ -513,7 +515,7 @@ private def getDeviceMap() {
 
 private def getDeviceListAsText(type) {
     String s = ""
-    state.devices.each { k,v ->
+    state.devices.sort().each { k,v ->
         if (v.type == type) {
             def dev = getChildDevice(v.dni)
             if (dev) {
