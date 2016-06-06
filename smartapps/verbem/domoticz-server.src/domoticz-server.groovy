@@ -432,7 +432,7 @@ private def addSwitch(addr, passedFile, passedName, passedStatus) {
        	return 
     }
 	
-    dni = app.id + "-IDX:" + addr
+    dni = app.id + ":IDX:" + addr
 	
 /*	the device already exists new style DNI */
      if (getChildDevice(dni)) {
