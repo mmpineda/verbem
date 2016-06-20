@@ -15,6 +15,7 @@
  */
 preferences {
 	input("Somfy", "boolean", title: "Somfy stop supported?", description: "Is the Somfy STOP defined?", defaultValue : false)
+    input("seconds2Complete", "number", title: "Time in seconds to fully close/open?", description:"Specify open close cycle", defaultValue:0)
 }   
 metadata {
 	definition (name: "domoticzBlinds", namespace: "verbem", author: "Martin Verbeek") {
@@ -42,19 +43,19 @@ metadata {
 	    multiAttributeTile(name:"richDomoticzBlind", type:"generic",  width:6, height:4, canChangeIcon: true) {
         	tileAttribute("device.status", key: "PRIMARY_CONTROL") {
                 attributeState "default", label:'${currentValue}', inactiveLabel:false
-                attributeState "Open", label:" Open ", backgroundColor:"#19f028"
-                attributeState "Off", label:" Open ", backgroundColor:"#19f028"	
-                attributeState "Opening", label:"Opening", backgroundColor:"#FE9A2E"
+                attributeState "Up", label:" Up ", backgroundColor:"#19f028"
+                attributeState "Off", label:" Up ", backgroundColor:"#19f028"	
+                attributeState "Going Up", label:"Going Up", backgroundColor:"#FE9A2E"
                 attributeState "Stopped", label:"Stopped", backgroundColor:"#11A81C"
-                attributeState "Closed", label:"Closed",  backgroundColor:"#08540E"
-                attributeState "On", label:"Closed",  backgroundColor:"#08540E"
-                attributeState "Closing", label:"Closing",  backgroundColor:"#FE9A2E"
+                attributeState "Closed", label:"Down",  backgroundColor:"#08540E"
+                attributeState "On", label:"Down",  backgroundColor:"#08540E"
+                attributeState "Goiwng Down", label:"Going Down",  backgroundColor:"#FE9A2E"
             }
         }
  
         
-        standardTile("open", "device.switch", inactiveLabel:false, decoration:"flat") {
-            state "default", label:'Open', icon:"st.doors.garage.garage-opening",
+        standardTile("Up", "device.switch", inactiveLabel:false, decoration:"flat") {
+            state "default", label:'Up', icon:"st.doors.garage.garage-opening",
                 action:"open"
         }
 
@@ -63,8 +64,8 @@ metadata {
                 action:"stop"
         }
 
-        standardTile("close", "device.switch", inactiveLabel:false, decoration:"flat") {
-            state "default", label:'Close', icon:"st.doors.garage.garage-closing",
+        standardTile("Down", "device.switch", inactiveLabel:false, decoration:"flat") {
+            state "default", label:'Down', icon:"st.doors.garage.garage-closing",
                 action:"close"
         }
 
@@ -73,7 +74,7 @@ metadata {
         }
 
         main(["richDomoticzBlind"])
-        details(["richDomoticzBlind", "open", "stop", "close", "debug"])
+        details(["richDomoticzBlind", "Up", "stop", "Down", "debug"])
 
     }    
 }
@@ -106,47 +107,69 @@ def parse(String message) {
 // handle commands
 
 def on() {
-close()
+	log.debug "Close()"
+    if (parent) {
+        sendEvent(name:'status', value:"Going Down" as String)
+        parent.domoticz_on(getIDXAddress())
+    }
+
 }
 
 def off() {
-open()
+	log.debug "Open()"
+    if (parent) {
+        sendEvent(name:'status', value:"Going Up" as String)
+        parent.domoticz_off(getIDXAddress())
+    }
 }
 
 def close() {
+	log.debug "Close()"
     if (parent) {
-        sendEvent(name:'status', value:"Closing" as String)
+        sendEvent(name:'status', value:"Going Down" as String)
         parent.domoticz_on(getIDXAddress())
     }
 }
 
 def refresh() {
+	log.debug "Refresh()"
     if (parent) {
         parent.domoticz_poll(getIDXAddress())
     }
 }
 
 def poll() {
+	log.debug "Poll()"
     if (parent) {
         parent.domoticz_poll(getIDXAddress())
     }
 }
 
 def open() {
+	log.debug "Open()"
     if (parent) {
-        sendEvent(name:'status', value:"Opening" as String)
+        sendEvent(name:'status', value:"Going Up" as String)
         parent.domoticz_off(getIDXAddress())
     }
 }
 
 def stop() {
-    if (parent) {
-   		sendEvent(name:'status', value:"Stopped" as String)
-        parent.domoticz_stop(getIDXAddress())
+	log.debug "Stop()"
+    if (parent && settings.Somfy) {
+    	if (settings.Somfy) {
+            sendEvent(name:'status', value:"Stopped" as String)
+            parent.domoticz_stop(getIDXAddress())
+        	}
+        else {
+        	//parent.domoticz_off(getIDXAddress())
+            //runIn(settings.seconds2Complete, parent.domoticz_on(getIDXAddress))
+            //runIn(settings.seconds2Complete/2, parent.domoticz_stop(getIDXAddress))
+        	}
     }
 }
 /* special implementation through setlevel for STOP somfy command if device setting.Somfy = true */
 def setLevel() {
+	log.debug "setLevel()"
     if (parent && settings.Somfy) {
    		sendEvent(name:'status', value:"Stopped" as String)
         parent.domoticz_stop(getIDXAddress())
@@ -219,8 +242,9 @@ private getCallBackAddress() {
 /*			execute event can be called from the service manager!!!
 /*----------------------------------------------------*/
 def generateEvent (Map results) {
+log.info "generateEvent()"
 results.each { name, value ->
-	log.info name + " " + value
+	log.info "generateEvent " + name + " " + value
 	sendEvent(name:"${name}", value:"${value}")
     }
     return null

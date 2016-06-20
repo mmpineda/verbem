@@ -220,7 +220,7 @@ private getCallBackAddress() {
 /*----------------------------------------------------*/
 def generateEvent (Map results) {
 results.each { name, value ->
-	log.info name + " " + value
+	log.info "generateEvent " + name + " " + value
 	sendEvent(name:"${name}", value:"${value}")
     }
     return null
