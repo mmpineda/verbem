@@ -267,7 +267,7 @@ private def setupActionTest() {
 
     
     def networkId = makeNetworkId(settings.domoticzIpAddress, settings.domoticzTcpPort)
-    
+
 	socketSend("list", 0, 0)
 
     return dynamicPage(pageProperties) {
@@ -300,6 +300,23 @@ def updated() {
 /*-----------------------------------------------------------------------------------------*/
 def uninstalled() {
     TRACE("uninstalled()")
+
+    // delete all child devices
+    def devices = getChildDevices()
+    devices?.each {
+        try {
+            deleteChildDevice(it.deviceNetworkId)
+        } catch (e) {
+            log.error "Cannot delete device ${it.deviceNetworkId}. Error: ${e}"
+        }
+    }
+}
+
+/*-----------------------------------------------------------------------------------------*/
+/*		Debugging DeleteChilds command
+/*-----------------------------------------------------------------------------------------*/
+def deleteChilds() {
+    TRACE("deleteChilds()")
 
     // delete all child devices
     def devices = getChildDevices()
@@ -351,9 +368,11 @@ def onLocation(evt) {
 
     def description = evt.description
     def hMap = stringToMap(description)
+    log.info hMap
     try {
         def header = new String(hMap.headers.decodeBase64())
     } catch (e) {
+    	log.error "onLocation Error: ${e}"
         return
     }
     
@@ -362,6 +381,7 @@ def onLocation(evt) {
     def statusrsp = new JsonSlurper().parseText(body)
     
     statusrsp = statusrsp.result
+    log.info $statusrsp
 	statusrsp.each 
     	{ 
         	log.info("${it.SwitchType} ${it.Name} ${it.Status}")
@@ -429,6 +449,10 @@ private def addSwitch(addr, passedFile, passedName, passedStatus) {
     
     /*	the device already exists old style DNI */
     if (getChildDevice(dni)) {
+    	TRACE("addSwitch(${dni}) old style dni already exists Returning")
+        if (state.devices[addr] == null) {
+            TRACE("addSwitch(${dni}) old style dni not in state - deleting childdevice")
+        	}
        	return 
     }
 	
@@ -436,6 +460,10 @@ private def addSwitch(addr, passedFile, passedName, passedStatus) {
 	
 /*	the device already exists new style DNI */
      if (getChildDevice(dni)) {
+    	TRACE("addSwitch(${dni}) new style dni already exists Returning")
+        if (state.devices[addr] == null) {
+            TRACE("addSwitch(${dni}) new style dni not in state - deleting childdevice")
+        	}
        	return 
     }
 
@@ -452,8 +480,8 @@ private def addSwitch(addr, passedFile, passedName, passedStatus) {
 
     TRACE("Creating child device ${devParams}")
     try {
-        def dev = addChildDevice("verbem", devFile, dni, location.hubs[0].id, devParams)
-        dev.refresh()
+        def dev = addChildDevice("verbem", devFile, dni, getHubID(), devParams)
+        //dev.refresh()
     } catch (e) {
         log.error "Cannot create child device. Error: ${e}"
         return 
@@ -480,24 +508,24 @@ private def updateDeviceList() {
 
     /* avoid ConcurrentModificationException that will happen */
      
-    try {
-        state.devices.each { k,v ->
-        	TRACE("Checking for possible deleted device ${v.dni} in state ${k}")
-            if (!getChildDevice(v.dni)) {
-                TRACE("Removing deleted device ${v.dni} for state ${k}")
-                state.devices.remove(k)
-            }
-            else {
-            	TRACE("Checked child device ${d}")
-            }
+
+    state.devices.each { k,v ->
+        TRACE("Checking for possible deleted device ${v.dni} in state ${k}")
+        if (!getChildDevice(v.dni)) {
+            TRACE("Removing deleted device ${v.dni} for state ${k}")
+            state.devices.remove(k)
         }
-    } catch (e) {TRACE(e)}
+        else {
+            TRACE("Checked child device ${v.dni}")
+        }
+    }
+
 
     // refresh all devices
-    def devices = getChildDevices()
-    devices?.each {
-        it.refresh()
-    }
+    //def devices = getChildDevices()
+    //devices?.each {
+    //    it.refresh()
+    //}
     
 }
 
@@ -652,6 +680,8 @@ private def socketSend(message, addr, level) {
         path: rooPath,
         headers: [HOST: "${domoticzIpAddress}:${domoticzTcpPort}"])
 
+	pause(3000)
+    
     sendHubCommand(hubAction)
 	
  /*       def hubActionLog = new physicalgraph.device.HubAction(
@@ -661,7 +691,7 @@ private def socketSend(message, addr, level) {
 
     sendHubCommand(hubActionLog)
 */
-    
+    return null
 }
 /*-----------------------------------------------------------------------------------------*/
 /*		Domoticz will send an event message to ST for all devices THAT HAVE BEEN SELECTED to do that
@@ -680,8 +710,8 @@ def eventDomoticz() {
                TRACE(it.typeName + "/" + devName + " changed to " + devStatus)
                switch (it.typeName) {
                     case "domoticzBlinds":
-                    	if (devStatus == "OFF") {it.generateEvent("status":"Open")}
-                        if (devStatus == "ON") {it.generateEvent("status":"Closed")}
+                    	if (devStatus == "OFF") {it.generateEvent("status":"Up")}
+                        if (devStatus == "ON") {it.generateEvent("status":"Down")}
                     	break;
                     case "domoticzOnOff":
                         it.generateEvent("switch":devStatus)
@@ -707,3 +737,12 @@ private def initRestApi() {
 
 }
 //-----------------------------------------------------------
+
+def getHubID(){
+    def hubID
+    def hubs = location.hubs.findAll{ it.type == physicalgraph.device.HubType.PHYSICAL } 
+    log.debug "hub count: ${hubs.size()}"
+    if (hubs.size() == 1) hubID = hubs[0].id 
+    log.debug "hubID: ${hubID}"
+    return hubID
+}
