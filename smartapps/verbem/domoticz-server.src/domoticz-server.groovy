@@ -268,7 +268,7 @@ private def setupActionTest() {
     
     def networkId = makeNetworkId(settings.domoticzIpAddress, settings.domoticzTcpPort)
 
-	socketSend("list", 0, 0)
+	socketSend("list", 0, 0, 0, 0)
 
     return dynamicPage(pageProperties) {
         section {
@@ -592,7 +592,7 @@ private def STATE() {
 /*-----------------------------------------------------------------------------------------*/
 def domoticz_poll(nid) {
 	TRACE("domoticz poll(${nid})")
-    socketSend("status", nid, 0)
+    socketSend("status", nid, 0, 0, 0)
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -600,14 +600,14 @@ def domoticz_poll(nid) {
 /*-----------------------------------------------------------------------------------------*/
 def domoticz_off(nid) {
 	TRACE("domoticz off(${nid})")
-    socketSend("off", nid, 0)
+    socketSend("off", nid, 0, 0, 0)
 }
 /*-----------------------------------------------------------------------------------------*/
 /*		Excecute 'on' command on behalf of child device
 /*-----------------------------------------------------------------------------------------*/
 def domoticz_on(nid) {
 	TRACE("domoticz on(${nid})")
-    socketSend("on", nid, 16)
+    socketSend("on", nid, 16, 0, 0)
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -615,7 +615,7 @@ def domoticz_on(nid) {
 /*-----------------------------------------------------------------------------------------*/
 def domoticz_toggle(nid) {
 	TRACE("domoticz toggle(${nid})")
-    socketSend("toggle", nid, 16)
+    socketSend("toggle", nid, 16, 0, 0)
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -623,7 +623,7 @@ def domoticz_toggle(nid) {
 /*-----------------------------------------------------------------------------------------*/
 def domoticz_stop(nid) {
 	TRACE("domoticz stop(${nid})")
-    socketSend("stop", nid, 0)
+    socketSend("stop", nid, 0, 0, 0)
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -631,14 +631,23 @@ def domoticz_stop(nid) {
 /*-----------------------------------------------------------------------------------------*/
 def domoticz_setlevel(nid, xLevel) {
 	TRACE("domoticz setlevel(${nid})")
-    if (xLevel.toInteger() == 0) {socketSend("off", nid, 0)}
-    else {socketSend("on", nid, xLevel)}
+    if (xLevel.toInteger() == 0) {socketSend("off", nid, 0, 0, 0)}
+    else {socketSend("on", nid, xLevel, 0, 0)}
+}
+
+/*-----------------------------------------------------------------------------------------*/
+/*		Excecute 'setlevel' command on behalf of child device 
+/*-----------------------------------------------------------------------------------------*/
+def domoticz_setcolor(nid, xHue, xBri, xSat) {
+	TRACE("domoticz setlevel(${nid})")
+    socketSend("setcolor", nid, xHue, xSat, xBri)
+
 }
 
 /*-----------------------------------------------------------------------------------------*/
 /*		Excecute The real request via the local HUB
 /*-----------------------------------------------------------------------------------------*/
-private def socketSend(message, addr, level) {
+private def socketSend(message, addr, level, xSat, xBri) {
 	def rooPath = ""
     def rooLog = ""
     TRACE("IDX = ${addr}") 
@@ -672,6 +681,11 @@ private def socketSend(message, addr, level) {
         	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20Level%20${level}%20for%20${addr}"
         	rooPath = "/json.htm?type=command&param=switchlight&idx=${addr}&switchcmd=On,level=${level}"
             break;
+        case "setcolor":
+        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20Color%20${level}%20for%20${addr}"
+        	rooPath = "/json.htm?type=command&param=setcolbrightnessvalue&idx=${addr}&hue=${level}&brightness=${xBri}&iswhite=false"
+            break;
+            
 	}
     
 	
@@ -684,13 +698,14 @@ private def socketSend(message, addr, level) {
     
     sendHubCommand(hubAction)
 	
- /*       def hubActionLog = new physicalgraph.device.HubAction(
+    /*def hubActionLog = new physicalgraph.device.HubAction(
         method: "GET",
         path: rooLog,
         headers: [HOST: "${domoticzIpAddress}:${domoticzTcpPort}"])
 
     sendHubCommand(hubActionLog)
-*/
+
+	pause(3000) */
     return null
 }
 /*-----------------------------------------------------------------------------------------*/
