@@ -28,6 +28,7 @@
 metadata {
     definition (name:"domoticzOnOff", namespace:"verbem", author:"Martin Verbeek") {
         capability "Actuator"
+        capability "Color Control"
         capability "Switch"
         capability "Switch Level"
         capability "Refresh"
@@ -36,6 +37,7 @@ metadata {
         // custom commands
         command "parse"     // (String "<attribute>:<value>[,<attribute>:<value>]")
        	command "setLevel"
+        command "setAdjustedColor"
         command "toggle"
     }
 
@@ -53,6 +55,9 @@ metadata {
             }
             tileAttribute("device.level", key: "SLIDER_CONTROL", range:"0..16") {
             	attributeState "level", action:"setLevel" 
+            }
+            tileAttribute ("device.color", key: "COLOR_CONTROL") {
+        		attributeState "color", action:"setAdjustedColor"
             }
         }
         
@@ -138,9 +143,17 @@ def off() {
 
 // Custom setlevel() command handler
 def setLevel(level) {
-    
+    TRACE("setLevel Level " + level)
     if (parent) {
         parent.domoticz_setlevel(getIDXAddress(), level)
+    }
+}
+
+// Custom setlevel() command handler hue from ST is percentage of 366 which is max HUE
+def setAdjustedColor(color) {
+    TRACE("SetAdjustedColor Hue " + Math.round(color.hue/100*366) + " Sat " + Math.round(color.saturation) + " Bri " + Math.round(color.level*100))
+    if (parent) {
+        parent.domoticz_setcolor(getIDXAddress(), Math.round(color.hue/100*366), Math.round(color.saturation), Math.round(color.level*100))
     }
 }
 
