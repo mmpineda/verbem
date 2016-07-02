@@ -28,6 +28,7 @@
 metadata {
     definition (name:"domoticzOnOff", namespace:"verbem", author:"Martin Verbeek") {
         capability "Actuator"
+        capability "Sensor"
         capability "Color Control"
         capability "Switch"
         capability "Switch Level"
@@ -37,7 +38,7 @@ metadata {
         // custom commands
         command "parse"     // (String "<attribute>:<value>[,<attribute>:<value>]")
        	command "setLevel"
-        command "setAdjustedColor"
+        command "setColor"
         command "toggle"
     }
 
@@ -57,7 +58,7 @@ metadata {
             	attributeState "level", action:"setLevel" 
             }
             tileAttribute ("device.color", key: "COLOR_CONTROL") {
-        		attributeState "color", action:"setAdjustedColor"
+        		attributeState "color", action:"setColor"
             }
         }
         
@@ -150,11 +151,20 @@ def setLevel(level) {
 }
 
 // Custom setlevel() command handler hue from ST is percentage of 366 which is max HUE
-def setAdjustedColor(color) {
-    TRACE("SetAdjustedColor Hue " + Math.round(color.hue/100*366) + " Sat " + Math.round(color.saturation) + " Bri " + Math.round(color.level*100))
-    if (parent) {
-        parent.domoticz_setcolor(getIDXAddress(), Math.round(color.hue/100*366), Math.round(color.saturation), Math.round(color.level*100))
-    }
+def setColor(color) {
+	
+	if(color.level > 1) {
+    	TRACE("SetColor Hue " + Math.round(color.hue/100*366) + " Sat " + Math.round(color.saturation) + " Bri " + Math.round(color.level))
+    	if (parent) {
+        	parent.domoticz_setcolor(getIDXAddress(), Math.round(color.hue/100*366), Math.round(color.saturation), Math.round(color.level))
+    		}	
+        }
+    else {
+    	TRACE("SetAdjustedColor Hue " + Math.round(color.hue/100*366) + " Sat " + Math.round(color.saturation) + " Bri " + Math.round(color.level*100))
+    	if (parent) {
+        	parent.domoticz_setcolor(getIDXAddress(), Math.round(color.hue/100*366), Math.round(color.saturation), Math.round(color.level*100))
+    		}	
+   		}		
 }
 
 private def TRACE(message) {
