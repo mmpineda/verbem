@@ -368,11 +368,10 @@ def onLocation(evt) {
 
     def description = evt.description
     def hMap = stringToMap(description)
-    log.info hMap
-    try {
+
+	try {
         def header = new String(hMap.headers.decodeBase64())
     } catch (e) {
-    	log.error "onLocation Error: ${e}"
         return
     }
     
@@ -382,6 +381,8 @@ def onLocation(evt) {
     
     statusrsp = statusrsp.result
     log.info $statusrsp
+    if (state.setStatusrsp == true ) {state.statusrsp = statusrsp}
+    state.setStatusrsp = false
 	statusrsp.each 
     	{ 
         	log.info("${it.SwitchType} ${it.Name} ${it.Status}")
@@ -432,7 +433,8 @@ private def initialize() {
         log.info url
         state.urlCustomActionHttp = url
 	}
-
+    
+	state.setStatusrsp = false
     state.setup.installed = true
     state.networkId = settings.domoticzIpAddress + ":" + settings.domoticzTcpPort
     updateDeviceList()
@@ -501,32 +503,36 @@ private def addSwitch(addr, passedFile, passedName, passedStatus) {
     return 
 }
 /*-----------------------------------------------------------------------------------------*/
-/*		Purge devices that were removed manually
+/*		Purge devices that were removed from Domoticz
 /*-----------------------------------------------------------------------------------------*/
 private def updateDeviceList() {
     TRACE("updateDeviceList()")
 
     /* avoid ConcurrentModificationException that will happen */
-     
+    def whichDevices = new ArrayList()
 
     state.devices.each { k,v ->
-        TRACE("Checking for possible deleted device ${v.dni} in state ${k}")
-        if (!getChildDevice(v.dni)) {
-            TRACE("Removing deleted device ${v.dni} for state ${k}")
-            state.devices.remove(k)
+        def inStatusrsp = false
+        state.statusrsp.each {
+        	if (k == it.idx) { inStatusrsp = true}
         }
-        else {
-            TRACE("Checked child device ${v.dni}")
+            
+        if (inStatusrsp == false ) {
+        	TRACE("${k} not in Domoticz anymore")
+            whichDevices.add(k)
+            TRACE("Removing deleted device ${v.dni} from state and from childDevices ${k}")
+            try {
+            	deleteChildDevice(v.dni)
+            } 	catch (e) {
+            	log.error "Cannot delete device ${v.dni}. Error: ${e}"
+            }
+
         }
     }
-
-
-    // refresh all devices
-    //def devices = getChildDevices()
-    //devices?.each {
-    //    it.refresh()
-    //}
     
+	whichDevices.each { k ->
+    	state.devices.remove(k)
+    }
 }
 
 private def getDeviceMap() {
@@ -545,15 +551,13 @@ private def getDeviceListAsText(type) {
     String s = ""
     state.devices.sort().each { k,v ->
         if (v.type == type) {
-            def dev = getChildDevice(v.dni)
-            if (dev) {
-                s += "${k.padLeft(4)} - ${dev.displayName}\n"
-            }
-        }
+           	s += "${k.padLeft(4)} - ${dev.displayName} - ${v.dni}\n"
+			}
     }
 
     return s
-}
+} 
+
 
 // Returns device Network ID in 'AAAAAAAA:PPPP' format
 private String makeNetworkId(ipaddr, port) {
@@ -654,6 +658,7 @@ private def socketSend(message, addr, level, xSat, xBri) {
     
     switch (message) {
 		case "list":
+        	state.setStatusrsp = true
         	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20ListDevices"
         	rooPath = "/json.htm?type=devices&filter=light&used=true&order=Name"
  			break;
