@@ -161,9 +161,11 @@ def stop() {
             parent.domoticz_stop(getIDXAddress())
         	}
         else {
-        	//parent.domoticz_off(getIDXAddress())
-            //runIn(settings.seconds2Complete, parent.domoticz_on(getIDXAddress))
-            //runIn(settings.seconds2Complete/2, parent.domoticz_stop(getIDXAddress))
+        	parent.domoticz_off(getIDXAddress())
+            pause(settings.seconds2Complete*1000)
+            parent.domoticz_on(getIDXAddress)
+            pause(settings.seconds2Complete*1000/2)
+            parent.domoticz_stop(getIDXAddress)
         	}
     }
 }
