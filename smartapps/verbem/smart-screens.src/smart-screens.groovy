@@ -225,7 +225,7 @@ def initialize() {
     checkForWind()
     checkForSun()
     
-    runEvery5Minutes(checkForSun)
+    runEvery30Minutes(checkForSun)
     runEvery3Hours(checkForClouds)
     runEvery10Minutes(checkForWind)
 }
@@ -455,7 +455,7 @@ def stopSunpath(evt) {
 /*-----------------------------------------------------------------------------------------*/
 def startSunpath(evt) {
 	TRACE("start Scheduling")
-	runEvery5Minutes(checkForSun)
+	runEvery30Minutes(checkForSun)
     runEvery3Hours(checkForClouds)
     runEvery10Minutes(checkForWind)
 	return null
