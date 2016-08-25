@@ -51,8 +51,6 @@ def pageSetupForecastIO() {
     def pageSetupLatitude = location.latitude.toString()
     def pageSetupLongitude = location.longitude.toString()
 	
-    log.info getSunpath()
-    
     def pageSetupAPI = [
         name:       "pageSetupAPI",
         type:       "string",
@@ -152,11 +150,11 @@ def pageProperties = [
             section(it.name) 
             	{           	
                 input 	"z_blindsOrientation_${devId}", "enum", options:["N", "NW", "W", "SW", "S", "SE", "E", "NE"],title:"Select Relevent Orientation",multiple:true,required:true  
-                input	"z_windForceCloseMax_${devId}","number",title:"Allow action below under which windforce ${z_windForceMetric}",multiple:false,required:false,default:0                 
-                input	"z_closeMaxAction_${devId}","enum",title: "What action?", options: ["Down","Up","Stop"], default:"Close" 
+                input	"z_windForceCloseMax_${devId}","number",title:"Allow Operation below under which windforce ${z_windForceMetric}",multiple:false,required:false,default:0                 
+                input	"z_closeMaxAction_${devId}","enum",title: "What Operation?", options: ["Down","Up","Stop"], default:"Stop" 
                 input 	"z_cloudCover_${devId}","enum",title:"Go Down under cloudcover% (0=clear sky)", options:	["10","20","30","40","50","60","70","80","90","100"],multiple:false,required:false,default:30                
-                input 	"z_windForceCloseMin_${devId}","number",title:"Force action below above which windforce ${z_windForceMetric}",multiple:false,required:false,default:999                     
-                input	"z_closeMinAction_${devId}","enum",title: "What action?", options: ["Down","Up","Stop"], default:"Open"
+                input 	"z_windForceCloseMin_${devId}","number",title:"Force Operation below above which windforce ${z_windForceMetric}",multiple:false,required:false,default:999                     
+                input	"z_closeMinAction_${devId}","enum",title: "What Operation?", options: ["Down","Up","Stop"], default:"Down"
                 }
         }
     }
@@ -227,7 +225,7 @@ def initialize() {
     checkForWind()
     checkForSun()
     
-    runEvery1Hour(checkForSun)
+    runEvery5Minutes(checkForSun)
     runEvery3Hours(checkForClouds)
     runEvery10Minutes(checkForWind)
 }
@@ -315,23 +313,25 @@ settings.z_blinds.each {
     /*-----------------------------------------------------------------------------------------*/                 
     if(blindParams.blindsOrientation.contains(state.sunBearing)) 
     {
-        TRACE("SUN Relevent Sunbearing ${state.sunBearing} for ${it.name} defined ${blindParams.blindsOrientation} ")
+        TRACE("SUN Relevent Sunbearing ${state.sunBearing} for ${it.name} orientation ${blindParams.blindsOrientation} ")
         if(state.cloudCover.toInteger() < blindParams.cloudCover.toInteger()) 
         {
-            TRACE("SUN Sunny enough ${state.cloudCover.toInteger()}% for ${it.name} defined ${blindParams.cloudCover} ")
+            TRACE("SUN Sunny enough, cloudcover is ${state.cloudCover.toInteger()}% for ${it.name} defined cloudcover ${blindParams.cloudCover}%")
             
-            if(state.windSpeed.toInteger() < blindParams.windForceCloseMax.toInteger()) 
-            {
-            
-            	if(blindParams.blindsOrientation.contains(state.windBearing)) 
-                {
-                    TRACE("SUN Screens allow to go ${blindParams.closeMaxAction} for windspeed(${state.windSpeed.toInteger()} ${settings.z_windForceMetric}), closing ${it.name}")
-                    if (blindParams.closeMaxAction == "Down") it.close()
-                    if (blindParams.closeMaxAction == "Up") it.open()
-                    if (blindParams.closeMaxAction == "Stop") it.stop()
-
+            if(state.windSpeed.toInteger() < blindParams.windForceCloseMax.toInteger() && blindParams.blindsOrientation.contains(state.windBearing)) 
+            	{
+                    TRACE("SUN Screens allowed to go ${blindParams.closeMaxAction} for windspeed(${state.windSpeed.toInteger()} ${settings.z_windForceMetric}), Blind ${it.name}")
+                    if (blindParams.closeMaxAction == "Down") 	{it.close()}
+                    if (blindParams.closeMaxAction == "Up") 	{it.open()}
+                    if (blindParams.closeMaxAction == "Stop") 	{it.stop()}
                 }
-            }
+            else 
+            	{
+                    TRACE("SUN Screens allowed to go ${blindParams.closeMaxAction} no relevant windbearing(${state.windBearing}), Blind ${it.name}")
+                    if (blindParams.closeMaxAction == "Down") 	{it.close()}
+                    if (blindParams.closeMaxAction == "Up") 	{it.open()}
+                    if (blindParams.closeMaxAction == "Stop") 	{it.stop()}
+            	}
         }
     }
 }
@@ -377,7 +377,7 @@ settings.z_blinds.each {
         TRACE("SUN Relevent Sunbearing ${state.sunBearing} for ${it.name} defined ${blindParams.blindsOrientation} ")
         if(state.cloudCover.toInteger() > blindParams.cloudCover.toInteger()) 
         {
-            TRACE("SUN NOT Sunny enough ${state.cloudCover.toInteger()}% for ${it.name} defined ${blindParams.cloudCover} ")
+            TRACE("SUN NOT Sunny enough, cloudcover ${state.cloudCover.toInteger()}% for ${it.name} defined cloudcover ${blindParams.cloudCover} ")
             it.open()
         }
     }
@@ -422,16 +422,16 @@ settings.z_blinds.each {
     if(blindParams.blindsOrientation.contains(state.windBearing)) {
         TRACE("WIND Relevent Windbearing ${state.windBearing} for ${it.name} ")
         if(state.windSpeed.toInteger() > blindParams.windForceCloseMin.toInteger()) {
-            TRACE("WIND High wind force closing shutters windSpeed(${state.windSpeed.toInteger()} ${settings.z_windForceMetric}), closing ${it.name}")
+            TRACE("WIND Shutters High wind force down windSpeed(${state.windSpeed.toInteger()} ${settings.z_windForceMetric}), closing ${it.name}")
             if (blindParams.closeMinAction == "Down") it.close()
             if (blindParams.closeMinAction == "Up") it.open()
             if (blindParams.closeMinAction == "Stop") it.stop()
         	}
         if(state.windSpeed.toInteger() > blindParams.windForceCloseMax.toInteger()) {
-            TRACE("WIND High wind force ${blindParams.closeMaxAction} screens windSpeed(${state.windSpeed.toInteger()} ${settings.z_windForceMetric}), opening ${it.name}")
-            if (blindParams.closeMaxAction == "Down") it.close()
-            if (blindParams.closeMaxAction == "Up") it.open()
-            if (blindParams.closeMaxAction == "Stop") it.stop()
+            TRACE("WIND Screens High wind force ${blindParams.closeMaxAction} windSpeed(${state.windSpeed.toInteger()} ${settings.z_windForceMetric}), opening ${it.name}")
+            if (blindParams.closeMinAction == "Down") it.close()
+            if (blindParams.closeMinAction == "Up") it.open()
+            if (blindParams.closeMinAction == "Stop") it.stop()
             }
     	}
     }
@@ -455,7 +455,7 @@ def stopSunpath(evt) {
 /*-----------------------------------------------------------------------------------------*/
 def startSunpath(evt) {
 	TRACE("start Scheduling")
-	runEvery1Hour(checkForSun)
+	runEvery5Minutes(checkForSun)
     runEvery3Hours(checkForClouds)
     runEvery10Minutes(checkForWind)
 	return null
