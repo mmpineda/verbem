@@ -319,20 +319,24 @@ settings.z_blinds.each {
             TRACE("SUN Sunny enough, cloudcover is ${state.cloudCover.toInteger()}% for ${it.name} defined cloudcover ${blindParams.cloudCover}%")
             
             if(state.windSpeed.toInteger() < blindParams.windForceCloseMax.toInteger() && blindParams.blindsOrientation.contains(state.windBearing)) 
-            	{
-                    TRACE("SUN Screens allowed to go ${blindParams.closeMaxAction} for windspeed(${state.windSpeed.toInteger()} ${settings.z_windForceMetric}), Blind ${it.name}")
-                    if (blindParams.closeMaxAction == "Down") 	{it.close()}
-                    if (blindParams.closeMaxAction == "Up") 	{it.open()}
-                    if (blindParams.closeMaxAction == "Stop") 	{it.stop()}
-                }
+            {
+                TRACE("SUN Screens allowed to go ${blindParams.closeMaxAction} for windspeed(${state.windSpeed.toInteger()} ${settings.z_windForceMetric}), Blind ${it.name}")
+                if (blindParams.closeMaxAction == "Down") 	{it.close()}
+                if (blindParams.closeMaxAction == "Up") 	{it.open()}
+                if (blindParams.closeMaxAction == "Stop") 	{it.stop()}
+            }
             else 
-            	{
-                    TRACE("SUN Screens allowed to go ${blindParams.closeMaxAction} no relevant windbearing(${state.windBearing}), Blind ${it.name}")
-                    if (blindParams.closeMaxAction == "Down") 	{it.close()}
-                    if (blindParams.closeMaxAction == "Up") 	{it.open()}
-                    if (blindParams.closeMaxAction == "Stop") 	{it.stop()}
-            	}
+            {
+                TRACE("SUN Screens allowed to go ${blindParams.closeMaxAction} no relevant windbearing(${state.windBearing}), Blind ${it.name}")
+                if (blindParams.closeMaxAction == "Down") 	{it.close()}
+                if (blindParams.closeMaxAction == "Up") 	{it.open()}
+                if (blindParams.closeMaxAction == "Stop") 	{it.stop()}
+            }
         }
+    }
+    else
+    {
+    	it.open()
     }
 }
 
