@@ -199,6 +199,13 @@ private def setupDomoticz() {
         options	    : ["ALL", "Blinds", "On/Off"],
         defaultValue: "ALL"
     ]
+    def inputDelay = [
+        name        : "domoticzDelay",
+        type        : "enum",
+        title       : "Milliseconds delay after SendHubCommand",
+        options	    : [0, 500, 1000, 1500, 2000, 2500, 3000],
+        defaultValue: 0
+    ]
 
     def inputTrace = [
         name        : "domoticzTrace",
@@ -221,6 +228,7 @@ private def setupDomoticz() {
             input inputTcpPort
 	        input inputProtocol
             input inputTrace
+            input inputDelay
         	}
     }
 }
@@ -699,25 +707,26 @@ private def socketSend(message, addr, level, xSat, xBri) {
         path: rooPath,
         headers: [HOST: "${domoticzIpAddress}:${domoticzTcpPort}"])
 
-	pause(3000)
-    
+	def mSeconds = settings.domoticzDelay.toInteger()
+
+	pause(mSeconds)
     sendHubCommand(hubAction)
 	
-    /*def hubActionLog = new physicalgraph.device.HubAction(
+    /*hubActionLog = new physicalgraph.device.HubAction(
         method: "GET",
         path: rooLog,
         headers: [HOST: "${domoticzIpAddress}:${domoticzTcpPort}"])
 
-    sendHubCommand(hubActionLog)
-
-	pause(3000) */
+	pause(mSeconds) 
+    sendHubCommand(hubActionLog) */
+	
     return null
 }
 /*-----------------------------------------------------------------------------------------*/
 /*		Domoticz will send an event message to ST for all devices THAT HAVE BEEN SELECTED to do that
 /*-----------------------------------------------------------------------------------------*/
 def eventDomoticz() {
-	TRACE("eventDomoticz" + params)
+	TRACE("eventDomoticz " + params)
     if (params.message.contains(" >> ")) {
         def parts = params.message.split(" >> ")
         def devName = parts[0]
@@ -732,6 +741,7 @@ def eventDomoticz() {
                     case "domoticzBlinds":
                     	if (devStatus == "OFF") {it.generateEvent("status":"Up")}
                         if (devStatus == "ON") {it.generateEvent("status":"Down")}
+                        if (devStatus == "STOP") {it.generateEvent("status":"Stop")}
                     	break;
                     case "domoticzOnOff":
                         it.generateEvent("switch":devStatus)
@@ -742,6 +752,7 @@ def eventDomoticz() {
     }
     return null
 }
+
 /*-----------------------------------------------------------------------------------------*/
 /*		get the access token. It will be displayed in the log/IDE. Plug this in the Domoticz Notification Settings access_token
 /*-----------------------------------------------------------------------------------------*/
