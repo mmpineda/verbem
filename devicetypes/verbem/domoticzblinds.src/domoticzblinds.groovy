@@ -41,15 +41,19 @@ metadata {
 
     tiles (scale: 2) {
 	    multiAttributeTile(name:"richDomoticzBlind", type:"generic",  width:6, height:4, canChangeIcon: true) {
-        	tileAttribute("device.status", key: "PRIMARY_CONTROL") {
+        	tileAttribute("device.switch", key: "PRIMARY_CONTROL") {
                 attributeState "default", label:'${currentValue}', inactiveLabel:false
-                attributeState "Up", label:" Up ", backgroundColor:"#19f028"
-                attributeState "Off", label:" Up ", backgroundColor:"#19f028"	
-                attributeState "Going Up", label:"Going Up", backgroundColor:"#FE9A2E"
-                attributeState "Stopped", label:"Stopped", backgroundColor:"#11A81C"
-                attributeState "Closed", label:"Down",  backgroundColor:"#08540E"
-                attributeState "On", label:"Down",  backgroundColor:"#08540E"
-                attributeState "Goiwng Down", label:"Going Down",  backgroundColor:"#FE9A2E"
+                attributeState "Up", label:" Up ", backgroundColor:"#19f028", nextState:"Going Down", action:"stop"
+                attributeState "Off", label:" Up ", backgroundColor:"#19f028", nextState:"Going Down", action:"stop"	
+                attributeState "OPEN", label:" Up ", backgroundColor:"#19f028", nextState:"Going Down", action:"stop"	
+                attributeState "off", label:" Up ", backgroundColor:"#19f028", nextState:"Going Down", action:"stop"	
+                attributeState "Going Up", label:"Going Up", backgroundColor:"#FE9A2E", nextState:"Going Down", action:"open"
+                attributeState "Stopped", label:"Stopped", backgroundColor:"#11A81C", action:"close"
+                attributeState "Closed", label:"Down",  backgroundColor:"#08540E", nextState:"Going Up"
+                attributeState "On", label:"Down",  backgroundColor:"#08540E", nextState:"Going Up", action:"open"
+                attributeState "on", label:"Down",  backgroundColor:"#08540E", nextState:"Going Up", action:"open"
+                attributeState "DOWN", label:"Down",  backgroundColor:"#08540E", nextState:"Going Up", action:"open"
+                attributeState "Going Down", label:"Going Down",  backgroundColor:"#FE9A2E", nextState:"Going Up", action:"close"
             }
         }
  
@@ -109,7 +113,6 @@ def parse(String message) {
 def on() {
 	log.debug "Close()"
     if (parent) {
-        sendEvent(name:'status', value:"Going Down" as String)
         parent.domoticz_on(getIDXAddress())
     }
 
@@ -118,7 +121,6 @@ def on() {
 def off() {
 	log.debug "Open()"
     if (parent) {
-        sendEvent(name:'status', value:"Going Up" as String)
         parent.domoticz_off(getIDXAddress())
     }
 }
@@ -126,7 +128,6 @@ def off() {
 def close() {
 	log.debug "Close()"
     if (parent) {
-        sendEvent(name:'status', value:"Going Down" as String)
         parent.domoticz_on(getIDXAddress())
     }
 }
@@ -148,7 +149,6 @@ def poll() {
 def open() {
 	log.debug "Open()"
     if (parent) {
-        sendEvent(name:'status', value:"Going Up" as String)
         parent.domoticz_off(getIDXAddress())
     }
 }
@@ -244,7 +244,7 @@ private getCallBackAddress() {
 /*			execute event can be called from the service manager!!!
 /*----------------------------------------------------*/
 def generateEvent (Map results) {
-log.info "generateEvent()"
+
 results.each { name, value ->
 	log.info "generateEvent " + name + " " + value
 	sendEvent(name:"${name}", value:"${value}")

@@ -45,15 +45,15 @@ metadata {
     tiles(scale:2) {
     	multiAttributeTile(name:"richDomoticzOnOff", type:"lighting",  width:6, height:4, canChangeIcon: true) {
         	tileAttribute("device.switch", key: "PRIMARY_CONTROL") {
-                attributeState "off", label:'Off', icon:"st.lights.philips.hue-single", backgroundColor:"#ffffff", action:"switch.on"
-                attributeState "Off", label:'Off', icon:"st.lights.philips.hue-single", backgroundColor:"#ffffff", action:"switch.on"
-                attributeState "OFF", label:'Off',icon:"st.lights.philips.hue-single", backgroundColor:"#ffffff", action:"switch.on"
-                attributeState "Turning Off", label:'Turning Off', icon:"st.lights.philips.hue-single", backgroundColor:"#FE9A2E", action:"switch.on"
+                attributeState "off", label:'Off', icon:"st.lights.philips.hue-single", backgroundColor:"#ffffff", action:"on", nextState:"Turning On"
+                attributeState "Off", label:'Off', icon:"st.lights.philips.hue-single", backgroundColor:"#ffffff", action:"on", nextState:"Turning On"
+                attributeState "OFF", label:'Off',icon:"st.lights.philips.hue-single", backgroundColor:"#ffffff", action:"on", nextState:"Turning On"
+                attributeState "Turning Off", label:'Turning Off', icon:"st.lights.philips.hue-single", backgroundColor:"#FE9A2E", nextState:"Turning On"
                 
-                attributeState "on", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#79b821", action:"switch.off"
-                attributeState "On", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#79b821", action:"switch.off"
-                attributeState "ON", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#79b821", action:"switch.off"
-                attributeState "Turning On", label:'Turning On', icon:"st.lights.philips.hue-single", backgroundColor:"#FE9A2E", action:"switch.off"
+                attributeState "on", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#79b821", action:"off", nextState:"Turning Off"
+                attributeState "On", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#79b821", action:"off", nextState:"Turning Off"
+                attributeState "ON", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#79b821", action:"off", nextState:"Turning Off"
+                attributeState "Turning On", label:'Turning On', icon:"st.lights.philips.hue-single", backgroundColor:"#FE9A2E", nextState:"Turning Off"
             }
             tileAttribute("device.level", key: "SLIDER_CONTROL", range:"0..16") {
             	attributeState "level", action:"setLevel" 
@@ -121,7 +121,6 @@ def refresh() {
 def on() {
 
     if (parent) {
-        sendEvent(name:"switch", value:"Turning On")
         parent.domoticz_on(getIDXAddress())
     }
 }
@@ -138,7 +137,6 @@ def toggle() {
 def off() {
 
     if (parent) {
-        sendEvent(name:"switch", value:"Turning Off")
         parent.domoticz_off(getIDXAddress())
     }
 }
@@ -243,9 +241,9 @@ private getCallBackAddress() {
 /*			execute event can be called from the service manager!!!
 /*----------------------------------------------------*/
 def generateEvent (Map results) {
-results.each { name, value ->
-	log.info "generateEvent " + name + " " + value
-	sendEvent(name:"${name}", value:"${value}")
-    }
-    return null
+    results.each { name, value ->
+        log.info "generateEvent " + name + " " + value
+        sendEvent(name:"${name}", value:"${value}")
+        }
+        return null
 }
