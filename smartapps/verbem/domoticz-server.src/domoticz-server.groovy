@@ -567,7 +567,8 @@ private def getDeviceListAsText(type) {
     String s = ""
     state.devices.sort().each { k,v ->
         if (v.type == type) {
-           	s += "${k.padLeft(4)} - ${dev.displayName} - ${v.dni}\n"
+        	def dev = getChildDevice(v.dni)
+           	s += "${k.padLeft(4)} - ${dev.displayName} - ${v.deviceType}\n"
 			}
     }
 
@@ -585,14 +586,6 @@ private String makeNetworkId(ipaddr, port) {
 
     String hexPort = String.format('%04X', port)
     return "${hexIp}:${hexPort}"
-}
-
-private def textVersion() {
-    return "Version 1.0.0"
-}
-
-private def textCopyright() {
-    return "Copyright (c) 2015 Martin Verbeek"
 }
 
 private def TRACE(message) {
@@ -782,4 +775,12 @@ def getHubID(){
     if (hubs.size() == 1) hubID = hubs[0].id 
     TRACE("[getHubID] hubID: ${hubID}")
     return hubID
+}
+
+private def textVersion() {
+    return "Version 2.0.0"
+}
+
+private def textCopyright() {
+    return "Copyright (c) 2016 Martin Verbeek"
 }
