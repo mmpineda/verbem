@@ -1,7 +1,7 @@
 /**
  *  domoticzBlinds
  *
- *  Copyright 2015 Martin Verbeek
+ *  Copyright 2016 Martin Verbeek
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -42,43 +42,47 @@ metadata {
     tiles (scale: 2) {
 	    multiAttributeTile(name:"richDomoticzBlind", type:"generic",  width:6, height:4, canChangeIcon: true) {
         	tileAttribute("device.switch", key: "PRIMARY_CONTROL") {
-                attributeState "default", label:'${currentValue}', inactiveLabel:false
+                //attributeState "default", label:'${currentValue}', inactiveLabel:false
                 attributeState "Up", label:" Up ", backgroundColor:"#19f028", nextState:"Going Down", action:"stop"
+                attributeState "UP", label:" Up ", backgroundColor:"#19f028", nextState:"Going Down", action:"stop"
                 attributeState "Off", label:" Up ", backgroundColor:"#19f028", nextState:"Going Down", action:"stop"	
-                attributeState "OPEN", label:" Up ", backgroundColor:"#19f028", nextState:"Going Down", action:"stop"	
+                attributeState "Open", label:" Up ", backgroundColor:"#19f028", nextState:"Going Down", action:"stop"	
                 attributeState "off", label:" Up ", backgroundColor:"#19f028", nextState:"Going Down", action:"stop"	
                 attributeState "Going Up", label:"Going Up", backgroundColor:"#FE9A2E", nextState:"Going Down", action:"open"
-                attributeState "Stopped", label:"Stopped", backgroundColor:"#11A81C", action:"close"
+
+				attributeState "Stopped", label:"Stopped", backgroundColor:"#11A81C", action:"close"
+                
                 attributeState "Closed", label:"Down",  backgroundColor:"#08540E", nextState:"Going Up"
                 attributeState "On", label:"Down",  backgroundColor:"#08540E", nextState:"Going Up", action:"open"
                 attributeState "on", label:"Down",  backgroundColor:"#08540E", nextState:"Going Up", action:"open"
+                attributeState "Down", label:"Down",  backgroundColor:"#08540E", nextState:"Going Up", action:"open"
                 attributeState "DOWN", label:"Down",  backgroundColor:"#08540E", nextState:"Going Up", action:"open"
                 attributeState "Going Down", label:"Going Down",  backgroundColor:"#FE9A2E", nextState:"Going Up", action:"close"
             }
         }
  
         
-        standardTile("Up", "device.switch", inactiveLabel:false, decoration:"flat") {
+        standardTile("Up", "device.switch", width: 2, height: 2, inactiveLabel:false, decoration:"flat") {
             state "default", label:'Up', icon:"st.doors.garage.garage-opening",
                 action:"open"
         }
 
-        standardTile("stop", "device.switch", inactiveLabel:false, decoration:"flat") {
-            state "default", label:'Stopped/My', icon:"st.doors.garage.garage-open",
+        standardTile("Stop", "device.switch", width: 2, height: 2, inactiveLabel:false, decoration:"flat") {
+            state "default", label:'Stop', icon:"st.doors.garage.garage-open",
                 action:"stop"
         }
 
-        standardTile("Down", "device.switch", inactiveLabel:false, decoration:"flat") {
+        standardTile("Down", "device.switch", width: 2, height: 2, inactiveLabel:false, decoration:"flat") {
             state "default", label:'Down', icon:"st.doors.garage.garage-closing",
                 action:"close"
         }
 
-        standardTile("debug", "device.motion", inactiveLabel: false, decoration: "flat") {
+        standardTile("debug", "device.motion", width: 2, height: 2, inactiveLabel: false, decoration: "flat") {
             state "default", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
         }
 
         main(["richDomoticzBlind"])
-        details(["richDomoticzBlind", "Up", "stop", "Down", "debug"])
+        details(["richDomoticzBlind", "Up", "Stop", "Down", "debug"])
 
     }    
 }
@@ -98,7 +102,7 @@ def parse(String message) {
     	log.debug "Parse- value  ${msg.switch}"
         switch (msg.switch.toUpperCase()) {
         case "ON": close(); break
-        case "STOP": stop(); break
+        case "STOPPED": stop(); break
         case "OFF": open(); break
         sendPush( "Parse- Invalid message: ${message}")
         return null
@@ -157,7 +161,7 @@ def stop() {
 	log.debug "Stop()"
     if (parent && settings.Somfy) {
     	if (settings.Somfy) {
-            sendEvent(name:'status', value:"Stopped" as String)
+            sendEvent(name:'switch', value:"Stopped" as String)
             parent.domoticz_stop(getIDXAddress())
         	}
         else {
@@ -173,7 +177,7 @@ def stop() {
 def setLevel() {
 	log.debug "setLevel()"
     if (parent && settings.Somfy) {
-   		sendEvent(name:'status', value:"Stopped" as String)
+   		sendEvent(name:'switch', value:"Stopped" as String)
         parent.domoticz_stop(getIDXAddress())
     }
 }
