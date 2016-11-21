@@ -277,6 +277,7 @@ private def setupActionTest() {
     def networkId = makeNetworkId(settings.domoticzIpAddress, settings.domoticzTcpPort)
 
 	socketSend("list", 0, 0, 0, 0)
+    socketSend("scenes", 0, 0, 0, 0)
 
     return dynamicPage(pageProperties) {
         section {
@@ -393,12 +394,28 @@ def onLocation(evt) {
     
     TRACE("[onLocation] statusrsp ${statusrsp}") 
     if (state.setStatusrsp == true ) {state.statusrsp = statusrsp}
+    if (state.setStatusGrpRsp == true) {state.statusGrpRsp = statusrsp}
     state.setStatusrsp = false
+    state.setStatusGrpRsp = false
 	statusrsp.each 
     	{ 
-        	TRACE("[onLocation] ${it.SwitchType} ${it.Name} ${it.Status}")
-            if (it.SwitchType == domoticzProtocol || domoticzProtocol == "ALL") 
+        	if (it.Type == "Group" || it.Type == "Scene") 
             {
+				TRACE("[onLocation Scene] ${it.Type} ${it.Name} ${it.Status}")
+                lstDomoticz.add(it.Name)
+                state.statusrsp.add(it)
+                switch (it.Type) {
+                case "Scene":
+                	addSwitch(it.idx, "domoticzScene", it.Name, it.Status)
+                    break;
+                case "Group":
+                	addSwitch(it.idx, "domoticzScene", it.Name, it.Status)
+                    break;
+                }            
+            }   
+            else if (it.SwitchType == domoticzProtocol || domoticzProtocol == "ALL") 
+            {
+            	TRACE("[onLocation Devices] ${it.SwitchType} ${it.Name} ${it.Status}")
                 lstDomoticz.add(it.Name)
                 switch (it.SwitchType) {
                 case "Blinds":
@@ -445,6 +462,7 @@ private def initialize() {
 	}
     
 	state.setStatusrsp = false
+    state.setStatusGrpRsp = false
     state.setup.installed = true
     state.networkId = settings.domoticzIpAddress + ":" + settings.domoticzTcpPort
     updateDeviceList()
@@ -532,6 +550,9 @@ private def updateDeviceList() {
         state.statusrsp.each {
         	if (k == it.idx) { inStatusrsp = true}
         }
+        state.statusGrpRsp.each {
+        	if (k == it.idx) { inStatusrsp = true}
+        }
             
         if (inStatusrsp == false ) {
         	TRACE("${k} not in Domoticz anymore")
@@ -607,6 +628,13 @@ def domoticz_poll(nid) {
 	TRACE("[domoticz poll/status] (${nid})")
     socketSend("status", nid, 0, 0, 0)
 }
+/*-----------------------------------------------------------------------------------------*/
+/*		Excecute 'scenepoll' command on behalf of child device
+/*-----------------------------------------------------------------------------------------*/
+def domoticz_scenepoll(nid) {
+	TRACE("[domoticz scenepoll/status] (${nid})")
+    socketSend("scenes", nid, 0, 0, 0)
+}
 
 /*-----------------------------------------------------------------------------------------*/
 /*		Excecute 'off' command on behalf of child device
@@ -616,13 +644,26 @@ def domoticz_off(nid) {
     socketSend("off", nid, 0, 0, 0)
 }
 /*-----------------------------------------------------------------------------------------*/
+/*		Excecute 'sceneoff' command on behalf of child device
+/*-----------------------------------------------------------------------------------------*/
+def domoticz_sceneoff(nid) {
+	TRACE("[domoticz scene off] (${nid})")
+    socketSend("sceneoff", nid, 0, 0, 0)
+}
+/*-----------------------------------------------------------------------------------------*/
 /*		Excecute 'on' command on behalf of child device
 /*-----------------------------------------------------------------------------------------*/
 def domoticz_on(nid) {
 	TRACE("[domoticz on] (${nid})")
     socketSend("on", nid, 16, 0, 0)
 }
-
+/*-----------------------------------------------------------------------------------------*/
+/*		Excecute 'sceneon' command on behalf of child device
+/*-----------------------------------------------------------------------------------------*/
+def domoticz_sceneon(nid) {
+	TRACE("[domoticz scene on] (${nid})")
+    socketSend("sceneon", nid, 0, 0, 0)
+}
 /*-----------------------------------------------------------------------------------------*/
 /*		Excecute 'toggle' command on behalf of child device
 /*-----------------------------------------------------------------------------------------*/
@@ -643,17 +684,17 @@ def domoticz_stop(nid) {
 /*		Excecute 'setlevel' command on behalf of child device
 /*-----------------------------------------------------------------------------------------*/
 def domoticz_setlevel(nid, xLevel) {
-	TRACE("[domoticz setlevel] (${nid})")
+	TRACE("[domoticz setlevel] ( ${xLevel} for ${nid})")
     if (xLevel.toInteger() == 0) {socketSend("off", nid, 0, 0, 0)}
     else {socketSend("on", nid, xLevel, 0, 0)}
 }
 
 /*-----------------------------------------------------------------------------------------*/
-/*		Excecute 'setlevel' command on behalf of child device 
+/*		Excecute 'setcolor' command on behalf of child device 
 /*-----------------------------------------------------------------------------------------*/
-def domoticz_setcolor(nid, xHue, xBri, xSat) {
-	TRACE("[domoticz setcolor] (${nid})")
-    socketSend("setcolor", nid, xHue, xSat, xBri)
+def domoticz_setcolor(nid, xHue, xSat) {
+	TRACE("[domoticz setcolor] (${nid} Hue ${xHue} Sat ${xSat})")
+    socketSend("setcolor", nid, xHue, xSat)
 
 }
 
@@ -671,6 +712,19 @@ private def socketSend(message, addr, level, xSat, xBri) {
         	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20ListDevices"
         	rooPath = "/json.htm?type=devices&filter=light&used=true&order=Name"
  			break;
+		case "scenes":
+        	state.setStatusGrpRsp = true
+        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20ListScenes"
+        	rooPath = "/json.htm?type=scenes"
+ 			break;
+        case "sceneon":
+        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20On%20for%20${addr}"
+        	rooPath = "/json.htm?type=command&param=switchscene&idx=${addr}&switchcmd=On"
+            break;
+        case "sceneoff":
+        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20On%20for%20${addr}"
+        	rooPath = "/json.htm?type=command&param=switchscene&idx=${addr}&switchcmd=Off"
+            break;
 		case "status":
         	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20Status%20for%20${addr}"
 			rooPath = "/json.htm?type=devices&rid=${addr}"
