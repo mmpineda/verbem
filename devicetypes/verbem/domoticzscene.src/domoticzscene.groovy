@@ -1,7 +1,7 @@
 /**
- *  Domoticz OnOff SubType Switch.
+ *  Domoticz Scene SubType Switch.
  *
- *  SmartDevice type for domoticz switches and dimmers.
+ *  SmartDevice type for domoticz scenes and groups
  *  
  *
  *  Copyright (c) 2016 Martin Verbeek
@@ -26,20 +26,15 @@
  */
 
 metadata {
-    definition (name:"domoticzOnOff", namespace:"verbem", author:"Martin Verbeek") {
+    definition (name:"domoticzScene", namespace:"verbem", author:"Martin Verbeek") {
         capability "Actuator"
         capability "Sensor"
-        capability "Color Control"
         capability "Switch"
-        capability "Switch Level"
         capability "Refresh"
         capability "Polling"
         
         // custom commands
         command "parse"     // (String "<attribute>:<value>[,<attribute>:<value>]")
-       	command "setLevel"
-        command "setColor"
-        command "toggle"
     }
 
     tiles(scale:2) {
@@ -54,12 +49,6 @@ metadata {
                 attributeState "On", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#79b821", action:"off", nextState:"Turning Off"
                 attributeState "ON", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#79b821", action:"off", nextState:"Turning Off"
                 attributeState "Turning On", label:'Turning On', icon:"st.lights.philips.hue-single", backgroundColor:"#FE9A2E", nextState:"Turning Off"
-            }
-            tileAttribute("device.level", key: "SLIDER_CONTROL", range:"0..16") {
-            	attributeState "level", action:"setLevel" 
-            }
-            tileAttribute ("device.color", key: "COLOR_CONTROL") {
-        		attributeState "color", action:"setColor"
             }
         }
         
@@ -105,7 +94,7 @@ def poll() {
 
     if (parent) {
         TRACE("poll() ${device.deviceNetworkId}")
-        parent.domoticz_poll(getIDXAddress())
+        parent.domoticz_scenepoll(getIDXAddress())
     }
 }
 
@@ -113,7 +102,7 @@ def poll() {
 def refresh() {
 
     if (parent) {
-        parent.domoticz_poll(getIDXAddress())
+        parent.domoticz_scenepoll(getIDXAddress())
     }
 }
 
@@ -121,15 +110,8 @@ def refresh() {
 def on() {
 
     if (parent) {
-        parent.domoticz_on(getIDXAddress())
-    }
-}
-
-// switch.toggle() command handler
-def toggle() {
-
-    if (parent) {
-        parent.domoticz_toggle(getIDXAddress())
+        parent.domoticz_sceneon(getIDXAddress())
+        parent.domoticz_scenepoll(getIDXAddress())
     }
 }
 
@@ -137,25 +119,9 @@ def toggle() {
 def off() {
 
     if (parent) {
-        parent.domoticz_off(getIDXAddress())
+        parent.domoticz_sceneoff(getIDXAddress())
+        parent.domoticz_scenepoll(getIDXAddress())
     }
-}
-
-// Custom setlevel() command handler
-def setLevel(level) {
-    TRACE("setLevel Level " + level)
-    if (parent) {
-        parent.domoticz_setlevel(getIDXAddress(), level)
-    }
-}
-
-// Custom setcolor() command handler hue from ST is percentage of 366 which is max HUE
-def setColor(color) {
-	
-    	TRACE("SetColor Hue " + Math.round(color.hue/100*366) + " Sat " + Math.round(color.saturation) )
-    	if (parent) {
-        	parent.domoticz_setcolor(getIDXAddress(), Math.round(color.hue/100*366), Math.round(color.saturation))
-    		}	
 }
 
 private def TRACE(message) {

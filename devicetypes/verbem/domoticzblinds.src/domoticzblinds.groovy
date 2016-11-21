@@ -43,20 +43,20 @@ metadata {
 	    multiAttributeTile(name:"richDomoticzBlind", type:"generic",  width:6, height:4, canChangeIcon: true) {
         	tileAttribute("device.switch", key: "PRIMARY_CONTROL") {
                 //attributeState "default", label:'${currentValue}', inactiveLabel:false
-                attributeState "Up", label:" Up ", backgroundColor:"#19f028", nextState:"Going Down", action:"stop"
-                attributeState "UP", label:" Up ", backgroundColor:"#19f028", nextState:"Going Down", action:"stop"
-                attributeState "Off", label:" Up ", backgroundColor:"#19f028", nextState:"Going Down", action:"stop"	
+                //attributeState "Up", label:" Up ", backgroundColor:"#19f028", nextState:"Going Down", action:"stop"
+                //attributeState "UP", label:" Up ", backgroundColor:"#19f028", nextState:"Going Down", action:"stop"
+                //attributeState "Off", label:" Up ", backgroundColor:"#19f028", nextState:"Going Down", action:"stop"	
                 attributeState "Open", label:" Up ", backgroundColor:"#19f028", nextState:"Going Down", action:"stop"	
-                attributeState "off", label:" Up ", backgroundColor:"#19f028", nextState:"Going Down", action:"stop"	
+                //attributeState "off", label:" Up ", backgroundColor:"#19f028", nextState:"Going Down", action:"stop"	
                 attributeState "Going Up", label:"Going Up", backgroundColor:"#FE9A2E", nextState:"Going Down", action:"open"
 
 				attributeState "Stopped", label:"Stopped", backgroundColor:"#11A81C", action:"close"
                 
                 attributeState "Closed", label:"Down",  backgroundColor:"#08540E", nextState:"Going Up"
-                attributeState "On", label:"Down",  backgroundColor:"#08540E", nextState:"Going Up", action:"open"
-                attributeState "on", label:"Down",  backgroundColor:"#08540E", nextState:"Going Up", action:"open"
-                attributeState "Down", label:"Down",  backgroundColor:"#08540E", nextState:"Going Up", action:"open"
-                attributeState "DOWN", label:"Down",  backgroundColor:"#08540E", nextState:"Going Up", action:"open"
+                //attributeState "On", label:"Down",  backgroundColor:"#08540E", nextState:"Going Up", action:"open"
+                //attributeState "on", label:"Down",  backgroundColor:"#08540E", nextState:"Going Up", action:"open"
+                //attributeState "Down", label:"Down",  backgroundColor:"#08540E", nextState:"Going Up", action:"open"
+                //attributeState "DOWN", label:"Down",  backgroundColor:"#08540E", nextState:"Going Up", action:"open"
                 attributeState "Going Down", label:"Going Down",  backgroundColor:"#FE9A2E", nextState:"Going Up", action:"close"
             }
         }
@@ -165,15 +165,17 @@ def stop() {
             parent.domoticz_stop(getIDXAddress())
         	}
         else {
-        	parent.domoticz_off(getIDXAddress())
-            pause(settings.seconds2Complete*1000)
-            parent.domoticz_on(getIDXAddress)
-            pause(settings.seconds2Complete*1000/2)
-            parent.domoticz_stop(getIDXAddress)
+        	//parent.domoticz_off(getIDXAddress())
+            //pause(settings.seconds2Complete*1000)
+            //parent.domoticz_on(getIDXAddress)
+            //pause(settings.seconds2Complete*1000/2)
+            //parent.domoticz_stop(getIDXAddress)
         	}
     }
 }
-/* special implementation through setlevel for STOP somfy command if device setting.Somfy = true */
+/* 	special implementation through setlevel for STOP somfy command if device setting.Somfy = true 
+	It also makes it possible to use Alexa DIM!!!
+*/
 def setLevel() {
 	log.debug "setLevel()"
     if (parent && settings.Somfy) {
