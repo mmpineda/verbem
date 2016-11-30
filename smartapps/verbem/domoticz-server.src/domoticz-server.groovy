@@ -199,7 +199,22 @@ private def setupDomoticz() {
         options	    : ["ALL", "Blinds", "On/Off"],
         defaultValue: "ALL"
     ]
-    def inputDelay = [
+
+    def inputGroup = [
+        name        : "domoticzGroup",
+        type        : "bool",
+        title       : "Add Groups from Domoticz",
+        defaultValue: false
+    ]
+    
+    def inputScene = [
+        name        : "domoticzScene",
+        type        : "bool",
+        title       : "Add Scenes from Domoticz",
+        defaultValue: false
+    ]
+    
+	def inputDelay = [
         name        : "domoticzDelay",
         type        : "enum",
         title       : "Milliseconds delay after SendHubCommand",
@@ -227,6 +242,8 @@ private def setupDomoticz() {
             input inputIpAddress
             input inputTcpPort
 	        input inputProtocol
+            input inputGroup
+            input inputScene
             input inputTrace
             input inputDelay
         	}
@@ -277,7 +294,7 @@ private def setupActionTest() {
     def networkId = makeNetworkId(settings.domoticzIpAddress, settings.domoticzTcpPort)
 
 	socketSend("list", 0, 0, 0, 0)
-    socketSend("scenes", 0, 0, 0, 0)
+    // socketSend("scenes", 0, 0, 0, 0)
 
     return dynamicPage(pageProperties) {
         section {
@@ -391,47 +408,53 @@ def onLocation(evt) {
     statusrsp = statusrsp.result
     
     if (statusrsp == null) return
-    
-    TRACE("[onLocation] statusrsp ${statusrsp}") 
-    if (state.setStatusrsp == true ) {state.statusrsp = statusrsp}
-    if (state.setStatusGrpRsp == true) {state.statusGrpRsp = statusrsp}
-    state.setStatusrsp = false
-    state.setStatusGrpRsp = false
+
+
+    if (state.setStatusrsp == true ) {
+        TRACE("[onLocation] setStatusrsp ${statusrsp}") 
+        state.setStatusrsp = false
+        pause 10
+        state.statusrsp = statusrsp}
+        
 	statusrsp.each 
     	{ 
         	if (it.Type == "Group" || it.Type == "Scene") 
             {
-				TRACE("[onLocation Scene] ${it.Type} ${it.Name} ${it.Status}")
-                lstDomoticz.add(it.Name)
-                state.statusrsp.add(it)
+				TRACE("[onLocation Scene] ${it.Type} ${it.Name} ${it.Status} ${it.Type}")
                 switch (it.Type) {
                 case "Scene":
-                	addSwitch(it.idx, "domoticzScene", it.Name, it.Status)
+                	if (domoticzScene) {
+                    	addSwitch(it.idx, "domoticzScene", it.Name, it.Status, it.Type)
+                		lstDomoticz.add(it.Name)
+                        }
                     break;
                 case "Group":
-                	addSwitch(it.idx, "domoticzScene", it.Name, it.Status)
+                	if (domoticzGroup) {
+                    	addSwitch(it.idx, "domoticzScene", it.Name, it.Status, it.Type)
+		                lstDomoticz.add(it.Name)
+                        }
                     break;
                 }            
             }   
             else if (it.SwitchType == domoticzProtocol || domoticzProtocol == "ALL") 
             {
-            	TRACE("[onLocation Devices] ${it.SwitchType} ${it.Name} ${it.Status}")
+            	TRACE("[onLocation Devices] ${it.SwitchType} ${it.Name} ${it.Status} ${it.Type}")
                 lstDomoticz.add(it.Name)
                 switch (it.SwitchType) {
                 case "Blinds":
-                	addSwitch(it.idx, "domoticzBlinds", it.Name, it.Status)
+                	addSwitch(it.idx, "domoticzBlinds", it.Name, it.Status, it.Type)
                     break;
                 case "Blinds Inverted":
-                	addSwitch(it.idx, "domoticzBlinds", it.Name, it.Status)
+                	addSwitch(it.idx, "domoticzBlinds", it.Name, it.Status, it.Type)
                     break;
                 case "Blinds Percentage":
-                	addSwitch(it.idx, "domoticzBlinds", it.Name, it.Status)
+                	addSwitch(it.idx, "domoticzBlinds", it.Name, it.Status, it.Type)
                     break;
                 case "On/Off":
-                    addSwitch(it.idx, "domoticzOnOff", it.Name, it.Status)
+                    addSwitch(it.idx, "domoticzOnOff", it.Name, it.Status, it.Type)
                     break;
                 case "Dimmer":
-                    addSwitch(it.idx, "domoticzOnOff", it.Name, it.Status)
+                    addSwitch(it.idx, "domoticzOnOff", it.Name, it.Status, it.Type)
                     break;
                 }
             }
@@ -462,7 +485,6 @@ private def initialize() {
 	}
     
 	state.setStatusrsp = false
-    state.setStatusGrpRsp = false
     state.setup.installed = true
     state.networkId = settings.domoticzIpAddress + ":" + settings.domoticzTcpPort
     updateDeviceList()
@@ -472,7 +494,7 @@ private def initialize() {
 /*-----------------------------------------------------------------------------------------*/
 /*		Execute the real add or status update of the child device
 /*-----------------------------------------------------------------------------------------*/
-private def addSwitch(addr, passedFile, passedName, passedStatus) {
+private def addSwitch(addr, passedFile, passedName, passedStatus, passedType) {
     TRACE("[addSwitch] ${addr}, ${passedFile}, ${passedName}, ${passedStatus}")
 
     def dni = settings.domoticzIpAddress + ":" + settings.domoticzTcpPort + ":" + addr
@@ -485,6 +507,15 @@ private def addSwitch(addr, passedFile, passedName, passedStatus) {
         	}
         
         getChildDevice(dni).generateEvent("switch":passedStatus)
+    	state.devices[addr] = [
+                'dni'   : dni,
+                'ip' : settings.domoticzIpAddress,
+                'port' : settings.domoticzTcpPort,
+                'idx' : addr,
+                'type'  : 'switch',
+                'deviceType' : passedFile,
+                'subType' : passedType
+            ]
 
 		return 
     }
@@ -499,6 +530,15 @@ private def addSwitch(addr, passedFile, passedName, passedStatus) {
         	}
         
         getChildDevice(dni).generateEvent("switch":passedStatus)
+    	state.devices[addr] = [
+                'dni'   : dni,
+                'ip' : settings.domoticzIpAddress,
+                'port' : settings.domoticzTcpPort,
+                'idx' : addr,
+                'type'  : 'switch',
+                'deviceType' : passedFile,
+                'subType' : passedType
+            ]
 
 		return 
     }
@@ -531,6 +571,7 @@ private def addSwitch(addr, passedFile, passedName, passedStatus) {
         'idx' : addr,
         'type'  : 'switch',
         'deviceType' : devFile,
+        'subType' : passedType
     ]
 
     STATE()
@@ -648,7 +689,9 @@ def domoticz_off(nid) {
 /*-----------------------------------------------------------------------------------------*/
 def domoticz_sceneoff(nid) {
 	TRACE("[domoticz scene off] (${nid})")
-    socketSend("sceneoff", nid, 0, 0, 0)
+    // find out if it is a scene or a group, scenes do only ON commands
+    if (state.devices[nid].subType == "Scene") {socketSend("sceneon", nid, 0, 0, 0)}
+    else {socketSend("sceneoff", nid, 0, 0, 0)}
 }
 /*-----------------------------------------------------------------------------------------*/
 /*		Excecute 'on' command on behalf of child device
@@ -686,15 +729,15 @@ def domoticz_stop(nid) {
 def domoticz_setlevel(nid, xLevel) {
 	TRACE("[domoticz setlevel] ( ${xLevel} for ${nid})")
     if (xLevel.toInteger() == 0) {socketSend("off", nid, 0, 0, 0)}
-    else {socketSend("on", nid, xLevel, 0, 0)}
+    else {socketSend("setlevel", nid, xLevel, 0, 0)}
 }
 
 /*-----------------------------------------------------------------------------------------*/
 /*		Excecute 'setcolor' command on behalf of child device 
 /*-----------------------------------------------------------------------------------------*/
-def domoticz_setcolor(nid, xHue, xSat) {
+def domoticz_setcolor(nid, xHue, xSat, xBri) {
 	TRACE("[domoticz setcolor] (${nid} Hue ${xHue} Sat ${xSat})")
-    socketSend("setcolor", nid, xHue, xSat)
+    socketSend("setcolor", nid, xHue, xSat, xBri)
 
 }
 
@@ -710,11 +753,10 @@ private def socketSend(message, addr, level, xSat, xBri) {
 		case "list":
         	state.setStatusrsp = true
         	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20ListDevices"
-        	rooPath = "/json.htm?type=devices&filter=light&used=true&order=Name"
+        	rooPath = "/json.htm?type=devices&filter=all&used=true&order=Name"
  			break;
 		case "scenes":
-        	state.setStatusGrpRsp = true
-        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20ListScenes"
+        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20LisScenes"
         	rooPath = "/json.htm?type=scenes"
  			break;
         case "sceneon":
@@ -747,11 +789,11 @@ private def socketSend(message, addr, level, xSat, xBri) {
             break;
         case "setlevel":
         	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20Level%20${level}%20for%20${addr}"
-        	rooPath = "/json.htm?type=command&param=switchlight&idx=${addr}&switchcmd=On,level=${level}"
+        	rooPath = "/json.htm?type=command&param=switchlight&idx=${addr}&switchcmd=Set%20Level&level=${level}"
             break;
         case "setcolor":
         	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20Color%20${level}%20for%20${addr}"
-        	rooPath = "/json.htm?type=command&param=setcolbrightnessvalue&idx=${addr}&hue=${level}&brightness=${xBri}&iswhite=false"
+        	rooPath = "/json.htm?type=command&param=setcolbrightnessvalue&idx=${addr}&hue=${level}&iswhite=false&brightness=${xBri}"
             break;
             
 	}
