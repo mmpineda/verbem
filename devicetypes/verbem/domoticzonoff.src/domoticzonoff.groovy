@@ -53,6 +53,7 @@ metadata {
                 attributeState "on", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#79b821", action:"off", nextState:"Turning Off"
                 attributeState "On", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#79b821", action:"off", nextState:"Turning Off"
                 attributeState "ON", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#79b821", action:"off", nextState:"Turning Off"
+                attributeState "Set Level", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#79b821", action:"off", nextState:"Turning Off"
                 attributeState "Turning On", label:'Turning On', icon:"st.lights.philips.hue-single", backgroundColor:"#FE9A2E", nextState:"Turning Off"
             }
             tileAttribute("device.level", key: "SLIDER_CONTROL", range:"0..16") {
@@ -144,6 +145,7 @@ def off() {
 // Custom setlevel() command handler
 def setLevel(level) {
     TRACE("setLevel Level " + level)
+    state.setLevel = level
     if (parent) {
         parent.domoticz_setlevel(getIDXAddress(), level)
     }
@@ -152,9 +154,9 @@ def setLevel(level) {
 // Custom setcolor() command handler hue from ST is percentage of 366 which is max HUE
 def setColor(color) {
 	
-    	TRACE("SetColor Hue " + Math.round(color.hue/100*366) + " Sat " + Math.round(color.saturation) )
+    	TRACE("SetColor Hue " + Math.round(color.hue/100*366) + " Sat " + Math.round(color.saturation) + " Level " + state.setLevel )
     	if (parent) {
-        	parent.domoticz_setcolor(getIDXAddress(), Math.round(color.hue/100*366), Math.round(color.saturation))
+        	parent.domoticz_setcolor(getIDXAddress(), Math.round(color.hue/100*366), Math.round(color.saturation), state.setLevel)
     		}	
 }
 
