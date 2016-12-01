@@ -14,7 +14,6 @@
  *
  */
 preferences {
-	input("Somfy", "boolean", title: "Somfy stop supported?", description: "Is the Somfy STOP defined?", defaultValue : false)
     input("seconds2Complete", "number", title: "Time in seconds to fully close/open?", description:"Specify open close cycle", defaultValue:0)
 }   
 metadata {
@@ -159,26 +158,18 @@ def open() {
 
 def stop() {
 	log.debug "Stop()"
-    if (parent && settings.Somfy) {
-    	if (settings.Somfy) {
-            sendEvent(name:'switch', value:"Stopped" as String)
-            parent.domoticz_stop(getIDXAddress())
-        	}
-        else {
-        	//parent.domoticz_off(getIDXAddress())
-            //pause(settings.seconds2Complete*1000)
-            //parent.domoticz_on(getIDXAddress)
-            //pause(settings.seconds2Complete*1000/2)
-            //parent.domoticz_stop(getIDXAddress)
-        	}
+    if (parent) {
+        sendEvent(name:'switch', value:"Stopped" as String)
+        parent.domoticz_stop(getIDXAddress())
     }
+
 }
 /* 	special implementation through setlevel for STOP somfy command if device setting.Somfy = true 
 	It also makes it possible to use Alexa DIM!!!
 */
 def setLevel() {
 	log.debug "setLevel()"
-    if (parent && settings.Somfy) {
+    if (parent) {
    		sendEvent(name:'switch', value:"Stopped" as String)
         parent.domoticz_stop(getIDXAddress())
     }
