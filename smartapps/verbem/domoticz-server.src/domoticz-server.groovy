@@ -720,24 +720,25 @@ def domoticz_toggle(nid) {
 /*-----------------------------------------------------------------------------------------*/
 def domoticz_stop(nid) {
 	TRACE("[domoticz stop] (${nid})")
-    socketSend("stop", nid, 0, 0, 0)
+    if (state.devices[nid].subType == "RFY") {socketSend("stop", nid, 0, 0, 0)}
 }
 
 /*-----------------------------------------------------------------------------------------*/
-/*		Excecute 'setlevel' command on behalf of child device
+/*		Excecute 'setlevel' command on behalf of child device , RFY = Somfy based devices
 /*-----------------------------------------------------------------------------------------*/
 def domoticz_setlevel(nid, xLevel) {
 	TRACE("[domoticz setlevel] ( ${xLevel} for ${nid})")
     if (xLevel.toInteger() == 0) {socketSend("off", nid, 0, 0, 0)}
-    else {socketSend("setlevel", nid, xLevel, 0, 0)}
+    else 	if (state.devices[nid].subType == "RFY") {socketSend("stop", nid, 0, 0, 0)} 
+    		else {socketSend("setlevel", nid, xLevel, 0, 0)}
 }
 
 /*-----------------------------------------------------------------------------------------*/
 /*		Excecute 'setcolor' command on behalf of child device 
 /*-----------------------------------------------------------------------------------------*/
-def domoticz_setcolor(nid, xHue, xSat, xBri) {
-	TRACE("[domoticz setcolor] (${nid} Hue ${xHue} Sat ${xSat})")
-    socketSend("setcolor", nid, xHue, xSat, xBri)
+def domoticz_setcolor(nid, xHex, xSat, xBri) {
+	TRACE("[domoticz setcolor] (${nid} Hex ${xHex} Sat ${xSat} Bri ${xBri})")
+    socketSend("setcolor", nid, xHex, xSat, xBri)
 
 }
 
@@ -793,7 +794,7 @@ private def socketSend(message, addr, level, xSat, xBri) {
             break;
         case "setcolor":
         	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20Color%20${level}%20for%20${addr}"
-        	rooPath = "/json.htm?type=command&param=setcolbrightnessvalue&idx=${addr}&hue=${level}&iswhite=false&brightness=${xBri}"
+        	rooPath = "/json.htm?type=command&param=setcolbrightnessvalue&idx=${addr}&hex=${level}&iswhite=false&brightness=${xBri}"
             break;
             
 	}
