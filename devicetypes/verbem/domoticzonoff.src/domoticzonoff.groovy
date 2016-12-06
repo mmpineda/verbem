@@ -154,9 +154,9 @@ def setLevel(level) {
 // Custom setcolor() command handler hue from ST is percentage of 366 which is max HUE
 def setColor(color) {
 	
-    	TRACE("SetColor Hue " + Math.round(color.hue/100*366) + " Sat " + Math.round(color.saturation) + " Level " + state.setLevel )
+    	TRACE("SetColor HEX " + color.hex[-6..-1] + " Sat " + Math.round(color.saturation) + " Level " + state.setLevel)
     	if (parent) {
-        	parent.domoticz_setcolor(getIDXAddress(), Math.round(color.hue/100*366), Math.round(color.saturation), state.setLevel)
+        	parent.domoticz_setcolor(getIDXAddress(), color.hex[-6..-1], Math.round(color.saturation), state.setLevel)
     		}	
 }
 
