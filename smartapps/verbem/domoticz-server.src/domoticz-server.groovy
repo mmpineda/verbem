@@ -808,15 +808,15 @@ private def socketSend(message, addr, level, xSat, xBri) {
 	def mSeconds = settings.domoticzDelay.toInteger()
 
     sendHubCommand(hubAction)
-	pause(mSeconds)
-    
-    /*hubActionLog = new physicalgraph.device.HubAction(
-        method: "GET",
-        path: rooLog,
-        headers: [HOST: "${domoticzIpAddress}:${domoticzTcpPort}"])
+	if (mSeconds > 0 ) {pause(mSeconds)}
+    else {
+        def hubActionLog = new physicalgraph.device.HubAction(
+            method: "GET",
+            path: rooLog,
+            headers: [HOST: "${domoticzIpAddress}:${domoticzTcpPort}"])
 
-	pause(mSeconds) 
-    sendHubCommand(hubActionLog) */
+        sendHubCommand(hubActionLog)
+        }
 	
     return null
 }
