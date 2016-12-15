@@ -721,6 +721,7 @@ def domoticz_toggle(nid) {
 def domoticz_stop(nid) {
 	TRACE("[domoticz stop] (${nid})")
     if (state.devices[nid].subType == "RFY") {socketSend("stop", nid, 0, 0, 0)}
+    else {socketSend("stop", nid, 0, 0, 0)}
 }
 
 /*-----------------------------------------------------------------------------------------*/
