@@ -17,7 +17,7 @@ import groovy.time.TimeCategory
 import groovy.time.TimeDuration
 
 preferences {
-    input("seconds2Complete", "number", title: "Time in seconds to fully close/open?", description:"Specify open close cycle", defaultValue:0)
+    input("stopSupported", "bool", title: "Stop command supported?", description:"Does your blind support the STOP command", defaultValue:false)
 }   
 metadata {
 	definition (name: "domoticzBlinds", namespace: "verbem", author: "Martin Verbeek") {
@@ -213,8 +213,14 @@ def setLevelCloseAgain() {
     log.debug "setLevel() ON "
 }
 def setLevelStopAgain() {
-    parent.domoticz_on(getIDXAddress())
-    log.debug "setLevel() STOP"          
+    if (setting.stopSupported) {
+        parent.domoticz_stop(getIDXAddress())
+        log.debug "setLevel() STOP"
+    	}
+    else {
+        parent.domoticz_on(getIDXAddress())
+        log.debug "setLevel() second ON"
+    	}
 }
 
 
