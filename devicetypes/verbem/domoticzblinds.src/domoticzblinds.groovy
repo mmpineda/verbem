@@ -13,6 +13,9 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  */
+import groovy.time.TimeCategory 
+import groovy.time.TimeDuration
+
 preferences {
     input("seconds2Complete", "number", title: "Time in seconds to fully close/open?", description:"Specify open close cycle", defaultValue:0)
 }   
@@ -27,6 +30,10 @@ metadata {
 
         // custom attributes
         attribute "networkId", "string"
+        attribute "calibrationInProgress", "string"
+        attribute "startCalibrationTime", "number"
+        attribute "endCalibrationTime", "number"
+        attribute "blindClosingTime", "number"
 
 
         // custom commands
@@ -35,11 +42,12 @@ metadata {
         command "open"
         command "stop"
         command "setLevel"
+        command "calibrate"
 
     }
 
     tiles (scale: 2) {
-	    multiAttributeTile(name:"richDomoticzBlind", type:"generic",  width:6, height:4, canChangeIcon: true) {
+	    multiAttributeTile(name:"richDomoticzBlind", type:"generic",  width:6, height:4, canChangeIcon: true, canChangeBackground: true) {
         	tileAttribute("device.switch", key: "PRIMARY_CONTROL") {
                 //attributeState "default", label:'${currentValue}', inactiveLabel:false
                 //attributeState "Up", label:" Up ", backgroundColor:"#19f028", nextState:"Going Down", action:"stop"
@@ -57,6 +65,9 @@ metadata {
                 //attributeState "Down", label:"Down",  backgroundColor:"#08540E", nextState:"Going Up", action:"open"
                 //attributeState "DOWN", label:"Down",  backgroundColor:"#08540E", nextState:"Going Up", action:"open"
                 attributeState "Going Down", label:"Going Down",  backgroundColor:"#FE9A2E", nextState:"Going Up", action:"close"
+            }
+            tileAttribute("device.level", key: "SLIDER_CONTROL", range:"0..16") {
+            	attributeState "level", action:"setLevel" 
             }
         }
  
@@ -76,12 +87,17 @@ metadata {
                 action:"close"
         }
 
+		standardTile("Cal", "device.switch", width: 2, height: 2, inactiveLabel:false, decoration:"flat") {
+            state "default", label:'Calibrate', icon:"st.doors.garage.garage-closing",
+                action:"calibrate"
+        }
+
         standardTile("debug", "device.motion", width: 2, height: 2, inactiveLabel: false, decoration: "flat") {
             state "default", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
         }
 
         main(["richDomoticzBlind"])
-        details(["richDomoticzBlind", "Up", "Stop", "Down", "debug"])
+        details(["richDomoticzBlind", "Up", "Stop", "Down", "Cal", "debug"])
 
     }    
 }
@@ -167,12 +183,63 @@ def stop() {
 /* 	special implementation through setlevel for STOP somfy command if device setting.Somfy = true 
 	It also makes it possible to use Alexa DIM!!!
 */
-def setLevel() {
-	log.debug "setLevel()"
+def setLevel(level) {
+	log.debug "setLevel() level ${level}"
+   
     if (parent) {
-   		sendEvent(name:'switch', value:"Stopped" as String)
-        parent.domoticz_stop(getIDXAddress())
+    	if (device.currentValue("blindClosingTime")) {
+        	if (device.currentValue("blindClosingTime") > 0 && device.currentValue("blindClosingTime") < 100000) {
+        		parent.domoticz_off(getIDXAddress())
+
+				def Sec = Math.round(device.currentValue("blindClosingTime").toInteger()/1000)
+				log.debug "setLevel() OFF runIn ${Sec} s"
+                runIn(Sec, setLevelCloseAgain)
+         		
+                Sec = Sec + Math.round(Sec*level/100)
+				log.debug "setLevel() Stop runIn ${Sec} s"
+                runIn(Sec, setLevelStopAgain)
+         		
+            }
+        }
+        else {
+            sendEvent(name:'switch', value:"Stopped" as String)
+            parent.domoticz_stop(getIDXAddress())
+        }
     }
+}
+
+def setLevelCloseAgain() {
+    parent.domoticz_on(getIDXAddress())
+    log.debug "setLevel() ON "
+}
+def setLevelStopAgain() {
+    parent.domoticz_on(getIDXAddress())
+    log.debug "setLevel() STOP"          
+}
+
+
+def calibrate() {
+    
+    if (device.currentValue("calibrationInProgress") == "yes")
+    	{
+        sendEvent(name: "calibrationInProgress", value: "no")
+        def eTime = new Date().time
+        sendEvent(name: "endCalibrationTime", value: eTime)
+        def eT = device.currentValue("endCalibrationTime")
+        def sT = device.currentValue("startCalibrationTime")
+        def blindClosingTime = (eT - sT)
+        sendEvent(name: "blindClosingTime", value: blindClosingTime)
+		log.debug "Calibrate End() - blindClosingTime ${device.currentValue("blindClosingTime")} ms"       
+        parent.domoticz_off(getIDXAddress())
+        }
+    else
+    	{
+		log.debug "Calibrate Start()"       
+        sendEvent(name: "calibrationInProgress", value: "yes")
+        def sTime = new Date().time
+        sendEvent(name: "startCalibrationTime", value: sTime)
+        parent.domoticz_on(getIDXAddress())
+        }
 }
 
 private String makeNetworkId(ipaddr, port) {
