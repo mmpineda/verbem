@@ -825,7 +825,7 @@ private def socketSend(message, addr, level, xSat, xBri) {
 /*		Domoticz will send an event message to ST for all devices THAT HAVE BEEN SELECTED to do that
 /*-----------------------------------------------------------------------------------------*/
 def eventDomoticz() {
-	//TRACE("[eventDomoticz] " + params)
+	TRACE("[eventDomoticz] " + params)
     if (params.message.contains(" >> ")) {
         def parts = params.message.split(" >> ")
         def devName = parts[0]
