@@ -17,7 +17,7 @@ import groovy.time.TimeCategory
 import groovy.time.TimeDuration
 
 preferences {
-    input("stopSupported", "bool", title: "Stop command supported?", description:"Does your blind support the STOP command", defaultValue:false)
+    input(name:"stopSupported", type:"bool", title: "Stop command supported?", description:"Does your blind support the STOP command", defaultValue:false)
 }   
 metadata {
 	definition (name: "domoticzBlinds", namespace: "verbem", author: "Martin Verbeek") {
@@ -180,7 +180,7 @@ def stop() {
     }
 
 }
-/* 	special implementation through setlevel for STOP somfy command if device setting.Somfy = true 
+/* 	special implementation through setlevel
 	It also makes it possible to use Alexa DIM!!!
 */
 def setLevel(level) {
@@ -213,7 +213,8 @@ def setLevelCloseAgain() {
     log.debug "setLevel() ON "
 }
 def setLevelStopAgain() {
-    if (setting.stopSupported) {
+
+    if (stopSupported) {
         parent.domoticz_stop(getIDXAddress())
         log.debug "setLevel() STOP"
     	}
