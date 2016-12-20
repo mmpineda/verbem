@@ -36,6 +36,8 @@ preferences {
     page name:"setupListDevices"
     page name:"setupTestConnection"
     page name:"setupActionTest"
+    page name:"setupRefreshToken"
+
 }
 /*-----------------------------------------------------------------------------------------*/
 /*		Mappings for REST ENDPOINT to communicate events from Domoticz      
@@ -136,6 +138,9 @@ private def setupWelcome() {
 /*-----------------------------------------------------------------------------------------*/
 private def setupMenu() {
     TRACE("[setupMenu]")
+    if (state.accessToken) {
+		state.urlCustomActionHttp = getApiServerUrl() - ":443" + "/api/smartapps/installations/${app.id}/" + "EventDomoticz?access_token=" + state.accessToken + "&message=#MESSAGE"
+        }
 
     // if domoticz is not configured, then do it now
     if (!settings.containsKey('domoticzIpAddress')) {
@@ -159,6 +164,7 @@ private def setupMenu() {
             if (state.devices.size() > 0) {
                 href "setupListDevices", title:"List Installed Devices", description:"Tap to open"
             }
+            href "setupRefreshToken", title:"Revoke/Recreate Access Token", description:"Tap to open"
         }
         section([title:"Options", mobileOnly:true]) {
             label title:"Assign a name", required:false
@@ -299,6 +305,35 @@ private def setupActionTest() {
     return dynamicPage(pageProperties) {
         section {
             paragraph "Executing Domoticz Add Devices, wait a few moments"
+            paragraph "Tap Next to continue."
+        }
+    }
+}
+
+/*-----------------------------------------------------------------------------------------*/
+/*		Execute Domoticz LIST devices from the server
+/*-----------------------------------------------------------------------------------------*/
+private def setupRefreshToken() {
+    TRACE("[setupRefreshToken]")
+	
+    revokeAccessToken()
+    def token = createAccessToken()
+    
+    state.urlCustomActionHttp = getApiServerUrl() - ":443" + "/api/smartapps/installations/${app.id}/" + "EventDomoticz?access_token=" + state.accessToken + "&message=#MESSAGE"
+
+    def pageProperties = [
+        name        : "setupRefreshToken",
+        title       : "Refresh the access Token",
+        nextPage    : "setupMenu",
+        install     : false,
+        uninstall   : false
+    ]
+
+
+    return dynamicPage(pageProperties) {
+        section {
+            paragraph "The Access Token has been refreshed"
+            paragraph "${state.urlCustomActionHttp}"
             paragraph "Tap Next to continue."
         }
     }
@@ -480,8 +515,7 @@ private def initialize() {
     subscribe(location, null, onLocation, [filterEvents:false])
 
     if (state.accessToken) {
-        def url = getApiServerUrl() - ":443" + "/api/smartapps/installations/${app.id}/" + "EventDomoticz?access_token=" + state.accessToken + "&message=#MESSAGE"
-        state.urlCustomActionHttp = url
+        state.urlCustomActionHttp = getApiServerUrl() - ":443" + "/api/smartapps/installations/${app.id}/" + "EventDomoticz?access_token=" + state.accessToken + "&message=#MESSAGE"
 	}
     
 	state.setStatusrsp = false
@@ -857,10 +891,9 @@ private def initRestApi() {
     TRACE("[initRestApi]")
     if (!state.accessToken) {
         def token = createAccessToken()
-        TRACE("[initRestApi] Created new access token: ${token}")
+        TRACE("[initRestApi] Created new access token: ${state.accessToken}")
     }
-    def url = getApiServerUrl() - ":443" + "/api/smartapps/installations/${app.id}/" + "EventDomoticz?access_token=" + state.accessToken + "&message=#MESSAGE"
-    state.urlCustomActionHttp = url
+    state.urlCustomActionHttp = getApiServerUrl() - ":443" + "/api/smartapps/installations/${app.id}/" + "EventDomoticz?access_token=" + state.accessToken + "&message=#MESSAGE"
 
 }
 //-----------------------------------------------------------
