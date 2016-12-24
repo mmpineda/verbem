@@ -17,7 +17,7 @@ import groovy.time.TimeCategory
 import groovy.time.TimeDuration
 
 preferences {
-    input(name:"stopSupported", type:"bool", title: "Stop command supported?", description:"Does your blind support the STOP command", defaultValue:false)
+    input(name:"stopSupported", type:"bool", title: "Stop command supported?", description:"Does your blind use the STOP command to halt the blind. Not the Somfy Stop/My command!", defaultValue:false)
 }   
 metadata {
 	definition (name: "domoticzBlinds", namespace: "verbem", author: "Martin Verbeek") {
@@ -49,21 +49,12 @@ metadata {
     tiles (scale: 2) {
 	    multiAttributeTile(name:"richDomoticzBlind", type:"generic",  width:6, height:4, canChangeIcon: true, canChangeBackground: true) {
         	tileAttribute("device.switch", key: "PRIMARY_CONTROL") {
-                //attributeState "default", label:'${currentValue}', inactiveLabel:false
-                //attributeState "Up", label:" Up ", backgroundColor:"#19f028", nextState:"Going Down", action:"stop"
-                //attributeState "UP", label:" Up ", backgroundColor:"#19f028", nextState:"Going Down", action:"stop"
-                //attributeState "Off", label:" Up ", backgroundColor:"#19f028", nextState:"Going Down", action:"stop"	
                 attributeState "Open", label:" Up ", backgroundColor:"#19f028", nextState:"Going Down", action:"stop"	
-                //attributeState "off", label:" Up ", backgroundColor:"#19f028", nextState:"Going Down", action:"stop"	
                 attributeState "Going Up", label:"Going Up", backgroundColor:"#FE9A2E", nextState:"Going Down", action:"open"
 
 				attributeState "Stopped", label:"Stopped", backgroundColor:"#11A81C", action:"close"
                 
                 attributeState "Closed", label:"Down",  backgroundColor:"#08540E", nextState:"Going Up"
-                //attributeState "On", label:"Down",  backgroundColor:"#08540E", nextState:"Going Up", action:"open"
-                //attributeState "on", label:"Down",  backgroundColor:"#08540E", nextState:"Going Up", action:"open"
-                //attributeState "Down", label:"Down",  backgroundColor:"#08540E", nextState:"Going Up", action:"open"
-                //attributeState "DOWN", label:"Down",  backgroundColor:"#08540E", nextState:"Going Up", action:"open"
                 attributeState "Going Down", label:"Going Down",  backgroundColor:"#FE9A2E", nextState:"Going Up", action:"close"
             }
             tileAttribute("device.level", key: "SLIDER_CONTROL", range:"0..16") {
