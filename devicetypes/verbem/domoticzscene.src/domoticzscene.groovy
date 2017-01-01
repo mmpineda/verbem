@@ -22,7 +22,10 @@
  *
  *  Revision History
  *  ----------------
- *  2016-11-21 Rework of setColor 
+ *  2.1 2016-11-21 Rework of setColor 
+ *	2.2 2016-12-01 added calibration of the closing time, now you can use setlevel or ask alexa to dim to a percentage
+ *	3.0 2016-12-24 cleanup of DTH statuses
+ *	3.1 2016-12-24 Implement PUSH as the button for a Scene
  */
 
 metadata {

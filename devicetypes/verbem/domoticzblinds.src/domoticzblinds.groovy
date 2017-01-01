@@ -12,6 +12,9 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
+ *  2.1 2016-11-21 Rework of setColor 
+ *	2.2 2016-12-01 added calibration of the closing time, now you can use setlevel or ask alexa to dim to a percentage
+ *	3.0 2016-12-24 cleanup of DTH statuses
  */
 import groovy.time.TimeCategory 
 import groovy.time.TimeDuration
@@ -27,6 +30,7 @@ metadata {
         capability "Switch Level"
         capability "Refresh"
         capability "Polling"
+        capability "Door Control"
 
         // custom attributes
         attribute "networkId", "string"
