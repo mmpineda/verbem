@@ -17,7 +17,7 @@ metadata {
 	definition (name: "domoticzMotion", namespace: "verbem", author: "SmartThings") {
 		capability "Motion Sensor"
 		capability "Sensor"
-		capability "Battery"
+//		capability "Battery"
 		capability "Actuator"
 		capability "Refresh"
 	}
@@ -26,7 +26,11 @@ metadata {
 		multiAttributeTile(name:"motion", type: "generic", width: 6, height: 4){
 			tileAttribute ("device.motion", key: "PRIMARY_CONTROL") {
 				attributeState "on", label:'motion', icon:"st.motion.motion.active", backgroundColor:"#53a7c0"
+				attributeState "On", label:'motion', icon:"st.motion.motion.active", backgroundColor:"#53a7c0"
+				attributeState "ON", label:'motion', icon:"st.motion.motion.active", backgroundColor:"#53a7c0"
 				attributeState "off", label:'no motion', icon:"st.motion.motion.inactive", backgroundColor:"#ffffff"
+				attributeState "Off", label:'no motion', icon:"st.motion.motion.inactive", backgroundColor:"#ffffff"
+				attributeState "OFF", label:'no motion', icon:"st.motion.motion.inactive", backgroundColor:"#ffffff"
 			}
 		}
 
@@ -34,9 +38,9 @@ metadata {
 			state "default", action:"refresh.refresh", icon:"st.secondary.refresh"
 		}
         
-		valueTile("battery", "device.battery", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
-			state "battery", label:'${currentValue}% battery', unit:""
-		}
+//		valueTile("battery", "device.battery", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
+//			state "battery", label:'${currentValue}% battery', unit:""
+//		}
 
 		main "motion"
 		details(["motion", "battery", "refresh"])
@@ -83,7 +87,8 @@ private getIDXAddress() {
 /*----------------------------------------------------*/
 def generateEvent (Map results) {
     results.each { name, value ->
-        log.info "generateEvent " + name + " " + value
+        log.info "generateEvent " + name + " " + value 
+//        log.info device.getSupportedAttributes()
         if (name == "switch") sendEvent(name:"motion", value:"${value}")
         else sendEvent(name:"${name}", value:"${value}")
         }

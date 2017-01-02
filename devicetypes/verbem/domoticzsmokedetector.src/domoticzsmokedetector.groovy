@@ -25,7 +25,11 @@ metadata {
         multiAttributeTile(name:"smoke", type: "lighting", width: 6, height: 4){
             tileAttribute ("device.smoke", key: "PRIMARY_CONTROL") {
                 attributeState("off", label:"CLEAR", icon:"st.alarm.smoke.clear", backgroundColor:"#ffffff")
+                attributeState("Off", label:"CLEAR", icon:"st.alarm.smoke.clear", backgroundColor:"#ffffff")
+                attributeState("OFF", label:"CLEAR", icon:"st.alarm.smoke.clear", backgroundColor:"#ffffff")
                 attributeState("on", label:"SMOKE", icon:"st.alarm.smoke.smoke", backgroundColor:"#e86d13")
+                attributeState("On", label:"SMOKE", icon:"st.alarm.smoke.smoke", backgroundColor:"#e86d13")
+                attributeState("ON", label:"SMOKE", icon:"st.alarm.smoke.smoke", backgroundColor:"#e86d13")
                 attributeState("tested", label:"TEST", icon:"st.alarm.smoke.test", backgroundColor:"#e86d13")
             }
             tileAttribute ("device.battery", key: "SECONDARY_CONTROL") {

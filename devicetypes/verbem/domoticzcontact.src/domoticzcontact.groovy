@@ -31,6 +31,12 @@ tiles(scale: 2) {
 			tileAttribute ("device.contact", key: "PRIMARY_CONTROL") {
 				attributeState "open", label:'Open', icon:"st.contact.contact.open", backgroundColor:"#ffa81e"
 				attributeState "closed", label:'Closed', icon:"st.contact.contact.closed", backgroundColor:"#79b821"
+				attributeState "off", label:'Open', icon:"st.contact.contact.open", backgroundColor:"#ffa81e"
+				attributeState "Off", label:'Open', icon:"st.contact.contact.open", backgroundColor:"#ffa81e"
+				attributeState "OFF", label:'Open', icon:"st.contact.contact.open", backgroundColor:"#ffa81e"
+				attributeState "on", label:'Closed', icon:"st.contact.contact.closed", backgroundColor:"#79b821"
+				attributeState "On", label:'Closed', icon:"st.contact.contact.closed", backgroundColor:"#79b821"
+				attributeState "ON", label:'Closed', icon:"st.contact.contact.closed", backgroundColor:"#79b821"
 			}
 		}
 
