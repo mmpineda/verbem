@@ -12,7 +12,9 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
- *	V3.0 	Add more granularity in adding devices from DZ to ST, Select on SwitchTypeVal and Room Plan
+ *	
+ 	V3.01	Implemented batterylevel as info that can be passed as an event to the devices
+ 	V3.00	Add more granularity in adding devices from DZ to ST, Select on SwitchTypeVal and Room Plan
  			complete restructure of the onLocation Event to have more clear event processing
             Added support for Smoke Detector, Motion Sensor and Contact Sensor
  */
@@ -577,12 +579,12 @@ state.statusGrpRsp = statusrsp
         	{
             case "Scene":
             if (domoticzScene) {
-                addSwitch(it.idx, "domoticzScene", it.Name, it.Status, it.Type)
+                addSwitch(it.idx, "domoticzScene", it.Name, it.Status, it.Type, 0)
             	}
             break;
             case "Group":
             if (domoticzGroup) {
-                addSwitch(it.idx, "domoticzScene", it.Name, it.Status, it.Type)
+                addSwitch(it.idx, "domoticzScene", it.Name, it.Status, it.Type, 0)
             	}
             break;
         	}    
@@ -605,23 +607,25 @@ private def onLocationEvtForDevices(statusrsp) {
     {
         if ((state.listOfRoomPlanDevices?.contains(it.idx) && domoticzRoomPlans == true) || domoticzRoomPlans == false)
         {
-            TRACE("[onLocationEvtForDevices] ${it.SwitchType} ${it.Name} ${it.Status} ${it.Type}")
+            def batteryLevel = 100
+            if (it.BatteryLevel && it.BatteryLevel < 101) batteryLevel = it.BatteryLevel
+            TRACE("[onLocationEvtForDevices] ${it.SwitchType} ${it.Name} ${it.Status} ${it.Type} ${batteryLevel}" )
             switch (it.SwitchTypeVal) 
             {
                 case [3, 13]:		//	Window Coverings
-                if (domoticzTypes.contains('Window Coverings')) addSwitch(it.idx, "domoticzBlinds", it.Name, it.Status, it.Type)
+                if (domoticzTypes.contains('Window Coverings')) addSwitch(it.idx, "domoticzBlinds", it.Name, it.Status, it.Type, batteryLevel)
                 break;
                 case [0, 7]:		// 	Lamps OnOff, Dimmers and RGB
-                if (domoticzTypes.contains('On/Off/Dimmers/RGB')) addSwitch(it.idx, "domoticzOnOff", it.Name, it.Status, it.Type)
+                if (domoticzTypes.contains('On/Off/Dimmers/RGB')) addSwitch(it.idx, "domoticzOnOff", it.Name, it.Status, it.Type, batteryLevel)
                 break;
                 case 2:				//	Contact
-                if (domoticzTypes.contains('Smoke Detectors')) addSwitch(it.idx, "domoticzContact", it.Name, it.Status, it.Type)
+                if (domoticzTypes.contains('Smoke Detectors')) addSwitch(it.idx, "domoticzContact", it.Name, it.Status, it.Type, batteryLevel)
                 break;
                 case 5:				//	Smoke Detector
-                if (domoticzTypes.contains('Contact Sensors')) addSwitch(it.idx, "domoticzSmokeDetector", it.Name, it.Status, it.Type)
+                if (domoticzTypes.contains('Contact Sensors')) addSwitch(it.idx, "domoticzSmokeDetector", it.Name, it.Status, it.Type, batteryLevel)
                 break;
                 case 8:				//	Motion Sensors
-                if (domoticzTypes.contains('Motion Sensors'))addSwitch(it.idx, "domoticzMotion", it.Name, it.Status, it.Type)
+                if (domoticzTypes.contains('Motion Sensors'))addSwitch(it.idx, "domoticzMotion", it.Name, it.Status, it.Type, batteryLevel)
                 break;
             }	
         }
@@ -631,8 +635,8 @@ private def onLocationEvtForDevices(statusrsp) {
 /*-----------------------------------------------------------------------------------------*/
 /*		Execute the real add or status update of the child device
 /*-----------------------------------------------------------------------------------------*/
-private def addSwitch(addr, passedFile, passedName, passedStatus, passedType) {
-    TRACE("[addSwitch] ${addr}, ${passedFile}, ${passedName}, ${passedStatus}")
+private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, passedBattery) {
+    TRACE("[addSwitch] ${addr}, ${passedFile}, ${passedName}, ${passedStatus}, ${passedBattery}")
 
     def dni = settings.domoticzIpAddress + ":" + settings.domoticzTcpPort + ":" + addr
     
@@ -643,7 +647,7 @@ private def addSwitch(addr, passedFile, passedName, passedStatus, passedType) {
             TRACE("[addSwitch] ${dni} old style dni not in state - deleting childdevice")
         	}
         
-        getChildDevice(dni).generateEvent("switch":passedStatus)
+        getChildDevice(dni).generateEvent(["switch":passedStatus, "battery":passedBattery])
     	state.devices[addr] = [
                 'dni'   : dni,
                 'ip' : settings.domoticzIpAddress,
@@ -666,7 +670,7 @@ private def addSwitch(addr, passedFile, passedName, passedStatus, passedType) {
             TRACE("[addSwitch] ${dni} new style dni not in state - deleting childdevice")
         	}
         
-        getChildDevice(dni).generateEvent("switch":passedStatus)
+        getChildDevice(dni).generateEvent(["switch":passedStatus, "battery":passedBattery])
     	state.devices[addr] = [
                 'dni'   : dni,
                 'ip' : settings.domoticzIpAddress,
