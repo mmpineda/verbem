@@ -25,16 +25,21 @@ metadata {
 	tiles(scale: 2) {
 		multiAttributeTile(name:"motion", type: "generic", width: 6, height: 4){
 			tileAttribute ("device.motion", key: "PRIMARY_CONTROL") {
-				attributeState "active", label:'motion', icon:"st.motion.motion.active", backgroundColor:"#53a7c0"
-				attributeState "inactive", label:'no motion', icon:"st.motion.motion.inactive", backgroundColor:"#ffffff"
+				attributeState "on", label:'motion', icon:"st.motion.motion.active", backgroundColor:"#53a7c0"
+				attributeState "off", label:'no motion', icon:"st.motion.motion.inactive", backgroundColor:"#ffffff"
 			}
 		}
+
+		standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
+			state "default", action:"refresh.refresh", icon:"st.secondary.refresh"
+		}
+        
 		valueTile("battery", "device.battery", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
 			state "battery", label:'${currentValue}% battery', unit:""
 		}
 
 		main "motion"
-		details(["motion", "battery"])
+		details(["motion", "battery", "refresh"])
 	}
 }
 
@@ -44,6 +49,16 @@ def parse(String description) {
 	// TODO: handle 'motion' attribute
 
 }
+
+def refresh() {
+	log.debug "Executing 'refresh'"
+
+    if (parent) {
+        parent.domoticz_poll(getIDXAddress())
+    }
+
+}
+
 
 // gets the IDX address of the device
 private getIDXAddress() {
@@ -69,7 +84,8 @@ private getIDXAddress() {
 def generateEvent (Map results) {
     results.each { name, value ->
         log.info "generateEvent " + name + " " + value
-        sendEvent(name:"${name}", value:"${value}")
+        if (name == "switch") sendEvent(name:"motion", value:"${value}")
+        else sendEvent(name:"${name}", value:"${value}")
         }
         return null
 }

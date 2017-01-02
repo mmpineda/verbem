@@ -29,8 +29,8 @@ preferences {
 tiles(scale: 2) {
 		multiAttributeTile(name:"contact", type: "generic", width: 6, height: 4){
 			tileAttribute ("device.contact", key: "PRIMARY_CONTROL") {
-				attributeState "open", label:'${name}', icon:"st.contact.contact.open", backgroundColor:"#ffa81e"
-				attributeState "closed", label:'${name}', icon:"st.contact.contact.closed", backgroundColor:"#79b821"
+				attributeState "open", label:'Open', icon:"st.contact.contact.open", backgroundColor:"#ffa81e"
+				attributeState "closed", label:'Closed', icon:"st.contact.contact.closed", backgroundColor:"#79b821"
 			}
 		}
 
@@ -70,7 +70,11 @@ def parse(String description) {
 // handle commands
 def refresh() {
 	log.debug "Executing 'refresh'"
-	// TODO: handle 'refresh' command
+
+    if (parent) {
+        parent.domoticz_poll(getIDXAddress())
+    }
+
 }
 
 // gets the IDX address of the device
@@ -97,7 +101,8 @@ private getIDXAddress() {
 def generateEvent (Map results) {
     results.each { name, value ->
         log.info "generateEvent " + name + " " + value
-        sendEvent(name:"${name}", value:"${value}")
+        if (name == "switch") sendEvent(name:"contact", value:"${value}")
+        else sendEvent(name:"${name}", value:"${value}")
         }
         return null
 }

@@ -24,8 +24,8 @@ metadata {
     tiles (scale: 2){
         multiAttributeTile(name:"smoke", type: "lighting", width: 6, height: 4){
             tileAttribute ("device.smoke", key: "PRIMARY_CONTROL") {
-                attributeState("clear", label:"CLEAR", icon:"st.alarm.smoke.clear", backgroundColor:"#ffffff")
-                attributeState("detected", label:"SMOKE", icon:"st.alarm.smoke.smoke", backgroundColor:"#e86d13")
+                attributeState("off", label:"CLEAR", icon:"st.alarm.smoke.clear", backgroundColor:"#ffffff")
+                attributeState("on", label:"SMOKE", icon:"st.alarm.smoke.smoke", backgroundColor:"#e86d13")
                 attributeState("tested", label:"TEST", icon:"st.alarm.smoke.test", backgroundColor:"#e86d13")
             }
             tileAttribute ("device.battery", key: "SECONDARY_CONTROL") {
@@ -39,8 +39,12 @@ metadata {
             state "temperature", label:'${currentValue}°', unit:"C"
         }
 
+		standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
+			state "default", action:"refresh.refresh", icon:"st.secondary.refresh"
+		}
+        
         main "smoke"
-        details(["smoke","temperature"])
+        details(["smoke","temperature", "refresh"])
 	}
 }
 
@@ -48,6 +52,15 @@ metadata {
 def parse(String description) {
 	log.debug "Parsing '${description}'"
 	// TODO: handle 'smoke' attribute
+
+}
+
+def refresh() {
+	log.debug "Executing 'refresh'"
+
+    if (parent) {
+        parent.domoticz_poll(getIDXAddress())
+    }
 
 }
 
@@ -75,7 +88,8 @@ private getIDXAddress() {
 def generateEvent (Map results) {
     results.each { name, value ->
         log.info "generateEvent " + name + " " + value
-        sendEvent(name:"${name}", value:"${value}")
+        if (name == "switch") sendEvent(name:"smoke", value:"${value}")
+        else sendEvent(name:"${name}", value:"${value}")
         }
         return null
 }
