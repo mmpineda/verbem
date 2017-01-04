@@ -13,7 +13,8 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *	
- 	V3.01	Implemented batterylevel as info that can be passed as an event to the devices
+	V3.02	Implemented a refresh for devices in Domoticz every hour, these will be shown as "not completed" devices
+	V3.01	Implemented batterylevel as info that can be passed as an event to the devices
  	V3.00	Add more granularity in adding devices from DZ to ST, Select on SwitchTypeVal and Room Plan
  			complete restructure of the onLocation Event to have more clear event processing
             Added support for Smoke Detector, Motion Sensor and Contact Sensor
@@ -161,8 +162,9 @@ private def setupMenu() {
     ]
 
     state.setup.deviceType = null
+	state.domoticzRefresh = false
 
-    return dynamicPage(pageProperties) {
+	return dynamicPage(pageProperties) {
         section {
             href "setupDomoticz", title:"Configure Domoticz Server", description:"Tap to open"
             href "setupTestConnection", title:"Add All Devices of a type", description:"Tap to open"
@@ -185,8 +187,10 @@ private def setupMenu() {
 private def setupDomoticz() {
     TRACE("[setupDomoticz]")
 
-    socketSend("roomplans",0,0,0,0)
-	pause 10
+	if (settings.containsKey('domoticzIpAddress')) {
+    	socketSend("roomplans",0,0,0,0)
+		pause 10
+    	}
     
     def textPara1 =
         "Enter IP address and TCP port of your Domoticz Server, then tap " +
@@ -244,14 +248,14 @@ private def setupDomoticz() {
         defaultValue: false
     ]
     
-	def inputDelay = [
+/*	def inputDelay = [
         name        : "domoticzDelay",
         type        : "enum",
         title       : "Milliseconds delay after SendHubCommand",
         options	    : [0, 500, 1000, 1500, 2000, 2500, 3000],
         defaultValue: 0
     ]
-
+*/
     def inputTrace = [
         name        : "domoticzTrace",
         type        : "bool",
@@ -273,11 +277,11 @@ private def setupDomoticz() {
             input inputTcpPort
             input inputDzTypes
             input inputRoomPlans
-            if (domoticzRoomPlans) input inputPlans
+            if (domoticzRoomPlans && settings.containsKey('domoticzIpAddress')) input inputPlans
             input inputGroup
             input inputScene
             input inputTrace
-            input inputDelay
+//            input inputDelay
         	}
     }
 }
@@ -400,6 +404,7 @@ def updated() {
 
     unsubscribe()
     initialize()
+//    runEvery1Hour(refreshDevicesFromDomoticz)
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -510,12 +515,6 @@ return
 
 }
 
-// Handle SmartApp touch event.
-def onAppTouch(evt) {
-    TRACE("[onAppTouch] ${evt}")
-    STATE()
-}
-
 /*-----------------------------------------------------------------------------------------*/
 /*		Subscribe and setup some initial stuff
 /*-----------------------------------------------------------------------------------------*/
@@ -607,25 +606,23 @@ private def onLocationEvtForDevices(statusrsp) {
     {
         if ((state.listOfRoomPlanDevices?.contains(it.idx) && domoticzRoomPlans == true) || domoticzRoomPlans == false)
         {
-            def batteryLevel = 100
-            if (it.BatteryLevel && it.BatteryLevel < 101) batteryLevel = it.BatteryLevel
-            TRACE("[onLocationEvtForDevices] ${it.SwitchType} ${it.Name} ${it.Status} ${it.Type} ${batteryLevel}" )
+            TRACE("[onLocationEvtForDevices] ${it.SwitchType} ${it.Name} ${it.Status} ${it.Type}")
             switch (it.SwitchTypeVal) 
             {
                 case [3, 13]:		//	Window Coverings
-                if (domoticzTypes.contains('Window Coverings')) addSwitch(it.idx, "domoticzBlinds", it.Name, it.Status, it.Type, batteryLevel)
+                if (domoticzTypes.contains('Window Coverings')) addSwitch(it.idx, "domoticzBlinds", it.Name, it.Status, it.Type, it)
                 break;
                 case [0, 7]:		// 	Lamps OnOff, Dimmers and RGB
-                if (domoticzTypes.contains('On/Off/Dimmers/RGB')) addSwitch(it.idx, "domoticzOnOff", it.Name, it.Status, it.Type, batteryLevel)
+                if (domoticzTypes.contains('On/Off/Dimmers/RGB')) addSwitch(it.idx, "domoticzOnOff", it.Name, it.Status, it.Type, it)
                 break;
                 case 2:				//	Contact
-                if (domoticzTypes.contains('Smoke Detectors')) addSwitch(it.idx, "domoticzContact", it.Name, it.Status, it.Type, batteryLevel)
+                if (domoticzTypes.contains('Smoke Detectors')) addSwitch(it.idx, "domoticzContact", it.Name, it.Status, it.Type, it)
                 break;
                 case 5:				//	Smoke Detector
-                if (domoticzTypes.contains('Contact Sensors')) addSwitch(it.idx, "domoticzSmokeDetector", it.Name, it.Status, it.Type, batteryLevel)
+                if (domoticzTypes.contains('Contact Sensors')) addSwitch(it.idx, "domoticzSmokeDetector", it.Name, it.Status, it.Type, it)
                 break;
                 case 8:				//	Motion Sensors
-                if (domoticzTypes.contains('Motion Sensors'))addSwitch(it.idx, "domoticzMotion", it.Name, it.Status, it.Type, batteryLevel)
+                if (domoticzTypes.contains('Motion Sensors'))addSwitch(it.idx, "domoticzMotion", it.Name, it.Status, it.Type, it)
                 break;
             }	
         }
@@ -633,9 +630,56 @@ private def onLocationEvtForDevices(statusrsp) {
 }
 
 /*-----------------------------------------------------------------------------------------*/
+/*		Create a status-attribute coversion list that will be passed to generateevent status
+/*-----------------------------------------------------------------------------------------*/
+private def createAttributes(domoticzDevice, domoticzStatus) {
+    TRACE("[createAttributes] ${domoticzDevice.getSupportedAttributes()} Passed Status ${domoticzStatus}")
+    if (domoticzStatus instanceof java.util.Map) {TRACE("[createAttributes] ${domoticzDevice.getSupportedAttributes()} Passed Status ${domoticzStatus}")}
+    	else {
+        	TRACE("[createAttributes] ${domoticzDevice.getSupportedAttributes()} PASSED NOT A MAP : RETURNING")
+            return [:]
+            }
+    
+    def attributeList = [:]
+    domoticzStatus.each { k, v ->
+    	switch (k)
+        {
+        	case "BatteryLevel":
+            	if (domoticzDevice.hasAttribute("battery")) if (v == 255) attributeList.put('battery',100) else attributeList.put('battery',v)
+            break;
+            case "Level":
+				if (domoticzDevice.hasAttribute("level")) attributeList.put('level', v)
+            break;
+            case "SignalLevel":
+				if (domoticzDevice.hasAttribute("rssi")) attributeList.put('rssi', v)
+            break;
+            case "Status":
+            	if (domoticzDevice.hasAttribute("motion")) attributeList.put('motion', v)
+            	if (domoticzDevice.hasAttribute("contact")) attributeList.put('contact', v)
+            	if (domoticzDevice.hasAttribute("smoke")) attributeList.put('smoke', v)
+            	if (domoticzDevice.hasAttribute("switch")) attributeList.put('switch', v)
+            break;
+       }
+    
+    }
+    TRACE("[createAttributes] Return MAP ${attributeList} ")
+
+	return attributeList
+    
+/*
+         "BatteryLevel" : 255,
+         "Level" : 0,
+         "LevelInt" : 0,
+         "MaxDimLevel" : 15,
+         "SignalLevel" : "-",
+         "Status" : "Off",
+*/
+}
+
+/*-----------------------------------------------------------------------------------------*/
 /*		Execute the real add or status update of the child device
 /*-----------------------------------------------------------------------------------------*/
-private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, passedBattery) {
+private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, passedDomoticzStatus) {
     TRACE("[addSwitch] ${addr}, ${passedFile}, ${passedName}, ${passedStatus}, ${passedBattery}")
 
     def dni = settings.domoticzIpAddress + ":" + settings.domoticzTcpPort + ":" + addr
@@ -647,7 +691,9 @@ private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, pa
             TRACE("[addSwitch] ${dni} old style dni not in state - deleting childdevice")
         	}
         
-        getChildDevice(dni).generateEvent(["switch":passedStatus, "battery":passedBattery])
+        def attributeList = createAttributes(getChildDevice(dni), passedDomoticzStatus)
+        getChildDevice(dni).generateEvent(attributeList)
+        
     	state.devices[addr] = [
                 'dni'   : dni,
                 'ip' : settings.domoticzIpAddress,
@@ -663,14 +709,16 @@ private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, pa
 	
     dni = app.id + ":IDX:" + addr
 	
-/*	the device already exists new style DNI update the status anyway */
+	/*	the device already exists new style DNI update the status anyway */
      if (getChildDevice(dni)) {
     	TRACE("[addSwitch] ${dni} new style dni already exists Returning")
         if (state.devices[addr] == null) {
             TRACE("[addSwitch] ${dni} new style dni not in state - deleting childdevice")
         	}
         
-        getChildDevice(dni).generateEvent(["switch":passedStatus, "battery":passedBattery])
+        def attributeList = createAttributes(getChildDevice(dni), passedDomoticzStatus)
+        getChildDevice(dni).generateEvent(attributeList)
+        
     	state.devices[addr] = [
                 'dni'   : dni,
                 'ip' : settings.domoticzIpAddress,
@@ -691,13 +739,13 @@ private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, pa
         status			: passedStatus,
         ip				: settings.domoticzIpAddress,
         port			: settings.domoticzTcpPort, 
-        completedSetup  : true
+        completedSetup  : !state.domoticzRefresh		//reverse the false or true
     ]
 
     TRACE("[addSwitch] Creating child device ${devParams}")
     try {
         def dev = addChildDevice("verbem", devFile, dni, getHubID(), devParams)
-        //dev.refresh()
+        dev.refresh()
     } catch (e) {
         log.error "[addSwitch] Cannot create child device. Error: ${e}"
         return 
@@ -959,8 +1007,9 @@ private def socketSend(message, addr, level, xSat, xBri) {
         path: rooPath,
         headers: [HOST: "${domoticzIpAddress}:${domoticzTcpPort}"])
 
-	def mSeconds = settings.domoticzDelay.toInteger()
-
+//	def mSeconds = settings.domoticzDelay.toInteger()
+	def mSeconds = 0
+    
     sendHubCommand(hubAction)
 	if (mSeconds > 0 ) {pause(mSeconds)}
     else {
@@ -974,6 +1023,38 @@ private def socketSend(message, addr, level, xSat, xBri) {
 	
     return null
 }
+
+/*-----------------------------------------------------------------------------------------*/
+/*		
+/*-----------------------------------------------------------------------------------------*/
+def refreshDevicesFromDomoticz() {
+
+	TRACE("[refreshDevicesFromDomoticz] Entering routine")
+
+	updateDeviceList()
+    
+	state.domoticzRefresh = true
+	state.listOfRoomPlanDevices = []
+    if (domoticzRoomPlans)
+    	{
+        domoticzPlans.each { v ->       	
+        	state.statusPlansRsp.each {
+            if (v == it.Name) {
+            	socketSend("roomplan", it.idx, 0,0,0)
+                pause 10
+                }
+        	}
+          }
+        }
+
+	socketSend("list",0,0,0,0)
+    pause 10
+    socketSend("scenes",0,0,0,0)
+	pause 10
+    state.domoticzRefresh = false
+
+}
+
 /*-----------------------------------------------------------------------------------------*/
 /*		Domoticz will send an event message to ST for all devices THAT HAVE BEEN SELECTED to do that
 /*-----------------------------------------------------------------------------------------*/
@@ -1037,9 +1118,9 @@ def getHubID(){
 }
 
 private def textVersion() {
-    return "Version 2.0.0"
+    return "Version 3.0.3"
 }
 
 private def textCopyright() {
-    return "Copyright (c) 2016 Martin Verbeek"
+    return "Copyright (c) 2017 Martin Verbeek"
 }
