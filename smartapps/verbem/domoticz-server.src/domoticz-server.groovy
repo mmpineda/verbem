@@ -96,9 +96,10 @@ private def setupWelcome() {
     TRACE("[setupWelcome]")
 
     def textPara1 =
-        "Domoticz Bridge allows you integrate Domoticz defined devices into " +
-        "SmartThings. Only support for blind, scenes, groups, and on/off devices now. Please note that it requires a server running " +
-        "Domoticz must be installed on the local network and accessible from " +
+        "Domoticz Server allows you to integrate Domoticz defined devices into " +
+        "SmartThings. Support for blinds, scenes, groups, on/off/rgb/dimmer, contact, motion, smoke detector devices now. " +
+        "Please note that it requires a server running " +
+        "Domoticz. This must be installed on the local network and accessible from " +
         "the SmartThings hub.\n\n"
      
 
@@ -148,10 +149,9 @@ private def setupMenu() {
 		state.urlCustomActionHttp = getApiServerUrl() - ":443" + "/api/smartapps/installations/${app.id}/" + "EventDomoticz?access_token=" + state.accessToken + "&message=#MESSAGE"
         }
 
-    // if domoticz is not configured, then do it now
     if (!settings.containsKey('domoticzIpAddress')) {
         return setupDomoticz()
-    }
+        }
 
     def pageProperties = [
         name        : "setupMenu",
@@ -354,14 +354,14 @@ private def setupActionTest() {
 
     return dynamicPage(pageProperties) {
         section {
-            paragraph "Executing Domoticz Add Devices, wait a few moments"
+            paragraph "Domoticz Devices have been added"
             paragraph "Tap Next to continue."
         }
     }
 }
 
 /*-----------------------------------------------------------------------------------------*/
-/*		Execute Domoticz LIST devices from the server
+/*		When having problems accessing DZ then execute refresh Token
 /*-----------------------------------------------------------------------------------------*/
 private def setupRefreshToken() {
     TRACE("[setupRefreshToken]")
@@ -388,28 +388,21 @@ private def setupRefreshToken() {
         }
     }
 }
-/*-----------------------------------------------------------------------------------------*/
-/*		Predefined INSTALLED command
-/*-----------------------------------------------------------------------------------------*/
+
 def installed() {
     TRACE("[installed]")
 
     initialize()
 }
-/*-----------------------------------------------------------------------------------------*/
-/*		Predefined UPDATED command
-/*-----------------------------------------------------------------------------------------*/
+
 def updated() {
     TRACE("[updated]")
 
     unsubscribe()
     initialize()
-//    runEvery1Hour(refreshDevicesFromDomoticz)
+    runEvery1Hour(refreshDevicesFromDomoticz)
 }
 
-/*-----------------------------------------------------------------------------------------*/
-/*		Predefined UNINSTALLED command
-/*-----------------------------------------------------------------------------------------*/
 def uninstalled() {
     TRACE("[uninstalled]")
 
@@ -424,6 +417,24 @@ def uninstalled() {
     }
 }
 
+private def initialize() {
+    TRACE("[Initialize] ${app.name}. ${textVersion()}. ${textCopyright()}")
+    STATE()
+
+	// Subscribe to location events with filter disabled
+    TRACE ("[Initialize] Subcribe to Location")
+    subscribe(location, null, onLocation, [filterEvents:false])
+
+    if (state.accessToken) {
+        state.urlCustomActionHttp = getApiServerUrl() - ":443" + "/api/smartapps/installations/${app.id}/" + "EventDomoticz?access_token=" + state.accessToken + "&message=#MESSAGE"
+	}
+    
+	state.setStatusrsp = false
+    state.setup.installed = true
+    state.networkId = settings.domoticzIpAddress + ":" + settings.domoticzTcpPort
+    updateDeviceList()
+
+}
 /*-----------------------------------------------------------------------------------------*/
 /*		Debugging DeleteChilds command
 /*-----------------------------------------------------------------------------------------*/
@@ -515,27 +526,6 @@ return
 
 }
 
-/*-----------------------------------------------------------------------------------------*/
-/*		Subscribe and setup some initial stuff
-/*-----------------------------------------------------------------------------------------*/
-private def initialize() {
-    TRACE("[Initialize] ${app.name}. ${textVersion()}. ${textCopyright()}")
-    STATE()
-
-	// Subscribe to location events with filter disabled
-    TRACE ("[Initialize] Subcribe to Location")
-    subscribe(location, null, onLocation, [filterEvents:false])
-
-    if (state.accessToken) {
-        state.urlCustomActionHttp = getApiServerUrl() - ":443" + "/api/smartapps/installations/${app.id}/" + "EventDomoticz?access_token=" + state.accessToken + "&message=#MESSAGE"
-	}
-    
-	state.setStatusrsp = false
-    state.setup.installed = true
-    state.networkId = settings.domoticzIpAddress + ":" + settings.domoticzTcpPort
-    updateDeviceList()
-
-}
 
 /*-----------------------------------------------------------------------------------------*/
 /*		Build the idx list for Devices that are part of the selected room plans
@@ -665,15 +655,7 @@ private def createAttributes(domoticzDevice, domoticzStatus) {
     TRACE("[createAttributes] Return MAP ${attributeList} ")
 
 	return attributeList
-    
-/*
-         "BatteryLevel" : 255,
-         "Level" : 0,
-         "LevelInt" : 0,
-         "MaxDimLevel" : 15,
-         "SignalLevel" : "-",
-         "Status" : "Off",
-*/
+
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -1007,7 +989,6 @@ private def socketSend(message, addr, level, xSat, xBri) {
         path: rooPath,
         headers: [HOST: "${domoticzIpAddress}:${domoticzTcpPort}"])
 
-//	def mSeconds = settings.domoticzDelay.toInteger()
 	def mSeconds = 0
     
     sendHubCommand(hubAction)
