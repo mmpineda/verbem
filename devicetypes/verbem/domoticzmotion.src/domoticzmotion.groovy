@@ -16,11 +16,13 @@
 metadata {
 	definition (name: "domoticzMotion", namespace: "verbem", author: "SmartThings") {
 		capability "Motion Sensor"
+		capability "Temperature Measurement"
 		capability "Sensor"
-//		capability "Battery"
+		capability "Battery"
 		capability "Actuator"
 		capability "Refresh"
-	}
+        capability "Signal Strength"
+        }
 
 	tiles(scale: 2) {
 		multiAttributeTile(name:"motion", type: "generic", width: 6, height: 4){
@@ -38,12 +40,20 @@ metadata {
 			state "default", action:"refresh.refresh", icon:"st.secondary.refresh"
 		}
         
-//		valueTile("battery", "device.battery", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
-//			state "battery", label:'${currentValue}% battery', unit:""
-//		}
+		valueTile("battery", "device.battery", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
+			state "battery", label:'${currentValue}% battery', unit:""
+		}
+        
+		valueTile("temperature", "device.temperature", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
+			state "temparature", label:'${currentValue}', unit:""
+		}
+
+		valueTile("rssi", "device.rssi", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
+            state "rssi", label:'Signal ${currentValue}', unit:""
+        }
 
 		main "motion"
-		details(["motion", "battery", "refresh"])
+		details(["motion", "temperature", "battery", "rssi", "refresh"])
 	}
 }
 
@@ -88,9 +98,7 @@ private getIDXAddress() {
 def generateEvent (Map results) {
     results.each { name, value ->
         log.info "generateEvent " + name + " " + value 
-//        log.info device.getSupportedAttributes()
-        if (name == "switch") sendEvent(name:"motion", value:"${value}")
-        else sendEvent(name:"${name}", value:"${value}")
+        sendEvent(name:"${name}", value:"${value}")
         }
         return null
 }

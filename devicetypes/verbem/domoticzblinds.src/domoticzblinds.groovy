@@ -31,6 +31,7 @@ metadata {
         capability "Refresh"
         capability "Polling"
         capability "Door Control"
+        capability "Signal Strength"
 
         // custom attributes
         attribute "networkId", "string"
@@ -87,12 +88,16 @@ metadata {
                 action:"calibrate"
         }
 
-        standardTile("debug", "device.motion", width: 2, height: 2, inactiveLabel: false, decoration: "flat") {
+		valueTile("rssi", "device.rssi", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
+			state "rssi", label:'Signal ${currentValue}', unit:""
+		}
+        
+        standardTile("Refresh", "device.refresh", width: 2, height: 2, inactiveLabel: false, decoration: "flat") {
             state "default", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
         }
 
         main(["richDomoticzBlind"])
-        details(["richDomoticzBlind", "Up", "Stop", "Down", "Cal", "debug"])
+        details(["richDomoticzBlind", "Up", "Stop", "Down", "Cal", "rssi", "Refresh"])
 
     }    
 }

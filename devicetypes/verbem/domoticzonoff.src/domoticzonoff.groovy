@@ -34,6 +34,7 @@ metadata {
         capability "Switch Level"
         capability "Refresh"
         capability "Polling"
+        capability "Signal Strength"
         
         // custom commands
         command "parse"     // (String "<attribute>:<value>[,<attribute>:<value>]")
@@ -63,6 +64,10 @@ metadata {
         		attributeState "color", action:"setColor"
             }
         }
+		
+		valueTile("rssi", "device.rssi", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
+			state "rssi", label:'Signal ${currentValue}', unit:""
+		}
         
         standardTile("debug", "device.motion", inactiveLabel: false, decoration: "flat", width:2, height:2) {
             state "default", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
@@ -70,7 +75,7 @@ metadata {
 
         main(["richDomoticzOnOff"])
         
-        details(["richDomoticzOnOff", "debug"])
+        details(["richDomoticzOnOff", "rssi", "debug"])
 
         simulator {
             // status messages

@@ -16,9 +16,11 @@
 metadata {
 	definition (name: "domoticzSmokeDetector", namespace: "verbem", author: "Martin Verbeek") {
 		capability "Smoke Detector"
+		capability "Temperature Measurement"
 		capability "Actuator"
 		capability "Refresh"
 		capability "Battery"
+        capability "Signal Strength"
         }
 
     tiles (scale: 2){
@@ -39,8 +41,13 @@ metadata {
         valueTile("battery", "device.battery", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
             state "battery", label:'${currentValue}% battery', unit:"%"
         }
-        valueTile("temperature", "device.temperature", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
+
+		valueTile("temperature", "device.temperature", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
             state "temperature", label:'${currentValue}°', unit:"C"
+        }
+
+		valueTile("rssi", "device.rssi", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
+            state "rssi", label:' Signal ${currentValue}', unit:""
         }
 
 		standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
@@ -48,7 +55,7 @@ metadata {
 		}
         
         main "smoke"
-        details(["smoke","temperature", "refresh"])
+        details(["smoke","temperature", "battery", "rssi", "refresh"])
 	}
 }
 
@@ -92,8 +99,7 @@ private getIDXAddress() {
 def generateEvent (Map results) {
     results.each { name, value ->
         log.info "generateEvent " + name + " " + value
-        if (name == "switch") sendEvent(name:"smoke", value:"${value}")
-        else sendEvent(name:"${name}", value:"${value}")
+        sendEvent(name:"${name}", value:"${value}")
         }
         return null
 }

@@ -19,7 +19,9 @@ metadata {
 		capability "Contact Sensor"
 		capability "Refresh"
 		capability "Battery"
-	}
+		capability "Temperature Measurement"
+        capability "Signal Strength"
+        }
 
 preferences {
 		input title: "Temperature Offset", description: "This feature allows you to correct any temperature variations by selecting an offset. Ex: If your sensor consistently reports a temp that's 5 degrees too warm, you'd enter \"-5\". If 3 degrees too cold, enter \"+3\".", displayDuringSetup: false, type: "paragraph", element: "paragraph"
@@ -56,12 +58,16 @@ tiles(scale: 2) {
 			state "battery", label:'${currentValue}% battery', unit:""
 		}
 
+		valueTile("rssi", "device.rssi", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
+            state "rssi", label:' Signal ${currentValue}', unit:""
+        }
+
 		standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
 			state "default", action:"refresh.refresh", icon:"st.secondary.refresh"
 		}
 
 		main (["contact", "temperature"])
-		details(["contact","temperature","battery","refresh"])
+		details(["contact","temperature","battery", "rssi", "refresh"])
 	}
 
 }
@@ -107,8 +113,7 @@ private getIDXAddress() {
 def generateEvent (Map results) {
     results.each { name, value ->
         log.info "generateEvent " + name + " " + value
-        if (name == "switch") sendEvent(name:"contact", value:"${value}")
-        else sendEvent(name:"${name}", value:"${value}")
+        sendEvent(name:"${name}", value:"${value}")
         }
-        return null
+    return null
 }
