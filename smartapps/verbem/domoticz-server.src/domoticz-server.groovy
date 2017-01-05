@@ -13,6 +13,7 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *	
+	V3.05	Corrected typo in routine that selects which types to add
 	V3.03	Corrected event processing for Motion and Contact
 	V3.02	Implemented a refresh for devices in Domoticz every hour, these will be shown as "not completed" devices
 	V3.01	Implemented batterylevel as info that can be passed as an event to the devices
@@ -606,11 +607,11 @@ private def onLocationEvtForDevices(statusrsp) {
                 case [0, 7]:		// 	Lamps OnOff, Dimmers and RGB
                 if (domoticzTypes.contains('On/Off/Dimmers/RGB')) addSwitch(it.idx, "domoticzOnOff", it.Name, it.Status, it.Type, it)
                 break;
-                case 2:				//	Contact
-                if (domoticzTypes.contains('Smoke Detectors')) addSwitch(it.idx, "domoticzContact", it.Name, it.Status, it.Type, it)
+                case 2:				//	Contact 
+                if (domoticzTypes.contains('Contact Sensors')) addSwitch(it.idx, "domoticzContact", it.Name, it.Status, it.Type, it)
                 break;
                 case 5:				//	Smoke Detector
-                if (domoticzTypes.contains('Contact Sensors')) addSwitch(it.idx, "domoticzSmokeDetector", it.Name, it.Status, it.Type, it)
+                if (domoticzTypes.contains('Smoke Detectors')) addSwitch(it.idx, "domoticzSmokeDetector", it.Name, it.Status, it.Type, it)
                 break;
                 case 8:				//	Motion Sensors
                 if (domoticzTypes.contains('Motion Sensors'))addSwitch(it.idx, "domoticzMotion", it.Name, it.Status, it.Type, it)
@@ -1090,25 +1091,8 @@ def eventDomoticz() {
 		
 		children.each { 
             if (it.name == devName) {
-               def idx = it.deviceNetworkId.split(":")[2]
-            
-               switch (it.typeName) {
-                    case "domoticzBlinds":
-                        socketSend("status", idx, 0, 0, 0)
-                    	break;
-                    case "domoticzOnOff":
-                        socketSend("status", idx, 0, 0, 0)
-	                    break;
-                    case "domoticzMotion":
-                        socketSend("status", idx, 0, 0, 0)
-	                    break;
-                    case "domoticzSmokeDetector":
-                        socketSend("status", idx, 0, 0, 0)
-	                    break;
-                    case "domoticzContact":
-                        socketSend("status", idx, 0, 0, 0)
-	                    break;
-                }
+               	def idx = it.deviceNetworkId.split(":")[2]
+            	socketSend("status", idx, 0, 0, 0)
             }
         }
     }
