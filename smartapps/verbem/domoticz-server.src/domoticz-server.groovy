@@ -1042,6 +1042,19 @@ def refreshDevicesFromDomoticz() {
 /*-----------------------------------------------------------------------------------------*/
 def eventDomoticz() {
 	TRACE("[eventDomoticz] " + params.message)
+    if (params.message.contains(" ALARM")) {
+        def parts = params.message.split(" ALARM")
+        def devName = parts[0]
+        def children = getChildDevices()
+
+        children.each { 
+            if (it.name == devName) {
+                def idx = it.deviceNetworkId.split(":")[2]
+                socketSend("status", idx, 0, 0, 0)
+            }
+        }    	
+    }
+
     if (params.message.contains(" movement")) {
         def parts = params.message.split(" movement")
         def devName = parts[0]
