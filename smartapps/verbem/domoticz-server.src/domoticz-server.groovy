@@ -625,8 +625,8 @@ private def onLocationEvtForDevices(statusrsp) {
 /*		Create a status-attribute coversion list that will be passed to generateevent status
 /*-----------------------------------------------------------------------------------------*/
 private def createAttributes(domoticzDevice, domoticzStatus) {
-    TRACE("[createAttributes] ${domoticzDevice.getSupportedAttributes()} Passed Status ${domoticzStatus}")
-    if (domoticzStatus instanceof java.util.Map) {TRACE("[createAttributes] ${domoticzDevice.getSupportedAttributes()} Passed Status ${domoticzStatus}")}
+
+	if (domoticzStatus instanceof java.util.Map) {TRACE("[createAttributes] ${domoticzDevice.getSupportedAttributes()} Passed Status ${domoticzStatus}")}
     	else {
         	TRACE("[createAttributes] ${domoticzDevice.getSupportedAttributes()} PASSED NOT A MAP : RETURNING")
             return [:]
