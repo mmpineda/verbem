@@ -13,6 +13,7 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *	
+	V3.03	Corrected event processing for Motion and Contact
 	V3.02	Implemented a refresh for devices in Domoticz every hour, these will be shown as "not completed" devices
 	V3.01	Implemented batterylevel as info that can be passed as an event to the devices
  	V3.00	Add more granularity in adding devices from DZ to ST, Select on SwitchTypeVal and Room Plan
@@ -1040,11 +1041,38 @@ def refreshDevicesFromDomoticz() {
 /*		Domoticz will send an event message to ST for all devices THAT HAVE BEEN SELECTED to do that
 /*-----------------------------------------------------------------------------------------*/
 def eventDomoticz() {
-	TRACE("[eventDomoticz] " + params)
+	TRACE("[eventDomoticz] " + params.message)
+    if (params.message.contains(" movement")) {
+        def parts = params.message.split(" movement")
+        def devName = parts[0]
+        def children = getChildDevices()
+		
+		children.each { 
+            if (it.name == devName) {
+               	def idx = it.deviceNetworkId.split(":")[2]
+               	socketSend("status", idx, 0, 0, 0)
+            	}
+        	}    	
+        }
+
+	if (params.message.contains(" Closed") || params.message.contains(" Open")) {
+    	def devName = ""
+        if (params.message.contains(" Closed")) devName = params.message.replace(" Closed", "")
+        if (params.message.contains(" Open")) devName = params.message.replace(" Open", "")
+        def children = getChildDevices()
+		TRACE("[eventDomoticz] " + devName)
+		
+		children.each { 
+            if (it.name == devName) {
+               	def idx = it.deviceNetworkId.split(":")[2]
+               	socketSend("status", idx, 0, 0, 0)
+            	}
+        	}    	
+        }
+        
     if (params.message.contains(" >> ")) {
         def parts = params.message.split(" >> ")
         def devName = parts[0]
-        def devStatus = parts[1]
         def children = getChildDevices()
 		
 		children.each { 
