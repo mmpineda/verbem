@@ -26,9 +26,11 @@ metadata {
     tiles (scale: 2){
         multiAttributeTile(name:"smoke", type: "lighting", width: 6, height: 4){
             tileAttribute ("device.smoke", key: "PRIMARY_CONTROL") {
+                attributeState("clear", label:"CLEAR", icon:"st.alarm.smoke.clear", backgroundColor:"#ffffff")
                 attributeState("off", label:"CLEAR", icon:"st.alarm.smoke.clear", backgroundColor:"#ffffff")
                 attributeState("Off", label:"CLEAR", icon:"st.alarm.smoke.clear", backgroundColor:"#ffffff")
                 attributeState("OFF", label:"CLEAR", icon:"st.alarm.smoke.clear", backgroundColor:"#ffffff")
+                attributeState("smoke", label:"SMOKE", icon:"st.alarm.smoke.smoke", backgroundColor:"#e86d13")
                 attributeState("on", label:"SMOKE", icon:"st.alarm.smoke.smoke", backgroundColor:"#e86d13")
                 attributeState("On", label:"SMOKE", icon:"st.alarm.smoke.smoke", backgroundColor:"#e86d13")
                 attributeState("ON", label:"SMOKE", icon:"st.alarm.smoke.smoke", backgroundColor:"#e86d13")
@@ -98,8 +100,13 @@ private getIDXAddress() {
 /*----------------------------------------------------*/
 def generateEvent (Map results) {
     results.each { name, value ->
-        log.info "generateEvent " + name + " " + value
-        sendEvent(name:"${name}", value:"${value}")
+    	def v = value
+    	if (name.toUpperCase() == "SMOKE") { 
+        	if (value.toUpperCase() == "ON") v = "smoke"
+        	if (value.toUpperCase() == "OFF") v = "clear"
+            }
+        log.info "generateEvent " + name + " " + v
+        sendEvent(name:"${name}", value:"${v}")
         }
         return null
 }
