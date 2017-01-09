@@ -27,9 +27,11 @@ metadata {
 	tiles(scale: 2) {
 		multiAttributeTile(name:"motion", type: "generic", width: 6, height: 4){
 			tileAttribute ("device.motion", key: "PRIMARY_CONTROL") {
+				attributeState "active", label:'motion', icon:"st.motion.motion.active", backgroundColor:"#53a7c0"
 				attributeState "on", label:'motion', icon:"st.motion.motion.active", backgroundColor:"#53a7c0"
 				attributeState "On", label:'motion', icon:"st.motion.motion.active", backgroundColor:"#53a7c0"
 				attributeState "ON", label:'motion', icon:"st.motion.motion.active", backgroundColor:"#53a7c0"
+				attributeState "inactive", label:'no motion', icon:"st.motion.motion.inactive", backgroundColor:"#ffffff"
 				attributeState "off", label:'no motion', icon:"st.motion.motion.inactive", backgroundColor:"#ffffff"
 				attributeState "Off", label:'no motion', icon:"st.motion.motion.inactive", backgroundColor:"#ffffff"
 				attributeState "OFF", label:'no motion', icon:"st.motion.motion.inactive", backgroundColor:"#ffffff"
@@ -97,8 +99,12 @@ private getIDXAddress() {
 /*----------------------------------------------------*/
 def generateEvent (Map results) {
     results.each { name, value ->
-        log.info "generateEvent " + name + " " + value 
-        sendEvent(name:"${name}", value:"${value}")
+    	def v = value
+    	if (name.toUpperCase() == "MOTION") 
+        	if (value.toUpperCase() == "ON") v = "active" else v = "inactive"
+            
+        log.info "generateEvent " + name + " " + v
+        sendEvent(name:"${name}", value:"${v}")
         }
         return null
 }
