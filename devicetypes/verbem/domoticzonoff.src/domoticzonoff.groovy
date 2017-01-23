@@ -40,7 +40,6 @@ metadata {
         command "parse"     // (String "<attribute>:<value>[,<attribute>:<value>]")
        	command "setLevel"
         command "setColor"
-        command "toggle"
     }
 
     tiles(scale:2) {
@@ -128,14 +127,6 @@ def on() {
 
     if (parent) {
         parent.domoticz_on(getIDXAddress())
-    }
-}
-
-// switch.toggle() command handler
-def toggle() {
-
-    if (parent) {
-        parent.domoticz_toggle(getIDXAddress())
     }
 }
 
@@ -241,8 +232,11 @@ private getCallBackAddress() {
 /*----------------------------------------------------*/
 def generateEvent (Map results) {
     results.each { name, value ->
-        log.info "generateEvent " + name + " " + value
-        sendEvent(name:"${name}", value:"${value}")
+    	def v = value
+    	if (v.toUpperCase() == "OFF" ) v = "off"
+        if (v.toUpperCase() == "ON") v = "on"
+        log.info "generateEvent " + name + " " + v
+        sendEvent(name:"${name}", value:"${v}")
         }
         return null
 }
