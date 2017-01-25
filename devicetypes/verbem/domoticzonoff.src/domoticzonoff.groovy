@@ -22,7 +22,8 @@
  *
  *  Revision History
  *  ----------------
- *  2016-11-21 Rework of setColor 
+ *  2017-01-25 3.09 Put in check for switch name in generateevent
+ *	2017-01-18 3.08 get always an lowercase value for switch on/off in generateevent
  */
 
 metadata {
@@ -233,8 +234,10 @@ private getCallBackAddress() {
 def generateEvent (Map results) {
     results.each { name, value ->
     	def v = value
-    	if (v.toUpperCase() == "OFF" ) v = "off"
-        if (v.toUpperCase() == "ON") v = "on"
+    	if (name == "switch") {
+        	if (v.toUpperCase() == "OFF" ) v = "off"
+        	if (v.toUpperCase() == "ON") v = "on"
+            }
         log.info "generateEvent " + name + " " + v
         sendEvent(name:"${name}", value:"${v}")
         }
