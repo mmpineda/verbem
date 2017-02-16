@@ -38,6 +38,7 @@ metadata {
         
         // custom commands
         command "parse"     // (String "<attribute>:<value>[,<attribute>:<value>]")
+
     }
 
     tiles(scale:2) {
