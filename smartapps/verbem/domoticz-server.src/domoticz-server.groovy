@@ -13,6 +13,7 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *	
+ 	V3.06	Clean up code
 	V3.05	Corrected typo in routine that selects which types to add
 	V3.03	Corrected event processing for Motion and Contact
 	V3.02	Implemented a refresh for devices in Domoticz every hour, these will be shown as "not completed" devices
@@ -23,6 +24,8 @@
  */
  
 import groovy.json.*
+
+private def textVersion() { return "Version 3.06"}
 
 definition(
     name: "Domoticz Server",
@@ -42,8 +45,8 @@ preferences {
     page name:"setupMenu"
     page name:"setupDomoticz"
     page name:"setupListDevices"
-    page name:"setupTestConnection"
-    page name:"setupActionTest"
+    page name:"setupDeviceRequest"
+    page name:"setupAddDevices"
     page name:"setupRefreshToken"
 
 }
@@ -169,19 +172,19 @@ private def setupMenu() {
 	return dynamicPage(pageProperties) {
         section {
             href "setupDomoticz", title:"Configure Domoticz Server", description:"Tap to open"
-            href "setupTestConnection", title:"Add All Devices of a type", description:"Tap to open"
+            href "setupDeviceRequest", title:"Add all selected Devicetypes or those in selected Rooms", description:"Tap to open"
             if (state.devices.size() > 0) {
                 href "setupListDevices", title:"List Installed Devices", description:"Tap to open"
-            }
+            	}
             href "setupRefreshToken", title:"Revoke/Recreate Access Token", description:"Tap to open"
-        }
+        	}
         section([title:"Options", mobileOnly:true]) {
             label title:"Assign a name", required:false
-        }
+        	}
         section("About") {
             paragraph "${app.name}. ${textVersion()}\n${textCopyright()}"
-        }
-    }
+        	}
+    	}
 }
 /*-----------------------------------------------------------------------------------------*/
 /*		SET Up Configure Domoticz PAGE
@@ -215,7 +218,7 @@ private def setupDomoticz() {
     def inputDzTypes = [
         name        : "domoticzTypes",
         type        : "enum",
-        title       : "Device types you want to add",
+        title       : "Devicetypes you want to add",
         options	    : ["Window Coverings", "On/Off/Dimmers/RGB", "Smoke Detectors", "Contact Sensors", "Motion Sensors"],
         multiple	: true
     ]
@@ -250,14 +253,6 @@ private def setupDomoticz() {
         defaultValue: false
     ]
     
-/*	def inputDelay = [
-        name        : "domoticzDelay",
-        type        : "enum",
-        title       : "Milliseconds delay after SendHubCommand",
-        options	    : [0, 500, 1000, 1500, 2000, 2500, 3000],
-        defaultValue: 0
-    ]
-*/
     def inputTrace = [
         name        : "domoticzTrace",
         type        : "bool",
@@ -283,7 +278,6 @@ private def setupDomoticz() {
             input inputGroup
             input inputScene
             input inputTrace
-//            input inputDelay
         	}
     }
 }
@@ -291,8 +285,8 @@ private def setupDomoticz() {
 /*-----------------------------------------------------------------------------------------*/
 /*		SET Up Add Domoticz Devices PAGE
 /*-----------------------------------------------------------------------------------------*/
-private def setupTestConnection() {
-    TRACE("[setupTestConnection]")
+private def setupDeviceRequest() {
+    TRACE("[setupDeviceRequest]")
 
     def textHelp =
         "Add all Domoticz devices that have the following definition: \n\n" +
@@ -304,9 +298,9 @@ private def setupTestConnection() {
 	textHelp = textHelp +  "Tap Next to continue."
           
     def pageProperties = [
-        name        : "setupTestConnection",
+        name        : "setupDeviceRequest",
         title       : "Add Domoticz Devices?",
-        nextPage    : "setupActionTest",
+        nextPage    : "setupAddDevices",
         install     : false,
         uninstall   : false
     ]
@@ -320,13 +314,13 @@ private def setupTestConnection() {
 /*-----------------------------------------------------------------------------------------*/
 /*		Execute Domoticz LIST devices from the server
 /*-----------------------------------------------------------------------------------------*/
-private def setupActionTest() {
-    TRACE("[setupActionTest]")
+private def setupAddDevices() {
+    TRACE("[setupAddDevices]")
 
 	updateDeviceList()
 
     def pageProperties = [
-        name        : "setupActionTest",
+        name        : "setupAddDevices",
         title       : "Adding Devices",
         nextPage    : "setupMenu",
         install     : false,
@@ -356,7 +350,7 @@ private def setupActionTest() {
 
     return dynamicPage(pageProperties) {
         section {
-            paragraph "Domoticz Devices have been added"
+            paragraph "Requested Domoticz Devices have been added to SmartThings"
             paragraph "Tap Next to continue."
         }
     }
@@ -490,7 +484,7 @@ private def setupListDevices() {
 /*		Handle the location events that are being triggered from sendHubCommand response
 /*-----------------------------------------------------------------------------------------*/
 def onLocation(evt) {
-
+//	log.debug evt.json
     def description = evt.description
     def hMap = stringToMap(description)
 
@@ -580,7 +574,6 @@ state.statusGrpRsp = statusrsp
             break;
         	}    
         }
-
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -654,99 +647,73 @@ private def createAttributes(domoticzDevice, domoticzStatus) {
        }
     
     }
-    TRACE("[createAttributes] Return MAP ${attributeList} ")
-
 	return attributeList
-
 }
 
 /*-----------------------------------------------------------------------------------------*/
 /*		Execute the real add or status update of the child device
 /*-----------------------------------------------------------------------------------------*/
 private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, passedDomoticzStatus) {
-    TRACE("[addSwitch] ${addr}, ${passedFile}, ${passedName}, ${passedStatus}, ${passedBattery}")
+    TRACE("[addSwitch] ${addr}, ${passedFile}, ${passedName}, ${passedStatus}, ${passedDomoticzStatus}")
 
-    def dni = settings.domoticzIpAddress + ":" + settings.domoticzTcpPort + ":" + addr
-    
-    /*	the device already exists old style DNI update the status anyway*/
-    if (getChildDevice(dni)) {
-    	TRACE("[addSwitch] ${dni} old style dni already exists Returning")
-        if (state.devices[addr] == null) {
-            TRACE("[addSwitch] ${dni} old style dni not in state - deleting childdevice")
-        	}
-        
-        def attributeList = createAttributes(getChildDevice(dni), passedDomoticzStatus)
-        getChildDevice(dni).generateEvent(attributeList)
-        
-    	state.devices[addr] = [
-                'dni'   : dni,
-                'ip' : settings.domoticzIpAddress,
-                'port' : settings.domoticzTcpPort,
-                'idx' : addr,
-                'type'  : 'switch',
-                'deviceType' : passedFile,
-                'subType' : passedType
-            ]
+    def olddni = settings.domoticzIpAddress + ":" + settings.domoticzTcpPort + ":" + addr
+    def newdni = app.id + ":IDX:" + addr
 
+
+    if (getChildDevice(olddni)) {      
+		TRACE("[addSwitch] Changing DNI from ${olddni} to ${newdni}")		// get rid off the old IP style dni
+        getChildDevice(olddni).deviceNetworkId = newdni
+        state.devices[addr] = [
+            'dni'   : newdni,
+            'ip' : settings.domoticzIpAddress,
+            'port' : settings.domoticzTcpPort,
+            'idx' : addr,
+            'type'  : 'switch',
+            'deviceType' : passedFile,
+            'subType' : passedType
+        	]
+        pause 10
+		socketSend("status",addr,0,0,0)        
 		return 
-    }
-	
-    dni = app.id + ":IDX:" + addr
-	
-	/*	the device already exists new style DNI update the status anyway */
-     if (getChildDevice(dni)) {
-    	TRACE("[addSwitch] ${dni} new style dni already exists Returning")
-        if (state.devices[addr] == null) {
-            TRACE("[addSwitch] ${dni} new style dni not in state - deleting childdevice")
-        	}
-        
-        def attributeList = createAttributes(getChildDevice(dni), passedDomoticzStatus)
-        getChildDevice(dni).generateEvent(attributeList)
-        
-    	state.devices[addr] = [
-                'dni'   : dni,
-                'ip' : settings.domoticzIpAddress,
-                'port' : settings.domoticzTcpPort,
-                'idx' : addr,
-                'type'  : 'switch',
-                'deviceType' : passedFile,
-                'subType' : passedType
-            ]
-
+    	}
+		
+    if (getChildDevice(newdni)) {      
+        def attributeList = createAttributes(getChildDevice(newdni), passedDomoticzStatus)
+        getChildDevice(newdni).generateEvent(attributeList)
+        state.devices[addr] = [
+            'dni'   : newdni,
+            'ip' : settings.domoticzIpAddress,
+            'port' : settings.domoticzTcpPort,
+            'idx' : addr,
+            'type'  : 'switch',
+            'deviceType' : passedFile,
+            'subType' : passedType
+        	]
+        pause 10
 		return 
-    }
+    	}
 
-    def devFile = passedFile
-    def devParams = [
-        name            : passedName,
-        label           : passedName,
-        status			: passedStatus,
-        ip				: settings.domoticzIpAddress,
-        port			: settings.domoticzTcpPort, 
-        completedSetup  : !state.domoticzRefresh		//reverse the false or true
-    ]
-
-    TRACE("[addSwitch] Creating child device ${devParams}")
     try {
-        def dev = addChildDevice("verbem", devFile, dni, getHubID(), devParams)
-        dev.refresh()
-    } catch (e) {
-        log.error "[addSwitch] Cannot create child device. Error: ${e}"
-        return 
-    }
+     		TRACE("[addSwitch] Creating child device ${params}")
+       		def dev = addChildDevice("verbem", passedFile, newdni, getHubID(), [name:passedName, label:passedName, completedSetup:!state.domoticzRefresh])
+    	} 
+    catch (e) 
+    	{
+        	log.error "[addSwitch] Cannot create child device. ${devParam} Error: ${e}"
+        	return 
+    	}	
 
-    // save device in the app state
+	pause 10
+
     state.devices[addr] = [
-        'dni'   : dni,
+        'dni'   : newdni,
         'ip' : settings.domoticzIpAddress,
         'port' : settings.domoticzTcpPort,
         'idx' : addr,
         'type'  : 'switch',
-        'deviceType' : devFile,
+        'deviceType' : passedFile,
         'subType' : passedType
     ]
-
-    return 
 }
 /*-----------------------------------------------------------------------------------------*/
 /*		Purge devices that were removed from Domoticz
@@ -754,32 +721,29 @@ private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, pa
 private def updateDeviceList() {
     TRACE("[updateDeviceList]")
 
-    /* avoid ConcurrentModificationException that will happen */
-    def whichDevices = new ArrayList()
+    def deletedDevices = new ArrayList()
 
     state.devices.each { k,v ->
         def inStatusrsp = false
         state.statusrsp.each {
-        	if (k == it.idx) { inStatusrsp = true}
+        	if (k == it.idx) inStatusrsp = true
         }
         state.statusGrpRsp.each {
-        	if (k == it.idx) { inStatusrsp = true}
+        	if (k == it.idx) inStatusrsp = true
         }
             
         if (inStatusrsp == false ) {
-        	TRACE("${k} not in Domoticz anymore")
-            whichDevices.add(k)
-            TRACE("[updateDeviceList] Removing deleted device ${v.dni} from state and from childDevices ${k}")
+            deletedDevices.add(k)
             try {
+            	TRACE("[updateDeviceList] Removing deleted device ${v.dni} from state and from childDevices ${k}")
             	deleteChildDevice(v.dni)
             } 	catch (e) {
             	log.error "[updateDeviceList] Cannot delete device ${v.dni}. Error: ${e}"
             }
-
         }
     }
     
-	whichDevices.each { k ->
+	deletedDevices.each { k ->
     	state.devices.remove(k)
     }
 }
@@ -832,7 +796,6 @@ private def STATE() {
         }
 }
 
-
 /*-----------------------------------------------------------------------------------------*/
 /*		Excecute 'poll' command on behalf of child device
 /*-----------------------------------------------------------------------------------------*/
@@ -880,23 +843,13 @@ def domoticz_sceneon(nid) {
 	TRACE("[domoticz scene on] (${nid})")
     socketSend("sceneon", nid, 0, 0, 0)
 }
-/*-----------------------------------------------------------------------------------------*/
-/*		Excecute 'toggle' command on behalf of child device
-/*-----------------------------------------------------------------------------------------*/
-def domoticz_toggle(nid) {
-	TRACE("[domoticz toggle] (${nid})")
-    socketSend("toggle", nid, 16, 0, 0)
-}
 
 /*-----------------------------------------------------------------------------------------*/
 /*		Excecute 'stop' command on behalf of child device
 /*-----------------------------------------------------------------------------------------*/
 def domoticz_stop(nid) {
 	TRACE("[domoticz stop] (${nid})")
-    if (state.devices[nid].subType == "RFY") 
-    	{socketSend("stop", nid, 0, 0, 0)}
-    else 
-    	{socketSend("stop", nid, 0, 0, 0)}
+    {socketSend("stop", nid, 0, 0, 0)}
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -961,10 +914,6 @@ private def socketSend(message, addr, level, xSat, xBri) {
         case "off":
         	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20Off%20for%20${addr}"
         	rooPath = "/json.htm?type=command&param=switchlight&idx=${addr}&switchcmd=Off"	// "SwitchLight"
-            break;
-        case "toggle":
-        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20Toggle%20for%20${addr}"
-        	rooPath = "/json.htm?type=command&param=switchlight&idx=${addr}&switchcmd=Toggle" // "SwitchLight"
             break;
         case "on":
         	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20On%20for%20${addr}"
@@ -1043,6 +992,7 @@ def refreshDevicesFromDomoticz() {
 /*-----------------------------------------------------------------------------------------*/
 def eventDomoticz() {
 	TRACE("[eventDomoticz] " + params.message)
+    
     if (params.message.contains(" ALARM")) {
         def parts = params.message.split(" ALARM")
         def devName = parts[0]
@@ -1050,11 +1000,13 @@ def eventDomoticz() {
 
         children.each { 
             if (it.name == devName) {
+      			TRACE("[eventDomoticz] ALARM " + devName)
                 def idx = it.deviceNetworkId.split(":")[2]
                 socketSend("status", idx, 0, 0, 0)
-            }
-        }    	
-    }
+            	}
+        	}
+        return null
+    	}
 
     if (params.message.contains(" movement")) {
         def parts = params.message.split(" movement")
@@ -1063,10 +1015,12 @@ def eventDomoticz() {
 		
 		children.each { 
             if (it.name == devName) {
+      			TRACE("[eventDomoticz] movement " + devName)
                	def idx = it.deviceNetworkId.split(":")[2]
                	socketSend("status", idx, 0, 0, 0)
             	}
-        	}    	
+        	}
+        return null
         }
 
 	if (params.message.contains(" Closed") || params.message.contains(" Open")) {
@@ -1074,14 +1028,15 @@ def eventDomoticz() {
         if (params.message.contains(" Closed")) devName = params.message.replace(" Closed", "")
         if (params.message.contains(" Open")) devName = params.message.replace(" Open", "")
         def children = getChildDevices()
-		TRACE("[eventDomoticz] " + devName)
 		
 		children.each { 
             if (it.name == devName) {
+      			TRACE("[eventDomoticz] closed/open " + devName)
                	def idx = it.deviceNetworkId.split(":")[2]
                	socketSend("status", idx, 0, 0, 0)
             	}
         	}    	
+        return null
         }
         
     if (params.message.contains(" >> ")) {
@@ -1089,8 +1044,9 @@ def eventDomoticz() {
         def devName = parts[0]
         def children = getChildDevices()
 		
-		children.each { 
+		children.each {     	
             if (it.name == devName) {
+      			TRACE("[eventDomoticz] >> " + devName)
                	def idx = it.deviceNetworkId.split(":")[2]
             	socketSend("status", idx, 0, 0, 0)
             }
@@ -1121,10 +1077,6 @@ def getHubID(){
     if (hubs.size() == 1) hubID = hubs[0].id 
     TRACE("[getHubID] hubID: ${hubID}")
     return hubID
-}
-
-private def textVersion() {
-    return "Version 3.0.3"
 }
 
 private def textCopyright() {
