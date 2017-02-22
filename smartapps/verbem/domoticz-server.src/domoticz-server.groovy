@@ -13,7 +13,9 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *	
- 	V3.06	Clean up code
+ 	V3.08	Add support for inverted blinds (SwitchTypeVal 6 and 16)
+	V3.07	Catch error when Oauth is not enabled
+	V3.06	Clean up code
 	V3.05	Corrected typo in routine that selects which types to add
 	V3.03	Corrected event processing for Motion and Contact
 	V3.02	Implemented a refresh for devices in Domoticz every hour, these will be shown as "not completed" devices
@@ -25,7 +27,7 @@
  
 import groovy.json.*
 
-private def textVersion() { return "Version 3.06"}
+private def textVersion() { return "Version 3.08"}
 
 definition(
     name: "Domoticz Server",
@@ -594,7 +596,7 @@ private def onLocationEvtForDevices(statusrsp) {
             TRACE("[onLocationEvtForDevices] ${it.SwitchType} ${it.Name} ${it.Status} ${it.Type}")
             switch (it.SwitchTypeVal) 
             {
-                case [3, 13]:		//	Window Coverings
+                case [3, 13, 6, 16]:		//	Window Coverings 6 & 16 are inverted
                 if (domoticzTypes.contains('Window Coverings')) addSwitch(it.idx, "domoticzBlinds", it.Name, it.Status, it.Type, it)
                 break;
                 case [0, 7]:		// 	Lamps OnOff, Dimmers and RGB
@@ -607,7 +609,7 @@ private def onLocationEvtForDevices(statusrsp) {
                 if (domoticzTypes.contains('Smoke Detectors')) addSwitch(it.idx, "domoticzSmokeDetector", it.Name, it.Status, it.Type, it)
                 break;
                 case 8:				//	Motion Sensors
-                if (domoticzTypes.contains('Motion Sensors'))addSwitch(it.idx, "domoticzMotion", it.Name, it.Status, it.Type, it)
+                if (domoticzTypes.contains('Motion Sensors')) addSwitch(it.idx, "domoticzMotion", it.Name, it.Status, it.Type, it)
                 break;
             }	
         }
@@ -658,7 +660,12 @@ private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, pa
 
     def olddni = settings.domoticzIpAddress + ":" + settings.domoticzTcpPort + ":" + addr
     def newdni = app.id + ":IDX:" + addr
-
+	def switchTypeVal = ""
+    
+    if (passedDomoticzStatus instanceof java.util.Map) {
+    	switchTypeVal = passedDomoticzStatus.SwitchTypeVal
+    	TRACE("[addSwitch] ${addr}, ${passedFile}, ${passedName}, ${passedStatus}, ${switchTypeVal}")
+    }
 
     if (getChildDevice(olddni)) {      
 		TRACE("[addSwitch] Changing DNI from ${olddni} to ${newdni}")		// get rid off the old IP style dni
@@ -670,7 +677,8 @@ private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, pa
             'idx' : addr,
             'type'  : 'switch',
             'deviceType' : passedFile,
-            'subType' : passedType
+            'subType' : passedType,
+            'switchTypeVal' : switchTypeVal
         	]
         pause 10
 		socketSend("status",addr,0,0,0)        
@@ -687,7 +695,8 @@ private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, pa
             'idx' : addr,
             'type'  : 'switch',
             'deviceType' : passedFile,
-            'subType' : passedType
+            'subType' : passedType,
+            'switchTypeVal' : switchTypeVal
         	]
         pause 10
 		return 
@@ -712,7 +721,8 @@ private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, pa
         'idx' : addr,
         'type'  : 'switch',
         'deviceType' : passedFile,
-        'subType' : passedType
+        'subType' : passedType,
+        'switchTypeVal' : switchTypeVal
     ]
 }
 /*-----------------------------------------------------------------------------------------*/
@@ -815,8 +825,14 @@ def domoticz_scenepoll(nid) {
 /*		Excecute 'off' command on behalf of child device
 /*-----------------------------------------------------------------------------------------*/
 def domoticz_off(nid) {
-	TRACE("[domoticz off] (${nid})")
-    socketSend("off", nid, 0, 0, 0)
+    if (state.devices[nid].switchTypeVal == "6" || state.devices[nid].switchTypeVal == "16") {
+        TRACE("[domoticz inverted off] (${nid})")
+        socketSend("on", nid, 0, 0, 0)
+        }
+    else {
+        TRACE("[domoticz off] (${nid})")
+        socketSend("off", nid, 0, 0, 0)
+        }
 }
 /*-----------------------------------------------------------------------------------------*/
 /*		Excecute 'sceneoff' command on behalf of child device
@@ -833,8 +849,14 @@ def domoticz_sceneoff(nid) {
 /*		Excecute 'on' command on behalf of child device
 /*-----------------------------------------------------------------------------------------*/
 def domoticz_on(nid) {
-	TRACE("[domoticz on] (${nid})")
-    socketSend("on", nid, 16, 0, 0)
+    if (state.devices[nid].switchTypeVal == "6" || state.devices[nid].switchTypeVal == "16") {
+        TRACE("[domoticz inverted on] (${nid})")
+        socketSend("off", nid, 16, 0, 0)
+        }
+    else {
+        TRACE("[domoticz on] (${nid})")
+        socketSend("on", nid, 16, 0, 0)
+        }
 }
 /*-----------------------------------------------------------------------------------------*/
 /*		Excecute 'sceneon' command on behalf of child device
@@ -1061,9 +1083,15 @@ def eventDomoticz() {
 private def initRestApi() {
     TRACE("[initRestApi]")
     if (!state.accessToken) {
-        def token = createAccessToken()
-        TRACE("[initRestApi] Created new access token: ${state.accessToken}")
-    }
+        try {
+        	def token = createAccessToken()
+        	TRACE("[initRestApi] Created new access token: ${state.accessToken}")
+            }
+        catch (e) 
+        	{
+			log.error "[initRestApi] did you enable OAuth in the IDE for this APP?"
+			}
+    	}
     state.urlCustomActionHttp = getApiServerUrl() - ":443" + "/api/smartapps/installations/${app.id}/" + "EventDomoticz?access_token=" + state.accessToken + "&message=#MESSAGE"
 
 }
