@@ -54,12 +54,12 @@ metadata {
     tiles (scale: 2) {
 	    multiAttributeTile(name:"richDomoticzBlind", type:"generic",  width:6, height:4, canChangeIcon: true, canChangeBackground: true) {
         	tileAttribute("device.switch", key: "PRIMARY_CONTROL") {
-                attributeState "Open", label:" Up ", backgroundColor:"#19f028", nextState:"Going Down", action:"stop"	
+                attributeState "Open", label:" Open ", backgroundColor:"#19f028", nextState:"Going Down", action:"stop"	
                 attributeState "Going Up", label:"Going Up", backgroundColor:"#FE9A2E", nextState:"Going Down", action:"open"
 
 				attributeState "Stopped", label:"Stopped", backgroundColor:"#11A81C", action:"close"
                 
-                attributeState "Closed", label:"Down",  backgroundColor:"#08540E", nextState:"Going Up"
+                attributeState "Closed", label:"Closed",  backgroundColor:"#08540E", nextState:"Going Up"
                 attributeState "Going Down", label:"Going Down",  backgroundColor:"#FE9A2E", nextState:"Going Up", action:"close"
             }
             tileAttribute("device.level", key: "SLIDER_CONTROL", range:"0..16") {
@@ -147,6 +147,7 @@ def off() {
 def close() {
 	log.debug "Close()"
     if (parent) {
+    	log.debug parent.state.devices[getIDXAddress()].switchTypeVal
         parent.domoticz_on(getIDXAddress())
     }
 }
@@ -179,6 +180,10 @@ def stop() {
         parent.domoticz_stop(getIDXAddress())
     }
 
+}
+
+def setUpTile() {
+	return "XX"
 }
 /* 	special implementation through setlevel
 	It also makes it possible to use Alexa DIM!!!
