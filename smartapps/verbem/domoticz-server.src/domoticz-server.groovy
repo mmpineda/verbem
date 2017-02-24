@@ -619,9 +619,9 @@ private def onLocationEvtForDevices(statusrsp) {
 /*-----------------------------------------------------------------------------------------*/
 /*		Create a status-attribute coversion list that will be passed to generateevent status
 /*-----------------------------------------------------------------------------------------*/
-private def createAttributes(domoticzDevice, domoticzStatus) {
+private def createAttributes(domoticzDevice, domoticzStatus, addr) {
 
-	if (domoticzStatus instanceof java.util.Map) {TRACE("[createAttributes] ${domoticzDevice.getSupportedAttributes()} Passed Status ${domoticzStatus}")}
+	if (domoticzStatus instanceof java.util.Map) {TRACE("[createAttributes] ${addr} ${domoticzDevice.getSupportedAttributes()} Passed Status ${domoticzStatus}")}
     	else {
         	TRACE("[createAttributes] ${domoticzDevice.getSupportedAttributes()} PASSED NOT A MAP : RETURNING")
             return [:]
@@ -644,7 +644,14 @@ private def createAttributes(domoticzDevice, domoticzStatus) {
             	if (domoticzDevice.hasAttribute("motion")) attributeList.put('motion', v)
             	if (domoticzDevice.hasAttribute("contact")) attributeList.put('contact', v)
             	if (domoticzDevice.hasAttribute("smoke")) attributeList.put('smoke', v)
-            	if (domoticzDevice.hasAttribute("switch")) attributeList.put('switch', v)
+            	if (domoticzDevice.hasAttribute("switch")) {
+                    TRACE("[createAttributes] switch ${state.devices[addr].switchTypeVal}")
+                    if (state.devices[addr].switchTypeVal == 6 || state.devices[addr].switchTypeVal == 16) {		// INVERTED BLINDS!!
+                        if (v == "Open") {v = "Closed"} else {v = "Open"}
+                    	}
+                    attributeList.put('switch', v)
+                    }
+                    
             break;
        }
     
@@ -686,7 +693,7 @@ private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, pa
     	}
 		
     if (getChildDevice(newdni)) {      
-        def attributeList = createAttributes(getChildDevice(newdni), passedDomoticzStatus)
+        def attributeList = createAttributes(getChildDevice(newdni), passedDomoticzStatus, addr)
         getChildDevice(newdni).generateEvent(attributeList)
         state.devices[addr] = [
             'dni'   : newdni,
@@ -825,14 +832,8 @@ def domoticz_scenepoll(nid) {
 /*		Excecute 'off' command on behalf of child device
 /*-----------------------------------------------------------------------------------------*/
 def domoticz_off(nid) {
-    if (state.devices[nid].switchTypeVal == "6" || state.devices[nid].switchTypeVal == "16") {
-        TRACE("[domoticz inverted off] (${nid})")
-        socketSend("on", nid, 0, 0, 0)
-        }
-    else {
-        TRACE("[domoticz off] (${nid})")
-        socketSend("off", nid, 0, 0, 0)
-        }
+    TRACE("[domoticz off] (${nid})")
+    socketSend("off", nid, 0, 0, 0)
 }
 /*-----------------------------------------------------------------------------------------*/
 /*		Excecute 'sceneoff' command on behalf of child device
@@ -849,14 +850,8 @@ def domoticz_sceneoff(nid) {
 /*		Excecute 'on' command on behalf of child device
 /*-----------------------------------------------------------------------------------------*/
 def domoticz_on(nid) {
-    if (state.devices[nid].switchTypeVal == "6" || state.devices[nid].switchTypeVal == "16") {
-        TRACE("[domoticz inverted on] (${nid})")
-        socketSend("off", nid, 16, 0, 0)
-        }
-    else {
-        TRACE("[domoticz on] (${nid})")
-        socketSend("on", nid, 16, 0, 0)
-        }
+    TRACE("[domoticz on] (${nid})")
+    socketSend("on", nid, 16, 0, 0)
 }
 /*-----------------------------------------------------------------------------------------*/
 /*		Excecute 'sceneon' command on behalf of child device
