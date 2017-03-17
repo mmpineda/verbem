@@ -13,6 +13,7 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *	
+ 	V3.09	Changes to IP/Port calls to Domoticz
  	V3.08	Add support for inverted blinds (SwitchTypeVal 6 and 16)
 	V3.07	Catch error when Oauth is not enabled
 	V3.06	Clean up code
@@ -27,7 +28,7 @@
  
 import groovy.json.*
 
-private def textVersion() { return "Version 3.08"}
+private def textVersion() { return "Version 3.09"}
 
 definition(
     name: "Domoticz Server",
@@ -330,8 +331,6 @@ private def setupAddDevices() {
     ]
 
     
-    def networkId = makeNetworkId(settings.domoticzIpAddress, settings.domoticzTcpPort)
-
 	state.listOfRoomPlanDevices = []
     if (domoticzRoomPlans)
     	{
@@ -644,14 +643,7 @@ private def createAttributes(domoticzDevice, domoticzStatus, addr) {
             	if (domoticzDevice.hasAttribute("motion")) attributeList.put('motion', v)
             	if (domoticzDevice.hasAttribute("contact")) attributeList.put('contact', v)
             	if (domoticzDevice.hasAttribute("smoke")) attributeList.put('smoke', v)
-            	if (domoticzDevice.hasAttribute("switch")) {
-                    TRACE("[createAttributes] switch ${state.devices[addr].switchTypeVal}")
-                    if (state.devices[addr].switchTypeVal == 6 || state.devices[addr].switchTypeVal == 16) {		// INVERTED BLINDS!!
-                        if (v == "Open") {v = "Closed"} else {v = "Open"}
-                    	}
-                    attributeList.put('switch', v)
-                    }
-                    
+            	if (domoticzDevice.hasAttribute("switch")) attributeList.put('switch', v)                  
             break;
        }
     
@@ -788,19 +780,6 @@ private def getDeviceListAsText(type) {
 
     return s
 } 
-
-
-// Returns device Network ID in 'AAAAAAAA:PPPP' format
-private String makeNetworkId(ipaddr, port) {
-    TRACE("createNetworkId(${ipaddr}, ${port})")
-
-    String hexIp = ipaddr.tokenize('.').collect {
-        String.format('%02X', it.toInteger())
-    }.join()
-
-    String hexPort = String.format('%04X', port)
-    return "${hexIp}:${hexPort}"
-}
 
 private def TRACE(message) {
     if(domoticzTrace) {log.trace message}
@@ -955,7 +934,7 @@ private def socketSend(message, addr, level, xSat, xBri) {
     def hubAction = new physicalgraph.device.HubAction(
         method: "GET",
         path: rooPath,
-        headers: [HOST: "${domoticzIpAddress}:${domoticzTcpPort}"])
+        headers: [HOST: "${settings.domoticzIpAddress}:${settings.domoticzTcpPort}"])
 
 	def mSeconds = 0
     
@@ -965,7 +944,7 @@ private def socketSend(message, addr, level, xSat, xBri) {
         def hubActionLog = new physicalgraph.device.HubAction(
             method: "GET",
             path: rooLog,
-            headers: [HOST: "${domoticzIpAddress}:${domoticzTcpPort}"])
+            headers: [HOST: "${settings.domoticzIpAddress}:${settings.domoticzTcpPort}"])
 
         sendHubCommand(hubActionLog)
         }
