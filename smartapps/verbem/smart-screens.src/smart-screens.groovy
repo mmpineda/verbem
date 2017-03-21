@@ -55,7 +55,6 @@ preferences {
     page name:"pageSetupForecastIO"
     page name:"pageConfigureBlinds"
     page name:"pageForecastIO"
-	page(name:"auth",title: "Netatmo Authentication", content: "pageAuth", nextPage: "pageSetupForecastIO", install: false)
 }
 
 def pageSetupForecastIO() {
@@ -105,6 +104,14 @@ def pageSetupForecastIO() {
         multiple:   false,
         required:   true
     ]
+
+    def inputSensors = [
+        name:       "z_sensors",
+        type:       "capability.sensor",
+        title:      "Which NETATMO wind devices?",
+        multiple:   true,
+        required:   false
+    ] 
     
     return dynamicPage(pageProperties) {
 
@@ -120,7 +127,7 @@ def pageSetupForecastIO() {
         }
         
         section("Netatmo Interface") {  
-            href "auth", title:"Connect to Netatmo", description:"Tap to enter credentials"
+        	input inputSensors
 		}
         
         section("Setup Menu") {
@@ -236,6 +243,8 @@ def initialize() {
         
     subscribe(location, "sunset", stopSunpath,  [filterEvents:true])
     subscribe(location, "sunrise", startSunpath,  [filterEvents:true])
+    
+    subscribe(z_sensors, "WindStrength", eventNetatmo)
     
     checkForWind()
     checkForSun()
@@ -406,18 +415,41 @@ settings.z_blinds.each {
 return null
 }
 /*-----------------------------------------------------------------------------------------*/
+/*	This is an event handler that will be provided with wind events from NETATMO devices
+/*-----------------------------------------------------------------------------------------*/
+def eventNetatmo(evt) {
+
+def dev = evt.getDevice()
+def windAngle 		= calcBearing(dev.latestValue("WindAngle"))
+def gustStrength 	= dev.latestValue("GustStrength")
+def gustAngle 		= calcBearing(dev.latestValue("GustAngle"))
+def windStrength 	= dev.latestValue("WindStrength")
+def units 			= dev.latestValue("units")
+
+if (evt.isStateChange()) {
+    state.windBearing = windAngle
+    state.windSpeed = windStrength
+    checkForWind("NETATMO")
+    }
+}
+
+/*-----------------------------------------------------------------------------------------*/
 /*	This is a scheduled event that will get latest WIND related info on position
 /*	and will check the blinds if they need to be closed or can be opened
 /*-----------------------------------------------------------------------------------------*/
 def checkForWind(evt) {
 
-def windParms = getForecastIO()
-state.windBearing = windParms.windBearing
-state.windSpeed = windParms.windSpeed
-if (settings.z_windForceMetric == "km/h") {state.windSpeed = windParms.windSpeed * 3.6}
-state.cloudCover = windParms.cloudCover * 100
+if (evt == null) {
+	evt = "FORECASTIO"
+    def windParms = getForecastIO()
+    state.windBearing = windParms.windBearing
+    state.windSpeed = windParms.windSpeed
+    if (settings.z_windForceMetric == "km/h") {state.windSpeed = windParms.windSpeed * 3.6}
+    state.cloudCover = windParms.cloudCover * 100
+    }
 
-TRACE("WIND checkForWind Bearing: ${state.windBearing} Speed: ${state.windSpeed} ${settings.z_windForceMetric} Cloudcover: ${state.cloudCover} ")
+
+TRACE("WIND from ${evt} Bearing: ${state.windBearing} Speed: ${state.windSpeed} ${settings.z_windForceMetric} Cloudcover: ${state.cloudCover} ")
 
 settings.z_blinds.each {
 
@@ -629,249 +661,3 @@ def J1970() { return 2440588}
 def J2000() { return 2451545}
 def rad() { return  Math.PI / 180}
 def e() { return  rad() * 23.4397}
-
-/*-----------------------------------------------------------------------------------------*/
-/*	Netatmo interaction
-/*-----------------------------------------------------------------------------------------*/
-def getNetatmoCallback() {
-	log.debug "getNetatmoCallback()>> params: $params, params.code ${params.code}"
-
-	def code = params.code
-	def oauthState = params.state
-
-	if (oauthState == state.oauthInitState) {
-
-		def tokenParams = [
-			client_secret: getClientSecret(),
-			client_id : getClientId(),
-			grant_type: "authorization_code",
-			redirect_uri: getCallbackUrl(),
-			code: code,
-			scope: "read_station"
-		]
-
-		// log.debug "TOKEN URL: ${getVendorTokenPath() + toQueryString(tokenParams)}"
-
-		def tokenUrl = getVendorTokenPath()
-		def params = [
-			uri: tokenUrl,
-			contentType: 'application/x-www-form-urlencoded',
-			body: tokenParams
-		]
-
-		// log.debug "PARAMS: ${params}"
-
-	try {
-		httpPost(params) { resp ->
-
-			def slurper = new JsonSlurper()
-
-			resp.data.each { key, value ->
-				def data = slurper.parseText(key)
-
-				state.refreshToken = data.refresh_token
-				state.authToken = data.access_token
-				state.tokenExpires = now() + (data.expires_in * 1000)
-				log.debug "swapped token: $resp.data"
-			}
-		}
-        }
-        catch (e) {
-    			log.error e
-        	}
-
-		// Handle success and failure here, and render stuff accordingly
-		if (state.authToken) {
-			success()
-		} else {
-			fail()
-		}
-
-	} else {
-		log.error "callback() failed oauthState != state.oauthInitState"
-	}
-
-}
-
-// Example success method
-def success() {
-        def message = """
-                <p>Your account is now connected to SmartThings!</p>
-                <p>Click 'Done' to finish setup.</p>
-        """
-        displayMessageAsHtml(message)
-}
-
-// Example fail method
-def fail() {
-    def message = """
-        <p>There was an error connecting your account with SmartThings</p>
-        <p>Please try again.</p>
-    """
-    displayMessageAsHtml(message)
-}
-
-def displayMessageAsHtml(message) {
-    def html = """
-        <!DOCTYPE html>
-        <html>
-            <head>
-            </head>
-            <body>
-                <div>
-                    ${message}
-                </div>
-            </body>
-        </html>
-    """
-    render contentType: 'text/html', data: html
-}
-
-def getNetatmoAuth() {
-	TRACE("getNetatmoAuth")
-
-    // Generate a random ID to use as a our state value. This value will be used to verify the response we get back from the 3rd party service.
-	state.oauthInitState = UUID.randomUUID().toString()
-
-	def oauthParams = [
-		response_type: "code",
-		client_id: getClientId(),
-		client_secret: getClientSecret(),
-		state: state.oauthInitState,
-		redirect_uri: getCallbackUrl(),
-		scope: "read_station"
-	]
-
-	// log.debug "REDIRECT URL: ${getVendorAuthPath() + toQueryString(oauthParams)}"
-
-	redirect (location: getVendorAuthPath() + toQueryString(oauthParams))
-}
-
-// The toQueryString implementation simply gathers everything in the passed in map and converts them to a string joined with the "&" character.
-String toQueryString(Map m) {
-        return m.collect { k, v -> "${k}=${URLEncoder.encode(v.toString())}" }.sort().join("&")
-}
-
-def pageAuth() {
-	TRACE("pageAuth")
-    // Check to see if our SmartApp has it's own access token and create one if not.
-    if(!state.accessToken) {
-    	TRACE("pageAuth create Access Token")
-        // the createAccessToken() method will store the access token in state.accessToken
-        createAccessToken()
-    }
-
-    def redirectUrl = "https://graph.api.smartthings.com/oauth/initialize?appId=${app.id}&access_token=${state.accessToken}&apiServerUrl=${getApiServerUrl()}"
-    // Check to see if we already have an access token from Netatmo.
-    if(!state.authToken) {
-    	TRACE("pageAuth get page out")
-        return dynamicPage(name: "auth") {
-            section() {
-                paragraph "tap below to log in to Netatmo and authorize SmartThings access"
-                href url: redirectUrl, style: "embedded", required: true, title: "Netatmo", description: "Click to enter credentials"
-            }
-        }
-    } else {
-        // We have the token, so we can just call NetAtmo to list PWS-es that are near to me and select PWS-es to install.
-        TRACE("pageAuth state.authToken present, get stationdata")
-
-		def stationUrl = getVendorStationPath()
-		def params = [
-			uri: "https://api.netatmo.com/api/getstationsdata",
-			query: ["access_token": state.authToken, "get_favorites": true]
-			]
-            
-        httpGet(params) { response ->
-				log.debug response
-            	}
-    }
-}
-
-def refreshToken() {
-	log.debug "In refreshToken"
-
-	def oauthParams = [
-		client_secret: getClientSecret(),
-		client_id: getClientId(),
-		grant_type: "refresh_token",
-		refresh_token: state.refreshToken
-	]
-
-	def tokenUrl = getVendorTokenPath()
-	def params = [
-		uri: tokenUrl,
-		contentType: 'application/x-www-form-urlencoded',
-		body: oauthParams,
-	]
-
-	// OAuth Step 2: Request access token with our client Secret and OAuth "Code"
-	try {
-		httpPost(params) { response ->
-			def slurper = new JsonSlurper();
-
-			response.data.each {key, value ->
-				def data = slurper.parseText(key);
-				// log.debug "Data: $data"
-
-				state.refreshToken = data.refresh_token
-				state.accessToken = data.access_token
-				state.tokenExpires = now() + (data.expires_in * 1000)
-				return true
-			}
-
-		}
-	} catch (Exception e) {
-		log.debug "Error: $e"
-	}
-
-	// We didn't get an access token
-	if ( !state.accessToken ) {
-		return false
-	}
-}
-
-def apiGet(String path, Map query, Closure callback) {
-	if(now() >= state.tokenExpires) {
-		refreshToken();
-	}
-
-	query['access_token'] = state.accessToken
-	def params = [
-		uri: getApiUrl(),
-		path: path,
-		'query': query
-	]
-	// log.debug "API Get: $params"
-
-	try {
-		httpGet(params)	{ response ->
-			callback.call(response)
-		}
-	} catch (Exception e) {
-		// This is most likely due to an invalid token. Try to refresh it and try again.
-		log.debug "apiGet: Call failed $e"
-		if(refreshToken()) {
-			log.debug "apiGet: Trying again after refreshing token"
-			httpGet(params)	{ response ->
-				callback.call(response)
-			}
-		}
-	}
-}
-
-def apiGet(String path, Closure callback) {
-	apiGet(path, [:], callback);
-}
-
-private getApiUrl()				{ "https://api.netatmo.com" }
-private getVendorName()			{ "netatmo" }
-private getVendorAuthPath()		{ "${apiUrl}/oauth2/authorize?" }
-private getVendorTokenPath()	{ "${apiUrl}/oauth2/token" }
-private getVendorStationPath()	{ "${apiUrl}/getstationsdata" }
-private getVendorIcon()			{ "https://s3.amazonaws.com/smartapp-icons/Partner/netamo-icon-1%402x.png" }
-private getClientId()			{ appSettings.clientId }
-private getClientSecret()		{ appSettings.clientSecret }
-private getServerUrl() 			{ appSettings.serverUrl }
-private getShardUrl()			{ return getApiServerUrl() }
-private getCallbackUrl()		{ "${serverUrl}/oauth/callback" }
-private getBuildRedirectUrl() 	{ "${serverUrl}/oauth/initialize?appId=${app.id}&access_token=${state.accessToken}&apiServerUrl=${shardUrl}" }
