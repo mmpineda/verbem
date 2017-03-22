@@ -13,6 +13,8 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *	
+	V3.11	Fix in Domoticz_Stop function
+	V3.10	Change to singleinstance and enabled oauth
  	V3.09	Changes to IP/Port calls to Domoticz
  	V3.08	Add support for inverted blinds (SwitchTypeVal 6 and 16)
 	V3.07	Catch error when Oauth is not enabled
@@ -28,7 +30,7 @@
  
 import groovy.json.*
 
-private def textVersion() { return "Version 3.09"}
+private def textVersion() { return "Version 3.11"}
 
 definition(
     name: "Domoticz Server",
@@ -36,6 +38,8 @@ definition(
     author: "Martin Verbeek",
     description: "Connects to local Domoticz server and define Domoticz devices in ST",
     category: "My Apps",
+    singleInstance: true,
+    oauth: true,
     iconUrl: "http://www.thermosmart.nl/wp-content/uploads/2015/09/domoticz-450x450.png",
     iconX2Url: "http://www.thermosmart.nl/wp-content/uploads/2015/09/domoticz-450x450.png",
     iconX3Url: "http://www.thermosmart.nl/wp-content/uploads/2015/09/domoticz-450x450.png"
@@ -845,7 +849,7 @@ def domoticz_sceneon(nid) {
 /*-----------------------------------------------------------------------------------------*/
 def domoticz_stop(nid) {
 	TRACE("[domoticz stop] (${nid})")
-    {socketSend("stop", nid, 0, 0, 0)}
+    socketSend("stop", nid, 0, 0, 0)
 }
 
 /*-----------------------------------------------------------------------------------------*/
