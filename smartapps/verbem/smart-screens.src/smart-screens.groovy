@@ -191,24 +191,25 @@ def pageForecastIO() {
     state.sunBearing = getSunpath()
     def sc = sunCalc()
 
-def pageProperties = [
-        name:       "pageForecastIO",
-        title:      "Current Sun and Wind Info",
-        nextPage:   "pageSetupForecastIO",
-        refreshInterval: 10,
-        uninstall:  false
-    ]    
+    def pageProperties = [
+            name:       "pageForecastIO",
+            title:      "Current Sun and Wind Info",
+            nextPage:   "pageSetupForecastIO",
+            refreshInterval: 10,
+            uninstall:  false
+        ]    
    
-   	    return dynamicPage(pageProperties) {
+    return dynamicPage(pageProperties) {
 
         section("Wind") {
-        	paragraph "Speed ${state.windSpeed}" 
-        	paragraph "Direction ${state.windBearing}"
+        	paragraph "Speed ${state.windSpeed} from direction ${state.windBearing}" 
+            z_sensors.each {
+            	paragraph "${it.displayName} speed ${it.currentValue("WindStrength")} from direction ${calcBearing(it.currentValue("WindAngle"))}"
+            }
 		}
         
         section("Sun") {
-            paragraph "cloud Cover ${state.cloudCover}"
-            paragraph "Direction ${state.sunBearing}"
+            paragraph "cloud Cover ${state.cloudCover} Sun in direction ${state.sunBearing}"
 		}
         
         section("SunCalc") {
