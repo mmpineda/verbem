@@ -300,7 +300,6 @@ def getForecast() {
     TRACE("getForecast for Lon:${location.longitude} Lat:${location.latitude}")
 
 	if (settings.z_weatherAPI == "Darksky") {
-    	TRACE("DARKSKY.NET")
     	def units = "si"
 	    if (settings.z_windForceMetric == "mph") {units = "us"}
 		def params = [
@@ -325,7 +324,6 @@ def getForecast() {
 	}
     
 	if (settings.z_weatherAPI == "OpenWeatherMap") {
-    	TRACE("OPENWEATHERMAP")
     	def units = "metric"
 	    if (settings.z_windForceMetric == "mph") {units = "imperial"}
         def params = "http://api.openweathermap.org/data/2.5/weather?lat=${location.latitude}&lon=${location.longitude}&APPID=${pageSetupAPI}&units=${units}"
@@ -495,7 +493,7 @@ if (evt.isStateChange()) {
 def checkForWind(evt) {
 
 if (evt == null) {
-	evt = "FORECASTIO"
+	evt = settings.z_weatherAPI
     def windParms = getForecast()
     state.windBearing = windParms.windBearing
     state.windSpeed = windParms.windSpeed
