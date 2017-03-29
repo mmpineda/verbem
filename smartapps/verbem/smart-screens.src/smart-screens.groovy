@@ -66,10 +66,20 @@ def pageSetupForecastIO() {
     def pageSetupAPI = [
         name:       "pageSetupAPI",
         type:       "string",
-        title:      "Darksky.net API key",
+        title:      "API key(darksky) or APPID(OWM)",
         multiple:   false,
         required:   true
     	]
+
+	def inputWeather = [
+        name:       "z_weatherAPI",
+        type:       "enum",
+        options:	["Darksky", "OpenWeatherMap"],
+        title:      "Select Weather API",
+        multiple:   false,
+        submitOnChange: true,
+        required:   true
+        ]
               
     def inputBlinds = [
         name:       "z_blinds",
@@ -114,18 +124,36 @@ def pageSetupForecastIO() {
     ] 
     
     return dynamicPage(pageProperties) {
+		
+        section("Darksky.net or OpenWeatherMap API Key and Website") {
+        	input inputWeather
+        	
+            if (z_weatherAPI) {
+                input pageSetupAPI
 
-        section("Darksky.net API and API Website") {
-            input pageSetupAPI
+				if (z_weatherAPI == "Darksky") {
+                    href(name: "hrefNotRequired",
+                     title: "Darksky.net page",
+                     required: false,
+                     style: "external",
+                     url: "https://darksky.net/dev/",
+                     description: "tap to view Darksky website in mobile browser")
+                    }
 
-        	href(name: "hrefNotRequired",
-             title: "Darksky.net APi page",
-             required: false,
-             style: "external",
-             url: "https://darksky.net/dev/",
-             description: "tap to view Darksky website in mobile browser")
+				if (z_weatherAPI == "OpenWeatherMap") {
+                    href(name: "hrefNotRequired",
+                     title: "OpenWeatherMap page",
+                     required: false,
+                     style: "external",
+                     url: "https://home.openweathermap.org/users/sign_in",
+                     description: "tap to view OWM website in mobile browser")
+                     }
+			}
+            
         }
-        
+
+
+
         section("Netatmo Interface") {  
         	input inputSensors
 		}
@@ -264,33 +292,59 @@ def handlerLocation(evt) {
 /*-----------------------------------------------------------------------------------------*/
 /*	This routine will get information relating to the weather at location and current time
 /*-----------------------------------------------------------------------------------------*/
-def getForecastIO() {
+def getForecast() {
 
-    TRACE("getForecastIO for Lon:${location.longitude} Lat:${location.latitude}")
-	TRACE("/forecast/${pageSetupAPI}/${location.latitude},${location.longitude}")
-    def units = "si"
-    if (settings.z_windForceMetric == "mph") {units = "us"}
-    def params = [
-        uri: "https://api.darksky.net",
-        path: "/forecast/${pageSetupAPI}/${location.latitude},${location.longitude}",
-        entType: "application/json", 
-        query: ["units" : units, "exclude" : "minutely,hourly,daily,flags"]
-    ]
+	def windBearing
+    def windSpeed
+    def cloudCover
+    TRACE("getForecast for Lon:${location.longitude} Lat:${location.latitude}")
 
-    try {
-        httpGet(params) { resp ->
-       		if(resp.data.alerts?.title == !null ) {
-            	log.info "Weather alert : " + resp.data.alerts.title
+	if (settings.z_weatherAPI == "Darksky") {
+    	TRACE("DARKSKY.NET")
+    	def units = "si"
+	    if (settings.z_windForceMetric == "mph") {units = "us"}
+		def params = [
+            uri: "https://api.darksky.net",
+            path: "/forecast/${pageSetupAPI}/${location.latitude},${location.longitude}",
+            contentType: "application/json", 
+            query: ["units" : units, "exclude" : "minutely,hourly,daily,flags"]
+        ]
+        try {
+            httpGet(params) { response ->
+                windBearing = calcBearing(response.data.currently.windBearing)
+                windSpeed = response.data.currently.windSpeed 
+                cloudCover = response.data.currently.cloudCover
+                }
+            } 
+            catch (e) {
+                log.error "DARKSKY something went wrong: $e"
+                windBearing = "not found" 
+                windSpeed = "not found"
+                cloudCover = "not found"
+            }
+	}
+    
+	if (settings.z_weatherAPI == "OpenWeatherMap") {
+    	TRACE("OPENWEATHERMAP")
+    	def units = "metric"
+	    if (settings.z_windForceMetric == "mph") {units = "imperial"}
+        def params = "http://api.openweathermap.org/data/2.5/weather?lat=${location.latitude}&lon=${location.longitude}&APPID=${pageSetupAPI}&units=${units}"
+        try {
+            httpGet(params) { resp ->
+                windBearing = calcBearing(resp.data.wind.deg)
+                windSpeed = resp.data.wind.speed
+                cloudCover = resp.data.clouds.all / 100
             	}
-            TRACE(resp.data.timezone)
-            TRACE(resp.data.currently)
-            return ["windBearing" : calcBearing(resp.data.currently.windBearing), "windSpeed" : resp.data.currently.windSpeed, "cloudCover" : resp.data.currently.cloudCover]
-        	}
-    	} 
-        catch (e) {
-        	log.error "something went wrong: $e"
-            return ["windBearing" : "not found", "windSpeed" : "not found", "cloudCover" : "not found"]
-    	}
+            } 
+            catch (e) {
+                log.error "OWM something went wrong: $e"
+                windBearing = "not found" 
+                windSpeed = "not found"
+                cloudCover = "not found"
+            }
+		}
+
+return ["windBearing" : windBearing, "windSpeed" : windSpeed, "cloudCover" : cloudCover]
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -442,7 +496,7 @@ def checkForWind(evt) {
 
 if (evt == null) {
 	evt = "FORECASTIO"
-    def windParms = getForecastIO()
+    def windParms = getForecast()
     state.windBearing = windParms.windBearing
     state.windSpeed = windParms.windSpeed
     if (settings.z_windForceMetric == "km/h") {state.windSpeed = windParms.windSpeed * 3.6}
