@@ -28,27 +28,27 @@ metadata {
 
 	tiles(scale: 2) {
         
-		valueTile("battery", "device.battery", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
+		standardTile("battery", "device.battery", inactiveLabel: false, width: 2, height: 2) {
 			state "battery", label:'${currentValue}% battery', unit:""
 		}
         
-		valueTile("temperature", "device.temperature", decoration: "flat", inactiveLabel: false, width: 2, height: 2, canChangeIcon: true) {
-			state "temparature", label:'${currentValue} C', unit:"C"
+		standardTile("temperature", "device.temperature", inactiveLabel: false, width: 2, height: 2, canChangeIcon: true) {
+			state "temparature", label:'${currentValue} C', unit:"", icon:"st.Weather.weather2"
 		}
 
-		valueTile("humidity", "device.humidity", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
-			state "humidity", label:'${currentValue}% humidity', unit:"%"
+		standardTile("humidity", "device.humidity", inactiveLabel: false, width: 2, height: 2) {
+			state "humidity", label:'${currentValue}% humidity', unit:"", icon:"st.Weather.weather12"
 		}
 
-		valueTile("pressure", "device.pressure", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
-			state "pressure", label:'${currentValue} HPa', unit:"HPa"
+		standardTile("pressure", "device.pressure",  inactiveLabel: false, width: 2, height: 2) {
+			state "pressure", label:'${currentValue} hPa', unit:"", icon:"st.Weather.weather1"
 		}
 
-		valueTile("rssi", "device.rssi", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
+		valueTile("rssi", "device.rssi", inactiveLabel: false,  width: 2, height: 2) {
             state "rssi", label:'Signal ${currentValue}', unit:""
         }
 
-		standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
+		standardTile("refresh", "device.refresh", decoration: "flat", inactiveLabel: false,  width: 2, height: 2) {
 			state "default", action:"refresh.refresh", icon:"st.secondary.refresh"
 		}
 
