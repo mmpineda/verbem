@@ -661,8 +661,8 @@ state.statusSensorRsp = statusrsp
 
 	statusrsp.each 
     	{
-        TRACE("[onLocationEvtForSensors] ${it.Type} ${it.Name} ${it.Status} ${it.Type}")
-        addSwitch(it.idx, "domoticzSensor", it.Name, it.Status, it.Type, it) 
+        TRACE("[onLocationEvtForSensors] ${it.Type} ${it.Name} Active ${it.Type}")
+        addSwitch(it.idx, "domoticzSensor", it.Name, "Active", it.Type, it) 
         }
 }
 
@@ -762,7 +762,7 @@ private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, pa
 	def switchTypeVal = ""
     
     if (passedDomoticzStatus instanceof java.util.Map) {
-    	switchTypeVal = passedDomoticzStatus.SwitchTypeVal
+    	if (passedDomoticzStatus.SwitchTypeVal) {switchTypeVal = passedDomoticzStatus.SwitchTypeVal}
     	TRACE("[addSwitch] ${addr}, ${passedFile}, ${passedName}, ${passedStatus}, ${switchTypeVal}")
     }
 
@@ -1086,6 +1086,10 @@ def refreshDevicesFromDomoticz() {
     pause 10
     socketSend("scenes",0,0,0,0)
 	pause 10
+    if (domoticzTypes.contains("(Virtual) Sensors")) {
+        socketSend("listsensors",0,0,0,0)
+        pause 10
+    }
     state.domoticzRefresh = false
 
 }
