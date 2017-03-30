@@ -13,8 +13,10 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *	
-	V3.11	Fix in Domoticz_Stop function
-	V3.10	Change to singleinstance and enabled oauth
+	WIP V4.00	Include new Nefit Easy thermostat (use Robert Klep Nefit Easy HTTP Server that (can) run on raspberry)
+    V3.12	Add (virtual) sensors
+    V3.11	Fix in Domoticz_Stop function
+	V3.10	Change to singleinstance App and enabled oauth
  	V3.09	Changes to IP/Port calls to Domoticz
  	V3.08	Add support for inverted blinds (SwitchTypeVal 6 and 16)
 	V3.07	Catch error when Oauth is not enabled
@@ -29,8 +31,9 @@
  */
  
 import groovy.json.*
+import java.Math.*
 
-private def textVersion() { return "Version 3.11"}
+private def textVersion() { return "Version 3.12"}
 
 definition(
     name: "Domoticz Server",
@@ -51,6 +54,7 @@ preferences {
     page name:"setupInit"
     page name:"setupMenu"
     page name:"setupDomoticz"
+    page name:"setupNefitEasy"
     page name:"setupListDevices"
     page name:"setupDeviceRequest"
     page name:"setupAddDevices"
@@ -194,6 +198,54 @@ private def setupMenu() {
     	}
 }
 /*-----------------------------------------------------------------------------------------*/
+/*		SET Up Configure NefitEasy PAGE
+/*-----------------------------------------------------------------------------------------*/
+private def setupNefitEasy() {
+    TRACE("[setupNefitEasy]")
+    def textPara1 =
+        "Enter IP address and TCP port of your Nefit Easy Server, then tap " +
+        "Next to continue."
+
+    def inputNE = [
+        name        : "nefitEasy",
+        submitOnChange : true,
+        type        : "bool",
+        title       : "Support for Nefit Easy Thermostat?",
+        defaultValue: false
+    ]
+    
+    def inputNEAddress = [
+        name        : "nefitEasyIpAddress",
+        type        : "string",
+        title       : "Local Nefit Easy IP Address",
+        defaultValue: "0.0.0.0"
+    ]
+
+    def inputNEPort = [
+        name        : "nefitEasyTcpPort",
+        type        : "number",
+        title       : "Local Nefit Easy TCP Port",
+        defaultValue: "3000"
+    ]
+    def pageProperties = [
+        name        : "setupNefitEasy",
+        title       : "Configure Nefit Easy Server",
+        nextPage    : "setupDomoticz",
+        install     : false,
+        uninstall   : false
+    ]
+
+    return dynamicPage(pageProperties) {
+      section {
+      		input inputNE
+            if(nefitEasy) {
+            	input inputNEAddress
+            	input inputNEPort
+                }
+        	}
+    }
+}
+/*-----------------------------------------------------------------------------------------*/
 /*		SET Up Configure Domoticz PAGE
 /*-----------------------------------------------------------------------------------------*/
 private def setupDomoticz() {
@@ -226,7 +278,7 @@ private def setupDomoticz() {
         name        : "domoticzTypes",
         type        : "enum",
         title       : "Devicetypes you want to add",
-        options	    : ["Window Coverings", "On/Off/Dimmers/RGB", "Smoke Detectors", "Contact Sensors", "Motion Sensors"],
+        options	    : ["Window Coverings", "On/Off/Dimmers/RGB", "Smoke Detectors", "Contact Sensors", "Motion Sensors", "(Virtual) Sensors"],
         multiple	: true
     ]
     
@@ -284,6 +336,7 @@ private def setupDomoticz() {
             if (domoticzRoomPlans && settings.containsKey('domoticzIpAddress')) input inputPlans
             input inputGroup
             input inputScene
+//            href "setupNefitEasy", title:"Configure Nefit Easy Thermostat", description:"Tap to open"
             input inputTrace
         	}
     }
@@ -352,6 +405,11 @@ private def setupAddDevices() {
     pause 10
     socketSend("scenes",0,0,0,0)
 	pause 10
+    if (domoticzTypes.contains("(Virtual) Sensors")) {
+        socketSend("listsensors",0,0,0,0)
+        pause 10
+        runEvery10Minutes(scheduledSensorRefresh)
+    }
 
     return dynamicPage(pageProperties) {
         section {
@@ -516,7 +574,13 @@ def onLocation(evt) {
     			onLocationEvtForPlans(statusrsp)
 		        break;
         case "Devices":
-    			onLocationEvtForDevices(statusrsp)
+        		TRACE(statusrsp)
+    			if (statusrsp.contains("SwitchTypeVal")) {
+                	TRACE("DEVICES")
+                	onLocationEvtForDevices(statusrsp)}
+                else {
+                	TRACE("SENSORS")
+                	onLocationEvtForSensors(statusrsp)}
 		        break;
         case "Scenes":
     			onLocationEvtForScenes(statusrsp)
@@ -526,7 +590,16 @@ def onLocation(evt) {
 return
 
 }
+/*-----------------------------------------------------------------------------------------*/
+def scheduledSensorRefresh() {
 
+    if (domoticzTypes.contains("(Virtual) Sensors")) {
+        socketSend("listsensors",0,0,0,0)
+        pause 10
+    }
+
+return
+}
 
 /*-----------------------------------------------------------------------------------------*/
 /*		Build the idx list for Devices that are part of the selected room plans
@@ -578,6 +651,18 @@ state.statusGrpRsp = statusrsp
             	}
             break;
         	}    
+        }
+}
+/*-----------------------------------------------------------------------------------------*/
+/*		Proces for adding and updating status of sensors (filter =temp
+/*-----------------------------------------------------------------------------------------*/
+private def onLocationEvtForSensors(statusrsp) {
+state.statusSensorRsp = statusrsp
+
+	statusrsp.each 
+    	{
+        TRACE("[onLocationEvtForSensors] ${it.Type} ${it.Name} ${it.Status} ${it.Type}")
+        addSwitch(it.idx, "domoticzSensor", it.Name, it.Status, it.Type, it) 
         }
 }
 
@@ -640,6 +725,17 @@ private def createAttributes(domoticzDevice, domoticzStatus, addr) {
             case "Level":
 				if (domoticzDevice.hasAttribute("level")) attributeList.put('level', v)
             break;
+            case "Temp":
+            	double vd = v               
+				if (domoticzDevice.hasAttribute("temperature")) attributeList.put('temperature', vd.round(1))
+            break;
+            case "Barometer":
+				if (domoticzDevice.hasAttribute("pressure")) attributeList.put('pressure', v)
+            break;
+            case "Humidity":
+				if (domoticzDevice.hasAttribute("humidity")) attributeList.put('humidity', v)
+            break;
+
             case "SignalLevel":
 				if (domoticzDevice.hasAttribute("rssi")) attributeList.put('rssi', v)
             break;
@@ -742,6 +838,9 @@ private def updateDeviceList() {
         	if (k == it.idx) inStatusrsp = true
         }
         state.statusGrpRsp.each {
+        	if (k == it.idx) inStatusrsp = true
+        }
+        state.statusSensorRsp.each {
         	if (k == it.idx) inStatusrsp = true
         }
             
@@ -886,6 +985,10 @@ private def socketSend(message, addr, level, xSat, xBri) {
         	state.setStatusrsp = true
         	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20ListDevices"
         	rooPath = "/json.htm?type=devices&filter=light&used=true&order=Name"   // "Devices"
+ 			break;
+		case "listsensors":
+        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20ListSensors"
+        	rooPath = "/json.htm?type=devices&filter=temp&used=true&order=Name"   // "Devices"
  			break;
 		case "scenes":
         	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20ListScenes"
