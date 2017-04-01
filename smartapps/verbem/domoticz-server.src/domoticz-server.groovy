@@ -405,9 +405,8 @@ private def setupAddDevices() {
     pause 10
     socketSend("scenes",0,0,0,0)
 	pause 10
-    if (domoticzTypes.contains("(Virtual) Sensors")) {
-        socketSend("listsensors",0,0,0,0)
-        pause 10
+
+	if (domoticzTypes.contains("(Virtual) Sensors")) {
         runEvery10Minutes(scheduledSensorRefresh)
     }
 
@@ -536,10 +535,14 @@ private def setupListDevices() {
     }
 
     def switches = getDeviceListAsText('switch')
+    def sensors = getDeviceListAsText('sensor')
     return dynamicPage(pageProperties) {
-        section {
+        section("Switch types") {
             paragraph switches
-        }
+        	}
+        section("Sensors") {
+        	paragraph sensors
+        	}
     }
 }
 
@@ -574,13 +577,7 @@ def onLocation(evt) {
     			onLocationEvtForPlans(statusrsp)
 		        break;
         case "Devices":
-        		TRACE(statusrsp)
-    			if (statusrsp.contains("SwitchTypeVal")) {
-                	TRACE("DEVICES")
-                	onLocationEvtForDevices(statusrsp)}
-                else {
-                	TRACE("SENSORS")
-                	onLocationEvtForSensors(statusrsp)}
+				onLocationEvtForDevices(statusrsp)    			
 		        break;
         case "Scenes":
     			onLocationEvtForScenes(statusrsp)
@@ -653,18 +650,6 @@ state.statusGrpRsp = statusrsp
         	}    
         }
 }
-/*-----------------------------------------------------------------------------------------*/
-/*		Proces for adding and updating status of sensors (filter =temp
-/*-----------------------------------------------------------------------------------------*/
-private def onLocationEvtForSensors(statusrsp) {
-state.statusSensorRsp = statusrsp
-
-	statusrsp.each 
-    	{
-        TRACE("[onLocationEvtForSensors] ${it.Type} ${it.Name} Active ${it.Type}")
-        addSwitch(it.idx, "domoticzSensor", it.Name, "Active", it.Type, it) 
-        }
-}
 
 /*-----------------------------------------------------------------------------------------*/
 /*		Proces for adding and updating status of devices
@@ -672,36 +657,43 @@ state.statusSensorRsp = statusrsp
 private def onLocationEvtForDevices(statusrsp) {
 
    if (state.setStatusrsp == true ) {
-       TRACE("[onLocationEvtForDevices] setStatusrsp ${statusrsp}") 
        state.setStatusrsp = false
-       pause 10
-       state.statusrsp = statusrsp}
+       pause 5
+       state.statusrsp = statusrsp
+       pause 5
+       }
 
-	statusrsp.each 
-    {
-        if ((state.listOfRoomPlanDevices?.contains(it.idx) && domoticzRoomPlans == true) || domoticzRoomPlans == false)
-        {
-            TRACE("[onLocationEvtForDevices] ${it.SwitchType} ${it.Name} ${it.Status} ${it.Type}")
+	statusrsp.each { 
+        if ((state.listOfRoomPlanDevices?.contains(it.idx) && domoticzRoomPlans == true) || domoticzRoomPlans == false) {
+        	TRACE("[onLocationEvtForDevices] it.SwitchTypeVal present ${it?.SwitchTypeVal} Temp present ${it?.Temp} ")
             switch (it.SwitchTypeVal) 
-            {
+            	{
                 case [3, 13, 6, 16]:		//	Window Coverings 6 & 16 are inverted
-                if (domoticzTypes.contains('Window Coverings')) addSwitch(it.idx, "domoticzBlinds", it.Name, it.Status, it.Type, it)
-                break;
+                    if (domoticzTypes.contains('Window Coverings')) addSwitch(it.idx, "domoticzBlinds", it.Name, it.Status, it.Type, it)
+                    break
                 case [0, 7]:		// 	Lamps OnOff, Dimmers and RGB
-                if (domoticzTypes.contains('On/Off/Dimmers/RGB')) addSwitch(it.idx, "domoticzOnOff", it.Name, it.Status, it.Type, it)
-                break;
+                    if (domoticzTypes.contains('On/Off/Dimmers/RGB')) addSwitch(it.idx, "domoticzOnOff", it.Name, it.Status, it.Type, it)
+                    break
                 case 2:				//	Contact 
-                if (domoticzTypes.contains('Contact Sensors')) addSwitch(it.idx, "domoticzContact", it.Name, it.Status, it.Type, it)
-                break;
+                    if (domoticzTypes.contains('Contact Sensors')) addSwitch(it.idx, "domoticzContact", it.Name, it.Status, it.Type, it)
+                    break
                 case 5:				//	Smoke Detector
-                if (domoticzTypes.contains('Smoke Detectors')) addSwitch(it.idx, "domoticzSmokeDetector", it.Name, it.Status, it.Type, it)
-                break;
+                    if (domoticzTypes.contains('Smoke Detectors')) addSwitch(it.idx, "domoticzSmokeDetector", it.Name, it.Status, it.Type, it)
+                    break
                 case 8:				//	Motion Sensors
-                if (domoticzTypes.contains('Motion Sensors')) addSwitch(it.idx, "domoticzMotion", it.Name, it.Status, it.Type, it)
-                break;
-            }	
-        }
-	}            
+                    if (domoticzTypes.contains('Motion Sensors')) addSwitch(it.idx, "domoticzMotion", it.Name, it.Status, it.Type, it)
+                    break
+                default:
+                	if (it?.Temp != null) {
+                    	if (domoticzTypes.contains("(Virtual) Sensors")) addSwitch(it.idx, "domoticzSensor", it.Name, "Active", it.Type, it)
+                    	}
+                    else {
+                		log.error "[onLocationEvtForDevices] non handled SwitchTypeVal ${SwitchTypeVal}"
+                        }
+                	break
+                }	
+        	}
+		}            
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -757,72 +749,50 @@ private def createAttributes(domoticzDevice, domoticzStatus, addr) {
 private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, passedDomoticzStatus) {
     TRACE("[addSwitch] ${addr}, ${passedFile}, ${passedName}, ${passedStatus}, ${passedDomoticzStatus}")
 
-    def olddni = settings.domoticzIpAddress + ":" + settings.domoticzTcpPort + ":" + addr
     def newdni = app.id + ":IDX:" + addr
 	def switchTypeVal = ""
+    def deviceType = ""
     
     if (passedDomoticzStatus instanceof java.util.Map) {
-    	if (passedDomoticzStatus.SwitchTypeVal) {switchTypeVal = passedDomoticzStatus.SwitchTypeVal}
-    	TRACE("[addSwitch] ${addr}, ${passedFile}, ${passedName}, ${passedStatus}, ${switchTypeVal}")
-    }
-
-    if (getChildDevice(olddni)) {      
-		TRACE("[addSwitch] Changing DNI from ${olddni} to ${newdni}")		// get rid off the old IP style dni
-        getChildDevice(olddni).deviceNetworkId = newdni
-        state.devices[addr] = [
-            'dni'   : newdni,
-            'ip' : settings.domoticzIpAddress,
-            'port' : settings.domoticzTcpPort,
-            'idx' : addr,
-            'type'  : 'switch',
-            'deviceType' : passedFile,
-            'subType' : passedType,
-            'switchTypeVal' : switchTypeVal
-        	]
-        pause 10
-		socketSend("status",addr,0,0,0)        
-		return 
+    	if (passedDomoticzStatus?.SwitchTypeVal != null) {
+        	switchTypeVal = passedDomoticzStatus.SwitchTypeVal
+            deviceType = "switch"
+            }
+        else if (passedFile == "domoticzSensor") {
+            deviceType = "sensor"
+        	}
     	}
-		
+
     if (getChildDevice(newdni)) {      
         def attributeList = createAttributes(getChildDevice(newdni), passedDomoticzStatus, addr)
         getChildDevice(newdni).generateEvent(attributeList)
-        state.devices[addr] = [
-            'dni'   : newdni,
-            'ip' : settings.domoticzIpAddress,
-            'port' : settings.domoticzTcpPort,
-            'idx' : addr,
-            'type'  : 'switch',
-            'deviceType' : passedFile,
-            'subType' : passedType,
-            'switchTypeVal' : switchTypeVal
-        	]
-        pause 10
-		return 
     	}
-
-    try {
-     		TRACE("[addSwitch] Creating child device ${params}")
-       		def dev = addChildDevice("verbem", passedFile, newdni, getHubID(), [name:passedName, label:passedName, completedSetup:!state.domoticzRefresh])
-    	} 
-    catch (e) 
-    	{
-        	log.error "[addSwitch] Cannot create child device. ${devParam} Error: ${e}"
-        	return 
-    	}	
-
-	pause 10
+    else {
+        try {
+                TRACE("[addSwitch] Creating child device ${params}")
+                def dev = addChildDevice("verbem", passedFile, newdni, getHubID(), [name:passedName, label:passedName, completedSetup:!state.domoticzRefresh])
+                pause 10
+                def attributeList = createAttributes(dev, passedDomoticzStatus, addr)
+                dev.generateEvent(attributeList)
+            } 
+        catch (e) 
+            {
+                log.error "[addSwitch] Cannot create child device. ${devParam} Error: ${e}"
+                return 
+            }
+        }
 
     state.devices[addr] = [
         'dni'   : newdni,
         'ip' : settings.domoticzIpAddress,
         'port' : settings.domoticzTcpPort,
         'idx' : addr,
-        'type'  : 'switch',
+        'type'  : deviceType,
         'deviceType' : passedFile,
         'subType' : passedType,
         'switchTypeVal' : switchTypeVal
     ]
+	pause 5
 }
 /*-----------------------------------------------------------------------------------------*/
 /*		Purge devices that were removed from Domoticz
@@ -877,7 +847,7 @@ private def getDeviceListAsText(type) {
     state.devices.sort().each { k,v ->
         if (v.type == type) {
         	def dev = getChildDevice(v.dni)
-           	s += "${k.padLeft(4)} - ${dev.displayName} - ${v.deviceType}\n"
+           	s += "${k.padLeft(4)} - ${dev?.displayName} - ${v.deviceType}\n"
 			}
     }
 
@@ -984,7 +954,7 @@ private def socketSend(message, addr, level, xSat, xBri) {
 		case "list":
         	state.setStatusrsp = true
         	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20ListDevices"
-        	rooPath = "/json.htm?type=devices&filter=light&used=true&order=Name"   // "Devices"
+        	rooPath = "/json.htm?type=devices&filter=all&used=true&order=Name"   // "Devices"
  			break;
 		case "listsensors":
         	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20ListSensors"
@@ -1086,10 +1056,6 @@ def refreshDevicesFromDomoticz() {
     pause 10
     socketSend("scenes",0,0,0,0)
 	pause 10
-    if (domoticzTypes.contains("(Virtual) Sensors")) {
-        socketSend("listsensors",0,0,0,0)
-        pause 10
-    }
     state.domoticzRefresh = false
 
 }
