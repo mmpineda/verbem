@@ -297,6 +297,8 @@ def getForecast() {
 	def windBearing
     def windSpeed
     def cloudCover
+    def returnList = [:]
+    
     TRACE("getForecast for Lon:${location.longitude} Lat:${location.latitude}")
 
 	if (settings.z_weatherAPI == "Darksky") {
@@ -310,16 +312,14 @@ def getForecast() {
         ]
         try {
             httpGet(params) { response ->
-                windBearing = calcBearing(response.data.currently.windBearing)
-                windSpeed = response.data.currently.windSpeed 
-                cloudCover = response.data.currently.cloudCover
+                returnList.put('windBearing' ,calcBearing(response.data.currently.windBearing))
+                returnList.put('windSpeed', response.data.currently.windSpeed.toDouble())
+                returnList.put('cloudCover', response.data.currently.cloudCover.toDouble() * 100)
                 }
             } 
             catch (e) {
                 log.error "DARKSKY something went wrong: $e"
-                windBearing = "not found" 
-                windSpeed = "not found"
-                cloudCover = "not found"
+				returnList = [:]
             }
 	}
     
@@ -329,20 +329,18 @@ def getForecast() {
         def params = "http://api.openweathermap.org/data/2.5/weather?lat=${location.latitude}&lon=${location.longitude}&APPID=${pageSetupAPI}&units=${units}"
         try {
             httpGet(params) { resp ->
-                windBearing = calcBearing(resp.data.wind.deg)
-                windSpeed = resp.data.wind.speed
-                cloudCover = resp.data.clouds.all / 100
+                returnList.put('windBearing',calcBearing(resp.data.wind.deg))
+                returnList.put('windSpeed', resp.data.wind.speed.toDouble())
+                returnList.put('cloudCover', resp.data.clouds.all.toDouble())
             	}
             } 
             catch (e) {
                 log.error "OWM something went wrong: $e"
-                windBearing = "not found" 
-                windSpeed = "not found"
-                cloudCover = "not found"
+				returnList = [:]
             }
 		}
 
-return ["windBearing" : windBearing, "windSpeed" : windSpeed, "cloudCover" : cloudCover]
+return returnList
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -492,13 +490,16 @@ if (evt.isStateChange()) {
 /*-----------------------------------------------------------------------------------------*/
 def checkForWind(evt) {
 
+def windParms = [:]
+
 if (evt == null) {
 	evt = settings.z_weatherAPI
-    def windParms = getForecast()
+    windParms = getForecast()
+    log.debug "${windParms.windBearing} + ${windParms.windSpeed} + ${windParms.cloudCover}"
     state.windBearing = windParms.windBearing
     state.windSpeed = windParms.windSpeed
-    if (settings.z_windForceMetric == "km/h") {state.windSpeed = windParms.windSpeed * 3.6}
-    state.cloudCover = windParms.cloudCover * 100
+    //if (settings.z_windForceMetric != "km/h") {state.windSpeed = windParms.windSpeed * 3.6}
+    state.cloudCover = windParms.cloudCover
     }
 
 
