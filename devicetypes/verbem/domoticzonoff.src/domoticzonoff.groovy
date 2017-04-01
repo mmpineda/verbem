@@ -65,8 +65,8 @@ metadata {
             }
         }
 		
-		valueTile("rssi", "device.rssi", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
-			state "rssi", label:'Signal ${currentValue}', unit:""
+		standardTile("rssi", "device.rssi", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
+			state "rssi", label:'Signal ${currentValue}', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzsensor.src/network-signal.png"
 		}
         
         standardTile("debug", "device.motion", inactiveLabel: false, decoration: "flat", width:2, height:2) {

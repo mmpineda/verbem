@@ -40,16 +40,16 @@ metadata {
                 attributeState "battery", label:'Battery: ${currentValue}%', unit:"%"
             }
         }
-        valueTile("battery", "device.battery", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
-            state "battery", label:'${currentValue}% battery', unit:"%"
+        standardTile("battery", "device.battery", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
+            state "battery", label:'${currentValue}% battery', unit:"%", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzsensor.src/battery.png"
         }
 
-		valueTile("temperature", "device.temperature", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
-            state "temperature", label:'${currentValue}°', unit:"C"
+		standardTile("temperature", "device.temperature", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
+            state "temperature", label:'${currentValue}°', unit:"C", icon:"st.Weather.weather2"
         }
 
-		valueTile("rssi", "device.rssi", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
-            state "rssi", label:' Signal ${currentValue}', unit:""
+		standardTile("rssi", "device.rssi", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
+            state "rssi", label:' Signal ${currentValue}', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzsensor.src/network-signal.png"
         }
 
 		standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
