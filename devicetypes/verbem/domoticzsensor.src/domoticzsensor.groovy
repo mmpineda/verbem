@@ -29,7 +29,7 @@ metadata {
 	tiles(scale: 2) {
         
 		standardTile("battery", "device.battery", inactiveLabel: false, width: 2, height: 2) {
-			state "battery", label:'${currentValue}% battery', unit:""
+			state "battery", label:'${currentValue}% battery', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzsensor.src/battery.png"
 		}
         
 		standardTile("temperature", "device.temperature", inactiveLabel: false, width: 2, height: 2, canChangeIcon: true) {
@@ -39,13 +39,12 @@ metadata {
 		standardTile("humidity", "device.humidity", inactiveLabel: false, width: 2, height: 2) {
 			state "humidity", label:'${currentValue}% humidity', unit:"", icon:"st.Weather.weather12"
 		}
-
-		standardTile("pressure", "device.pressure",  inactiveLabel: false, width: 2, height: 2) {
-			state "pressure", label:'${currentValue} hPa', unit:"", icon:"st.Weather.weather1"
+ 		standardTile("pressure", "device.pressure",  inactiveLabel: false, width: 2, height: 2) {
+			state "pressure", label:'${currentValue} hPa', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzsensor.src/barometer-icon-png-5.png"
 		}
 
-		valueTile("rssi", "device.rssi", inactiveLabel: false,  width: 2, height: 2) {
-            state "rssi", label:'Signal ${currentValue}', unit:""
+		standardTile("rssi", "device.rssi", inactiveLabel: false,  width: 2, height: 2) {
+            state "rssi", label:'Signal ${currentValue}', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzsensor.src/network-signal.png"
         }
 
 		standardTile("refresh", "device.refresh", decoration: "flat", inactiveLabel: false,  width: 2, height: 2) {
