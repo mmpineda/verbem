@@ -40,6 +40,11 @@ metadata {
         attribute "endCalibrationTime", "number"
         attribute "blindClosingTime", "number"
 
+        attribute "windBearing", "string"
+        attribute "windSpeed", "number"
+		attribute "cloudCover", "number"
+		attribute "sunBearing", "string"
+
 
         // custom commands
         command "parse"     // (String "<attribute>:<value>[,<attribute>:<value>]")
@@ -48,6 +53,7 @@ metadata {
         command "stop"
         command "setLevel"
         command "calibrate"
+        command "generateEvent"
 
     }
 
@@ -88,6 +94,22 @@ metadata {
                 action:"calibrate"
         }
 
+ 		standardTile("windBearing", "device.windBearing",  inactiveLabel: false, width: 2, height: 2) {
+			state "windBearing", label:'${currentValue}', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/windBearing.png"            
+        }
+
+ 		standardTile("windSpeed", "device.windSpeed",  inactiveLabel: false, width: 2, height: 2) {
+			state "windSpeed", label:'${currentValue} km/h', unit:"km/h", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/windSpeed.png"            
+        }
+
+ 		standardTile("sunBearing", "device.sunBearing",  inactiveLabel: false, width: 2, height: 2) {
+			state "sunBearing", label:'${currentValue}', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/sunBearing.png"            
+        }
+
+ 		standardTile("cloudCover", "device.cloudCover",  inactiveLabel: false, width: 2, height: 2) {
+			state "cloudCover", label:'${currentValue}%', unit:"%", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/cloudCover.png"            
+        }
+
 		standardTile("rssi", "device.rssi", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
 			state "rssi", label:'Signal ${currentValue}', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzsensor.src/network-signal.png"
 		}
@@ -97,7 +119,7 @@ metadata {
         }
 
         main(["richDomoticzBlind"])
-        details(["richDomoticzBlind", "Up", "Stop", "Down", "Cal", "rssi", "Refresh"])
+        details(["richDomoticzBlind", "Up", "Stop", "Down", "Cal", "windBearing", "windSpeed", "rssi", "sunBearing", "cloudCover", "Refresh"])
 
     }    
 }
