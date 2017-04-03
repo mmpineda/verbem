@@ -663,10 +663,15 @@ private def onLocationEvtForDevices(statusrsp) {
        pause 5
        }
 
+	def switchTypeVal
+
 	statusrsp.each { 
         if ((state.listOfRoomPlanDevices?.contains(it.idx) && domoticzRoomPlans == true) || domoticzRoomPlans == false) {
         	TRACE("[onLocationEvtForDevices] it.SwitchTypeVal present ${it?.SwitchTypeVal} Temp present ${it?.Temp} ")
-            switch (it.SwitchTypeVal) 
+            switchTypeVal = null
+            if (it?.SwitchTypeVal != null) switchTypeVal = it.SwitchTypeVal
+            if (it?.Temp != null) switchTypeVal = 99
+            switch (switchTypeVal) 
             	{
                 case [3, 13, 6, 16]:		//	Window Coverings 6 & 16 are inverted
                     if (domoticzTypes.contains('Window Coverings')) addSwitch(it.idx, "domoticzBlinds", it.Name, it.Status, it.Type, it)
@@ -683,14 +688,12 @@ private def onLocationEvtForDevices(statusrsp) {
                 case 8:				//	Motion Sensors
                     if (domoticzTypes.contains('Motion Sensors')) addSwitch(it.idx, "domoticzMotion", it.Name, it.Status, it.Type, it)
                     break
-                default:
-                	if (it?.Temp != null) {
-                    	if (domoticzTypes.contains("(Virtual) Sensors")) addSwitch(it.idx, "domoticzSensor", it.Name, "Active", it.Type, it)
-                    	}
-                    else {
-                		log.error "[onLocationEvtForDevices] non handled SwitchTypeVal ${SwitchTypeVal}"
-                        }
+                case 99:
+                    if (domoticzTypes.contains("(Virtual) Sensors")) addSwitch(it.idx, "domoticzSensor", it.Name, "Active", it.Type, it)
                 	break
+                default:
+                	log.error "[onLocationEvtForDevices] non handled SwitchTypeVal ${switchTypeVal}"
+                    break
                 }	
         	}
 		}            
