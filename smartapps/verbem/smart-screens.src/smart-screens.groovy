@@ -498,7 +498,7 @@ if (evt == null) {
     log.debug "${windParms.windBearing} + ${windParms.windSpeed} + ${windParms.cloudCover}"
     state.windBearing = windParms.windBearing
     state.windSpeed = windParms.windSpeed
-    //if (settings.z_windForceMetric != "km/h") {state.windSpeed = windParms.windSpeed * 3.6}
+    if (settings.z_windForceMetric == "km/h") {state.windSpeed = windParms.windSpeed * 3.6}
     state.cloudCover = windParms.cloudCover
     }
 
@@ -509,8 +509,10 @@ settings.z_blinds.each {
 
 	String findID = it.id
     def blindParams = [:]
-    
-    /*-----------------------------------------------------------------------------------------*/
+
+	it.generateEvent(["windBearing": state.windBearing, "windSpeed": state.windSpeed, "cloudCover": state.cloudCover, "sunBearing": state.sunBearing])
+
+/*-----------------------------------------------------------------------------------------*/
     /*	WIND Fill the blindParams MAP object 
 	/*-----------------------------------------------------------------------------------------*/          
     settings.each {
