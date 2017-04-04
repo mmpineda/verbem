@@ -33,8 +33,26 @@ metadata {
 		}
         
 		standardTile("temperature", "device.temperature", inactiveLabel: false, width: 2, height: 2, canChangeIcon: true) {
-			state "temparature", label:'${currentValue} C', unit:"", icon:"st.Weather.weather2"
-		}
+			state "temparature", label:'${currentValue} C', unit:"", icon:"st.Weather.weather2",
+							backgroundColors:[
+							// Celsius
+							[value: 0, color: "#153591"],
+							[value: 7, color: "#1e9cbb"],
+							[value: 15, color: "#90d2a7"],
+							[value: 23, color: "#44b621"],
+							[value: 28, color: "#f1d801"],
+							[value: 35, color: "#d04e00"],
+							[value: 37, color: "#bc2323"],
+							// Fahrenheit
+							[value: 40, color: "#153591"],
+							[value: 44, color: "#1e9cbb"],
+							[value: 59, color: "#90d2a7"],
+							[value: 74, color: "#44b621"],
+							[value: 84, color: "#f1d801"],
+							[value: 95, color: "#d04e00"],
+							[value: 96, color: "#bc2323"]
+					]		
+        }
 
 		standardTile("humidity", "device.humidity", inactiveLabel: false, width: 2, height: 2) {
 			state "humidity", label:'${currentValue}% humidity', unit:"", icon:"st.Weather.weather12"
