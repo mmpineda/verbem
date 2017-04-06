@@ -94,28 +94,44 @@ metadata {
                 action:"calibrate"
         }
 
- 		standardTile("windBearing", "device.windBearing",  inactiveLabel: false, width: 2, height: 2) {
+ 		standardTile("windBearing", "device.windBearing",  inactiveLabel: false, width: 2, height: 2, decoration:"flat") {
 			state "windBearing", label:'${currentValue}', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/windBearing.png"            
         }
 
- 		standardTile("windSpeed", "device.windSpeed",  inactiveLabel: false, width: 2, height: 2) {
-			state "windSpeed", label:'${currentValue} km/h', unit:"km/h", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/windSpeed.png"            
+ 		standardTile("windSpeed", "device.windSpeed",  inactiveLabel: false, width: 2, height: 2, decoration:"flat") {
+			state "windSpeed", label:'${currentValue} km/h', unit:"km/h", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/windSpeed.png",            
+							backgroundColors:[
+							// km/h
+							[value: 0, color: "#bef9b8"], 	//bft0 OK
+							[value: 1, color: "#a8f99f"], 	//bft1 OK
+							[value: 6, color: "#90f984"],	//bft2 OK
+							[value: 12, color: "#72fc62"],	//bft3 OK
+							[value: 20, color: "#4efc3a"],	//bft4 OK
+							[value: 29, color: "#1efc05"],	//bft5 OK
+							[value: 39, color: "#f6f7e8"],	//bft6 OK
+							[value: 50, color: "#f1f7a5"],	//bft7 OK
+							[value: 62, color: "#fafc74"],	//bft8 OK
+							[value: 75, color: "#f9fc20"],	//bft9 OK
+							[value: 89, color: "#f7ae60"],	//bft10 OK
+							[value: 103, color: "#fc8a11"],	//bft11 OK
+							[value: 117, color: "#f9260e"]	//bft12 OK
+							]        
         }
 
- 		standardTile("sunBearing", "device.sunBearing",  inactiveLabel: false, width: 2, height: 2) {
+ 		standardTile("sunBearing", "device.sunBearing",  inactiveLabel: false, width: 2, height: 2, decoration:"flat") {
 			state "sunBearing", label:'${currentValue}', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/sunBearing.png"            
         }
 
- 		standardTile("cloudCover", "device.cloudCover",  inactiveLabel: false, width: 2, height: 2) {
+ 		standardTile("cloudCover", "device.cloudCover",  inactiveLabel: false, width: 2, height: 2, decoration:"flat") {
 			state "cloudCover", label:'${currentValue}%', unit:"%", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/cloudCover.png"            
         }
 
-		standardTile("rssi", "device.rssi", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
+		standardTile("rssi", "device.rssi", inactiveLabel: false, width: 2, height: 2, decoration:"flat") {
 			state "rssi", label:'Signal ${currentValue}', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzsensor.src/network-signal.png"
 		}
         
         standardTile("Refresh", "device.refresh", width: 2, height: 2, inactiveLabel: false, decoration: "flat") {
-            state "default", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
+            state "refresh", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
         }
 
         main(["richDomoticzBlind"])
