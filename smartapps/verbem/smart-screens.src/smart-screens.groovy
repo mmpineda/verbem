@@ -23,6 +23,8 @@
  *  cloudCover percentage is the condition to Close (Sun is shining into your room)
  *  Select interval to check conditions
  * 
+ *	V2	Add subscription to device refresh, this will execute the latest info back to the devices
+ 
  */
 
 import groovy.json.*
@@ -267,6 +269,7 @@ def initialize() {
 	
     state.sunBearing = ""
     state.windBearing = ""
+    state.night = false
     state.windSpeed = 0
     state.cloudCover = 100
         
@@ -274,12 +277,15 @@ def initialize() {
     subscribe(location, "sunrise", startSunpath,  [filterEvents:true])
     
     subscribe(z_sensors, "WindStrength", eventNetatmo)
+    z_blinds.each {
+    	subscribeToCommand(it, "refresh", eventRefresh)
+        }
     
     checkForWind()
     checkForSun()
     
     runEvery30Minutes(checkForSun)
-    runEvery3Hours(checkForClouds)
+    runEvery1Hour(checkForClouds)
     runEvery10Minutes(checkForWind)
 }
 
@@ -512,7 +518,7 @@ settings.z_blinds.each {
 
 	it.generateEvent(["windBearing": state.windBearing, "windSpeed": state.windSpeed, "cloudCover": state.cloudCover, "sunBearing": state.sunBearing])
 
-/*-----------------------------------------------------------------------------------------*/
+	/*-----------------------------------------------------------------------------------------*/
     /*	WIND Fill the blindParams MAP object 
 	/*-----------------------------------------------------------------------------------------*/          
     settings.each {
@@ -547,14 +553,27 @@ settings.z_blinds.each {
 return null
 }
 
+def eventRefresh(evt) {
+	if (state.night == true) return
+    
+    TRACE("[eventRefresh]" + evt.device)
+    checkForClouds()
+    checkForSun()
+    checkForWind()
+
+}
+
 /*-----------------------------------------------------------------------------------------*/
 /*	this will stop the scheduling of events called at SUNSET
 /*-----------------------------------------------------------------------------------------*/
 def stopSunpath(evt) {
 	TRACE("Stop Scheduling")
+    state.night = true
 	unschedule(checkForSun)
     unschedule(checkForClouds)
     unschedule(checkForWind)
+    unsubscribe(eventRefresh)
+    
 	return null
 }
 
@@ -563,9 +582,15 @@ def stopSunpath(evt) {
 /*-----------------------------------------------------------------------------------------*/
 def startSunpath(evt) {
 	TRACE("start Scheduling")
+    state.night = false
 	runEvery30Minutes(checkForSun)
     runEvery3Hours(checkForClouds)
     runEvery10Minutes(checkForWind)
+    
+    z_blinds.each {
+    	subscribeToCommand(it, "refresh", eventRefresh)
+        }
+    
 	return null
 }
 
