@@ -22,6 +22,7 @@
  *
  *  Revision History
  *  ----------------
+ *  2017-04-14 3.12 Multistate support for DZ selector
  *  2017-01-25 3.09 Put in check for switch name in generateevent
  *	2017-01-18 3.08 get always an lowercase value for switch on/off in generateevent
  */
@@ -37,10 +38,13 @@ metadata {
         capability "Polling"
         capability "Signal Strength"
         
+        attribute "selector", "enum", [true, false]
+        
         // custom commands
         command "parse"     // (String "<attribute>:<value>[,<attribute>:<value>]")
        	command "setLevel"
         command "setColor"
+        command "generateEvent"
     }
 
     tiles(scale:2) {
@@ -56,6 +60,7 @@ metadata {
                 attributeState "ON", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#79b821", action:"off", nextState:"Turning Off"
                 attributeState "Set Level", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#79b821", action:"off", nextState:"Turning Off"
                 attributeState "Turning On", label:'Turning On', icon:"st.lights.philips.hue-single", backgroundColor:"#FE9A2E", nextState:"Turning Off"
+                
             }
             tileAttribute("device.level", key: "SLIDER_CONTROL", range:"0..16") {
             	attributeState "level", action:"setLevel" 
@@ -64,7 +69,15 @@ metadata {
         		attributeState "color", action:"setColor"
             }
         }
-		
+     
+		standardTile("selector", "device.selector", inactiveLabel: false, width: 2, height: 2, decoration:"flat") {
+			state "selector", label:'${currentValue}', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzonoff.src/selector.png"
+		}
+     
+		valueTile("selectorState", "device.selectorState", inactiveLabel: false, width: 2, height: 2, decoration:"flat") {
+			state "selectorState", label:'${currentValue}'
+		}
+
 		standardTile("rssi", "device.rssi", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
 			state "rssi", label:'Signal ${currentValue}', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzsensor.src/network-signal.png"
 		}
@@ -75,7 +88,7 @@ metadata {
 
         main(["richDomoticzOnOff"])
         
-        details(["richDomoticzOnOff", "rssi", "debug"])
+        details(["richDomoticzOnOff", "selector", "selectorState", "rssi", "debug"])
 
         simulator {
             // status messages
@@ -235,8 +248,11 @@ def generateEvent (Map results) {
     results.each { name, value ->
     	def v = value
     	if (name == "switch") {
-        	if (v.toUpperCase() == "OFF" ) v = "off"
-        	if (v.toUpperCase() == "ON") v = "on"
+        	if (v instanceof String) {
+            	log.debug "STRING"
+                if (v.toUpperCase() == "OFF" ) v = "off"
+                if (v.toUpperCase() == "ON") v = "on"
+                }
             }
         log.info "generateEvent " + name + " " + v
         sendEvent(name:"${name}", value:"${v}")
