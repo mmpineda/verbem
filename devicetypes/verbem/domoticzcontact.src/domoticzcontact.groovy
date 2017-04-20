@@ -31,16 +31,16 @@ preferences {
 tiles(scale: 2) {
 		multiAttributeTile(name:"contact", type: "generic", width: 6, height: 4){
 			tileAttribute ("device.contact", key: "PRIMARY_CONTROL") {
-				attributeState "open", label:'Open', icon:"st.contact.contact.open", backgroundColor:"#ffa81e"
-				attributeState "closed", label:'Closed', icon:"st.contact.contact.closed", backgroundColor:"#79b821"
-				attributeState "Open", label:'Open', icon:"st.contact.contact.open", backgroundColor:"#ffa81e"
-				attributeState "Closed", label:'Closed', icon:"st.contact.contact.closed", backgroundColor:"#79b821"
-				attributeState "off", label:'Open', icon:"st.contact.contact.open", backgroundColor:"#ffa81e"
-				attributeState "Off", label:'Open', icon:"st.contact.contact.open", backgroundColor:"#ffa81e"
-				attributeState "OFF", label:'Open', icon:"st.contact.contact.open", backgroundColor:"#ffa81e"
-				attributeState "on", label:'Closed', icon:"st.contact.contact.closed", backgroundColor:"#79b821"
-				attributeState "On", label:'Closed', icon:"st.contact.contact.closed", backgroundColor:"#79b821"
-				attributeState "ON", label:'Closed', icon:"st.contact.contact.closed", backgroundColor:"#79b821"
+				attributeState "open", label:'Open', icon:"st.contact.contact.open", backgroundColor:"#e86d13"
+				attributeState "closed", label:'Closed', icon:"st.contact.contact.closed", backgroundColor:"#00a0dc"
+				attributeState "Open", label:'Open', icon:"st.contact.contact.open", backgroundColor:"#e86d13"
+				attributeState "Closed", label:'Closed', icon:"st.contact.contact.closed", backgroundColor:"#00a0dc"
+				attributeState "off", label:'Open', icon:"st.contact.contact.open", backgroundColor:"#e86d13"
+				attributeState "Off", label:'Open', icon:"st.contact.contact.open", backgroundColor:"#e86d13"
+				attributeState "OFF", label:'Open', icon:"st.contact.contact.open", backgroundColor:"#e86d13"
+				attributeState "on", label:'Closed', icon:"st.contact.contact.closed", backgroundColor:"#00a0dc"
+				attributeState "On", label:'Closed', icon:"st.contact.contact.closed", backgroundColor:"#00a0dc"
+				attributeState "ON", label:'Closed', icon:"st.contact.contact.closed", backgroundColor:"#00a0dc"
 			}
 		}
 

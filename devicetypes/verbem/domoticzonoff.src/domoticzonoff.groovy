@@ -55,10 +55,10 @@ metadata {
                 attributeState "OFF", label:'Off',icon:"st.lights.philips.hue-single", backgroundColor:"#ffffff", action:"on", nextState:"Turning On"
                 attributeState "Turning Off", label:'Turning Off', icon:"st.lights.philips.hue-single", backgroundColor:"#FE9A2E", nextState:"Turning On"
                 
-                attributeState "on", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#79b821", action:"off", nextState:"Turning Off"
-                attributeState "On", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#79b821", action:"off", nextState:"Turning Off"
-                attributeState "ON", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#79b821", action:"off", nextState:"Turning Off"
-                attributeState "Set Level", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#79b821", action:"off", nextState:"Turning Off"
+                attributeState "on", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#00a0dc", action:"off", nextState:"Turning Off"
+                attributeState "On", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#00a0dc", action:"off", nextState:"Turning Off"
+                attributeState "ON", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#00a0dc", action:"off", nextState:"Turning Off"
+                attributeState "Set Level", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#00a0dc", action:"off", nextState:"Turning Off"
                 attributeState "Turning On", label:'Turning On', icon:"st.lights.philips.hue-single", backgroundColor:"#FE9A2E", nextState:"Turning Off"
                 
             }
@@ -71,11 +71,11 @@ metadata {
         }
      
 		standardTile("selector", "device.selector", inactiveLabel: false, width: 2, height: 2, decoration:"flat") {
-			state "selector", label:'${currentValue}', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzonoff.src/selector.png"
+			state "selector", label:'Selector ${currentValue}', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzonoff.src/selector.png"
 		}
      
 		valueTile("selectorState", "device.selectorState", inactiveLabel: false, width: 2, height: 2, decoration:"flat") {
-			state "selectorState", label:'${currentValue}'
+			state "selectorState", label:'selector state ${currentValue}'
 		}
 
 		standardTile("rssi", "device.rssi", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
@@ -89,12 +89,6 @@ metadata {
         main(["richDomoticzOnOff"])
         
         details(["richDomoticzOnOff", "selector", "selectorState", "rssi", "debug"])
-
-        simulator {
-            // status messages
-            status "Switch On": "switch:1"
-            status "Switch Off": "switch:0"
-        }
     }
 }
 
