@@ -56,16 +56,17 @@ metadata {
             tileAttribute("device.level", key: "SECONDARY_CONTROL") {
             	attributeState "level", label:'Selector level ${currentValue}'
             }
-            tileAttribute("device.level", key: "VALUE_CONTROL") {
-                attributeState("VALUE_UP", action: "stateNext")
-                attributeState("VALUE_DOWN", action: "statePrev")
-        	}
-        }
-     
-		standardTile("selector", "device.selector", inactiveLabel: false, width: 2, height: 2, decoration:"flat") {
-			state "selector", label:'Selector ${currentValue}', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzonoff.src/selector.png"
+
 		}
      
+		standardTile("tileNext", "device.tileNext", inactiveLabel: false, width: 3, height: 2, decoration:"flat") {
+			state "default", label:'Next State', action: "stateNext"
+		}
+     
+		standardTile("tilePrev", "device.tilePrev", inactiveLabel: false, width: 3, height: 2, decoration:"flat") {
+			state "default", label:'Prev State', action: "statePrev"
+		}
+
 		standardTile("rssi", "device.rssi", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
 			state "rssi", label:'Signal ${currentValue}', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzsensor.src/network-signal.png"
 		}
@@ -76,7 +77,7 @@ metadata {
 
         main(["richDomoticzSelector"])
         
-        details(["richDomoticzSelector", "rssi", "debug"])
+        details(["richDomoticzSelector", "tilePrev", "tileNext", "rssi", "debug"])
     }
 }
 
