@@ -1,7 +1,7 @@
 /**
- *  Domoticz OnOff SubType Switch.
+ *  Domoticz Selector SubType Switch.
  *
- *  SmartDevice type for domoticz switches and dimmers.
+ *  SmartDevice type for domoticz selector switches.
  *  
  *
  *  Copyright (c) 2016 Martin Verbeek
@@ -28,46 +28,43 @@
  */
 
 metadata {
-    definition (name:"domoticzOnOff", namespace:"verbem", author:"Martin Verbeek") {
+    definition (name:"domoticzSelector", namespace:"verbem", author:"Martin Verbeek") {
         capability "Actuator"
         capability "Sensor"
-        capability "Color Control"
         capability "Switch"
         capability "Switch Level"
         capability "Refresh"
         capability "Polling"
         capability "Signal Strength"
         
-      
+        attribute "selector", "enum", [true, false]
+        
         // custom commands
         command "parse"     // (String "<attribute>:<value>[,<attribute>:<value>]")
        	command "setLevel"
-        command "setColor"
         command "generateEvent"
+        command "stateNext"
+        command "statePrev"
     }
 
     tiles(scale:2) {
-    	multiAttributeTile(name:"richDomoticzOnOff", type:"lighting",  width:6, height:4, canChangeIcon: true, canChangeBackground: true) {
-        	tileAttribute("device.switch", key: "PRIMARY_CONTROL") {
-                attributeState "off", label:'Off', icon:"st.lights.philips.hue-single", backgroundColor:"#ffffff", action:"on", nextState:"Turning On"
-                attributeState "Off", label:'Off', icon:"st.lights.philips.hue-single", backgroundColor:"#ffffff", action:"on", nextState:"Turning On"
-                attributeState "OFF", label:'Off',icon:"st.lights.philips.hue-single", backgroundColor:"#ffffff", action:"on", nextState:"Turning On"
-                attributeState "Turning Off", label:'Turning Off', icon:"st.lights.philips.hue-single", backgroundColor:"#FE9A2E", nextState:"Turning On"
-                
-                attributeState "on", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#00a0dc", action:"off", nextState:"Turning Off"
-                attributeState "On", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#00a0dc", action:"off", nextState:"Turning Off"
-                attributeState "ON", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#00a0dc", action:"off", nextState:"Turning Off"
-                attributeState "Set Level", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#00a0dc", action:"off", nextState:"Turning Off"
-                attributeState "Turning On", label:'Turning On', icon:"st.lights.philips.hue-single", backgroundColor:"#FE9A2E", nextState:"Turning Off"
+    	multiAttributeTile(name:"richDomoticzSelector", type:"generic",  width:6, height:4) {
+        	tileAttribute("device.selectorState", key: "PRIMARY_CONTROL") {
+                attributeState "selectorState", label:'${currentValue}', icon:"st.Electronics.electronics13", backgroundColor: "#00A0DC"
                 
             }
-            tileAttribute("device.level", key: "SLIDER_CONTROL", range:"0..16") {
-            	attributeState "level", action:"setLevel" 
+            tileAttribute("device.level", key: "SECONDARY_CONTROL") {
+            	attributeState "level", label:'Selector level ${currentValue}'
             }
-            tileAttribute ("device.color", key: "COLOR_CONTROL") {
-        		attributeState "color", action:"setColor"
-            }
+            tileAttribute("device.level", key: "VALUE_CONTROL") {
+                attributeState("VALUE_UP", action: "stateNext")
+                attributeState("VALUE_DOWN", action: "statePrev")
+        	}
         }
+     
+		standardTile("selector", "device.selector", inactiveLabel: false, width: 2, height: 2, decoration:"flat") {
+			state "selector", label:'Selector ${currentValue}', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzonoff.src/selector.png"
+		}
      
 		standardTile("rssi", "device.rssi", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
 			state "rssi", label:'Signal ${currentValue}', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzsensor.src/network-signal.png"
@@ -77,9 +74,9 @@ metadata {
             state "default", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
         }
 
-        main(["richDomoticzOnOff"])
+        main(["richDomoticzSelector"])
         
-        details(["richDomoticzOnOff", "rssi", "debug"])
+        details(["richDomoticzSelector", "rssi", "debug"])
     }
 }
 
@@ -121,7 +118,15 @@ def refresh() {
     }
 }
 
-// switch.on() command handler
+def statePrev() {
+	setLevel(device.currentValue("level")-10)
+}
+
+
+def stateNext() {
+	setLevel(device.currentValue("level")+10)
+}
+
 def on() {
 
     if (parent) {
@@ -129,7 +134,6 @@ def on() {
     }
 }
 
-// switch.off() command handler
 def off() {
 
     if (parent) {
@@ -137,7 +141,6 @@ def off() {
     }
 }
 
-// Custom setlevel() command handler
 def setLevel(level) {
     TRACE("setLevel Level " + level)
     state.setLevel = level
@@ -146,21 +149,12 @@ def setLevel(level) {
     }
 }
 
-// Custom setcolor() command handler hue from ST is percentage of 366 which is max HUE
-def setColor(color) {
-	
-    	TRACE("SetColor HEX " + color.hex[-6..-1] + " Sat " + Math.round(color.saturation) + " Level " + state.setLevel)
-    	if (parent) {
-        	parent.domoticz_setcolor(getIDXAddress(), color.hex[-6..-1], Math.round(color.saturation), state.setLevel)
-    		}	
-}
-
 private def TRACE(message) {
     log.debug message
 }
 
 private def STATE() {
-    log.debug "switch is ${device.currentValue("switch")}"
+    log.debug "Selector is ${device.currentValue("selectorState")}"
     log.debug "deviceNetworkId: ${device.deviceNetworkId}"
 }
 
