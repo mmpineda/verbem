@@ -742,7 +742,7 @@ private def onLocationEvtForDevices(statusrsp) {
                     if (domoticzTypes.contains('Motion Sensors')) addSwitch(it.idx, "domoticzMotion", it.Name, it.Status, it.Type, it)
                     break
                 case 18:			//	Selector Switch
-                    if (domoticzTypes.contains("On/Off/Dimmers/RGB")) addSwitch(it.idx, "domoticzOnOff", it.Name, it.Status, it.SwitchType, it)
+                    if (domoticzTypes.contains("On/Off/Dimmers/RGB")) addSwitch(it.idx, "domoticzSelector", it.Name, it.Status, it.SwitchType, it)
                 	break
                 case 99:
                     if (domoticzTypes.contains("(Virtual) Sensors")) addSwitch(it.idx, "domoticzSensor", it.Name, "Active", it.Type, it)
@@ -831,10 +831,6 @@ private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, pa
 
     if (getChildDevice(newdni)) {      
         if (passedType == "RFY") {getChildDevice(newdni).generateEvent(["somfySupported" : true])}
-        if (passedFile == "domoticzOnOff") {
-            if (switchTypeVal == 18) {getChildDevice(newdni).generateEvent(["selector" : true])}
-            else {getChildDevice(newdni).generateEvent(["selector" : false])}
-        	}
         def attributeList = createAttributes(getChildDevice(newdni), passedDomoticzStatus, addr)
         getChildDevice(newdni).generateEvent(attributeList)
     	}
@@ -844,10 +840,6 @@ private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, pa
                 def dev = addChildDevice("verbem", passedFile, newdni, getHubID(), [name:passedName, label:passedName, completedSetup:!state.domoticzRefresh])
                 pause 10
                 if (passedType == "RFY") {dev.generateEvent(["somfySupported" : true])}
-                if (passedFile == "domoticzOnOff") {
-                	if (switchTypeVal == 18) {getChildDevice(newdni).generateEvent(["selector" : true])}
-                    else {getChildDevice(newdni).generateEvent(["selector" : false])}
-                	}
                 def attributeList = createAttributes(dev, passedDomoticzStatus, addr)
                 dev.generateEvent(attributeList)
             } 
