@@ -185,7 +185,6 @@ def generateEvent (Map results) {
     	def v = value
     	if (name == "switch") {
         	if (v instanceof String) {
-            	log.debug "STRING"
                 if (v.toUpperCase() == "OFF" ) v = "off"
                 if (v.toUpperCase() == "ON") v = "on"
                 }
