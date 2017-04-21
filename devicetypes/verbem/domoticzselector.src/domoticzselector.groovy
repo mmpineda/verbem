@@ -49,26 +49,16 @@ metadata {
 
     tiles(scale:2) {
     	multiAttributeTile(name:"richDomoticzSelector", type:"generic",  width:6, height:4) {
-        	tileAttribute("device.level", key: "PRIMARY_CONTROL") {
-                attributeState "level", icon:"st.Electronics.electronics13", backgroundColors:[
-					[value: 0, color: "#ffffff"],
-					[value: 10, color: "#153591"],
-					[value: 20, color: "#1e9cbb"],
-					[value: 30, color: "#90d2a7"],
-					[value: 40, color: "#44b621"],
-					[value: 50, color: "#f1d801"],
-					[value: 60, color: "#d04e00"],
-					[value: 70, color: "#bc2323"],
-                    [value: 80, color: "#e86d13"],
-                    [value: 90, color: "#00a0dc"],
-                    [value: 100, color: "#cccccc"]
-				]
-                
+        	tileAttribute("device.selectorState", key: "PRIMARY_CONTROL") {
+                attributeState "level", label:'${currentValue}', icon:"st.Electronics.electronics13", backgroundColor: "#00a0dc", defaultState: true
+				attributeState "Off", label:'${name}', icon:"st.Electronics.electronics13", backgroundColor: "#ffffff"
+				attributeState "Alarm", label:'${name}', icon:"st.Electronics.electronics13", backgroundColor: "#e86d13"
+				attributeState "Away", label:'${name}', icon:"st.Electronics.electronics13", backgroundColor: "#cccccc"
             }
-            tileAttribute("device.selectorState", key: "SECONDARY_CONTROL") {
-            	attributeState "selectorState", label:'Selector state ${currentValue}', defaultState: true
+            
+            tileAttribute("device.level", key: "SECONDARY_CONTROL") {
+            	attributeState "level", label:'Selector level ${currentValue}', defaultState: true
             }
-
 		}
      
 		standardTile("tileNext", "device.tileNext", inactiveLabel: false, width: 3, height: 2, decoration:"flat") {
