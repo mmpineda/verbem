@@ -54,6 +54,7 @@ metadata {
 				attributeState "Off", label:'${name}', icon:"st.Electronics.electronics13", backgroundColor: "#ffffff"
 				attributeState "Alarm", label:'${name}', icon:"st.Electronics.electronics13", backgroundColor: "#e86d13"
 				attributeState "Away", label:'${name}', icon:"st.Electronics.electronics13", backgroundColor: "#cccccc"
+				attributeState "Home", label:'${name}', icon:"st.Electronics.electronics13", backgroundColor: "#00a0dc"
             }
             
             tileAttribute("device.level", key: "SECONDARY_CONTROL") {
