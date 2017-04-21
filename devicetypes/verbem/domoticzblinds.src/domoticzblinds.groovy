@@ -27,6 +27,7 @@ metadata {
     
         capability "Actuator"
         capability "Switch"
+        capability "Sensor"
         capability "Switch Level"
         capability "Refresh"
         capability "Polling"
@@ -35,7 +36,7 @@ metadata {
 
         // custom attributes
         attribute "networkId", "string"
-        attribute "calibrationInProgress", "string"
+        attribute "calibrationInProgress", "string" 
         attribute "startCalibrationTime", "number"
         attribute "endCalibrationTime", "number"
         attribute "blindClosingTime", "number"
@@ -44,6 +45,7 @@ metadata {
         attribute "windSpeed", "number"
 		attribute "cloudCover", "number"
 		attribute "sunBearing", "string"
+        attribute "somfySupported", "enum", [true, false]
 
 
         // custom commands
@@ -60,13 +62,13 @@ metadata {
     tiles (scale: 2) {
 	    multiAttributeTile(name:"richDomoticzBlind", type:"generic",  width:6, height:4, canChangeIcon: true, canChangeBackground: true) {
         	tileAttribute("device.switch", key: "PRIMARY_CONTROL") {
-                attributeState "Open", 			label:"   Open   ", backgroundColor:"#19f028", nextState:"Going Down", action:"stop"	
-                attributeState "Going Up", 		label:" Going Up ", backgroundColor:"#FE9A2E", nextState:"Going Down", action:"open"
+                attributeState "Open", 			label:"   Open   ", backgroundColor:"#e86d13", nextState:"Going Down", action:"close"
+                attributeState "Going Up", 		label:" Going Up ", backgroundColor:"#e86d13", nextState:"Going Down"
 
-				attributeState "Stopped", 		label:" Stopped  ", backgroundColor:"#11A81C", action:"close"
+				attributeState "Stopped", 		label:" Stopped  ", backgroundColor:"#11A81C", action:"open"
                 
-                attributeState "Closed", 		label:"  Closed  ",  backgroundColor:"#08540E", nextState:"Going Up"
-                attributeState "Going Down", 	label:"Going Down",  backgroundColor:"#FE9A2E", nextState:"Going Up", action:"close"
+                attributeState "Closed", 		label:"  Closed  ",  backgroundColor:"#00a0dc", nextState:"Going Up", action:"open"
+                attributeState "Going Down", 	label:"Going Down",  backgroundColor:"#00a0dc", nextState:"Going Up"
             }
             tileAttribute("device.level", key: "SLIDER_CONTROL", range:"0..16") {
             	attributeState "level", action:"setLevel" 
@@ -101,7 +103,7 @@ metadata {
  		standardTile("windSpeed", "device.windSpeed",  inactiveLabel: false, width: 2, height: 2, decoration:"flat") {
 			state "windSpeed", label:'${currentValue} km/h', unit:"km/h", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/windSpeed.png",            
 							backgroundColors:[
-							// km/h
+							// km/h -> bft
 							[value: 0, color: "#bef9b8"], 	//bft0 OK
 							[value: 1, color: "#a8f99f"], 	//bft1 OK
 							[value: 6, color: "#90f984"],	//bft2 OK
@@ -125,9 +127,13 @@ metadata {
  		standardTile("cloudCover", "device.cloudCover",  inactiveLabel: false, width: 2, height: 2, decoration:"flat") {
 			state "cloudCover", label:'${currentValue}%', unit:"%", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/cloudCover.png"            
         }
-
+		
 		standardTile("rssi", "device.rssi", inactiveLabel: false, width: 2, height: 2, decoration:"flat") {
 			state "rssi", label:'Signal ${currentValue}', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzsensor.src/network-signal.png"
+		}
+        
+		standardTile("somfy", "device.somfySupported", inactiveLabel: false, width: 2, height: 2, decoration:"flat") {
+			state "somfySupported", label:'${currentValue}', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/Somfy.png"
 		}
         
         standardTile("Refresh", "device.refresh", width: 2, height: 2, inactiveLabel: false, decoration: "flat") {
@@ -135,7 +141,7 @@ metadata {
         }
 
         main(["richDomoticzBlind"])
-        details(["richDomoticzBlind", "Up", "Stop", "Down", "Cal", "windBearing", "windSpeed", "rssi", "sunBearing", "cloudCover", "Refresh"])
+        details(["richDomoticzBlind", "Up", "Stop", "Down", "Cal", "rssi", "somfy", "windBearing", "windSpeed", "sunBearing", "cloudCover", "Refresh"])
 
     }    
 }
@@ -220,12 +226,6 @@ def stop() {
 
 }
 
-def setUpTile() {
-	return "XX"
-}
-/* 	special implementation through setlevel
-	It also makes it possible to use Alexa DIM!!!
-*/
 def setLevel(level) {
 	log.debug "setLevel() level ${level}"
    
@@ -292,37 +292,6 @@ def calibrate() {
         }
 }
 
-private String makeNetworkId(ipaddr, port) {
-
-    String hexIp = ipaddr.tokenize('.').collect {
-        String.format('%02X', it.toInteger())
-    }.join()
-
-    String hexPort = String.format('%04X', port)
-    return "${hexIp}:${hexPort}"
-}
-
-// gets the address of the device
-private getHostAddress() {
-	
-    def ip = getDataValue("ip")
-    def port = getDataValue("port")
-    
-    if (!ip || !port) {
-        def parts = device.deviceNetworkId.split(":")
-        if (parts.length == 3) {
-            ip = parts[0]
-            port = parts[1]
-        } else {
-            log.warn "Can't figure out ip and port for device: ${device.id}"
-        }
-    }
-
-    //log.debug "Using ip: $ip and port: $port for device: ${device.id}"
-    return ip + ":" + port
-
-}
-
 // gets the IDX address of the device
 private getIDXAddress() {
 	
@@ -339,19 +308,6 @@ private getIDXAddress() {
 
     //log.debug "Using IDX: $idx for device: ${device.id}"
     return idx
-}
-
-private Integer convertHexToInt(hex) {
-    return Integer.parseInt(hex,16)
-}
-
-private String convertHexToIP(hex) {
-    return [convertHexToInt(hex[0..1]),convertHexToInt(hex[2..3]),convertHexToInt(hex[4..5]),convertHexToInt(hex[6..7])].join(".")
-}
-
-// gets the address of the hub
-private getCallBackAddress() {
-    return device.hub.getDataValue("localIP") + ":" + device.hub.getDataValue("localSrvPortTCP")
 }
 
 /*----------------------------------------------------*/

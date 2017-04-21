@@ -136,38 +136,6 @@ private def STATE() {
     log.debug "switch is ${device.currentValue("switch")}"
     log.debug "deviceNetworkId: ${device.deviceNetworkId}"
 }
-
-private String makeNetworkId(ipaddr, port) {
-
-    String hexIp = ipaddr.tokenize('.').collect {
-        String.format('%02X', it.toInteger())
-    }.join()
-
-    String hexPort = String.format('%04X', port)
-    return "${hexIp}:${hexPort}"
-}
-
-// gets the address of the device
-private getHostAddress() {
-	
-    def ip = getDataValue("ip")
-    def port = getDataValue("port")
-    
-    if (!ip || !port) {
-        def parts = device.deviceNetworkId.split(":")
-        if (parts.length == 3) {
-            ip = parts[0]
-            port = parts[1]
-        } else {
-            log.warn "Can't figure out ip and port for device: ${device.id}"
-        }
-    }
-
-    //log.debug "Using ip: $ip and port: $port for device: ${device.id}"
-    return ip + ":" + port
-
-}
-
 // gets the IDX address of the device
 private getIDXAddress() {
 	
@@ -184,19 +152,6 @@ private getIDXAddress() {
 
     //log.debug "Using IDX: $idx for device: ${device.id}"
     return idx
-}
-
-private Integer convertHexToInt(hex) {
-    return Integer.parseInt(hex,16)
-}
-
-private String convertHexToIP(hex) {
-    return [convertHexToInt(hex[0..1]),convertHexToInt(hex[2..3]),convertHexToInt(hex[4..5]),convertHexToInt(hex[6..7])].join(".")
-}
-
-// gets the address of the hub
-private getCallBackAddress() {
-    return device.hub.getDataValue("localIP") + ":" + device.hub.getDataValue("localSrvPortTCP")
 }
 
 /*----------------------------------------------------*/
