@@ -22,6 +22,7 @@
  *
  *  Revision History
  *  ----------------
+ *  2017-04-28 3.13 Color setting for White types
  *  2017-04-14 3.12 Multistate support for DZ selector
  *  2017-01-25 3.09 Put in check for switch name in generateevent
  *	2017-01-18 3.08 get always an lowercase value for switch on/off in generateevent
@@ -146,13 +147,49 @@ def setLevel(level) {
     }
 }
 
-// Custom setcolor() command handler hue from ST is percentage of 366 which is max HUE
+// Custom setcolor() command handler hue from ST is percentage of 360 which is max HUE
 def setColor(color) {
-	
-    	TRACE("SetColor HEX " + color.hex[-6..-1] + " Sat " + Math.round(color.saturation) + " Level " + state.setLevel)
-    	if (parent) {
-        	parent.domoticz_setcolor(getIDXAddress(), color.hex[-6..-1], Math.round(color.saturation), state.setLevel)
-    		}	
+
+def hexCode = null
+
+		if (!color?.hex) {
+			//hue:83, saturation:100, level:80
+            log.trace color
+            TRACE("SetColor HUE " + (color.hue*3.6) + " Sat " + Math.round(color.saturation) + " Level " + color.level)
+            if (parent) {
+                if (color.hue == 5 && color.saturation == 4) {
+                   hexCode = "FEFFFA"
+                   log.debug "Soft White - Default ${hexCode}"
+                   }
+                else if (color.hue == 63 && color.saturation == 28) {
+                   hexCode = "EFF9FF"
+                   log.debug "White - Concentrate ${hexCode}"
+                   }
+                else if (color.hue == 63 && color.saturation == 43) {
+                   hexCode = "FAFDFF"
+                   log.debug "Daylight - Energize ${hexCode}"
+                   }
+                else if (color.hue == 79 && color.saturation == 7) {
+                   hexCode = "FFFAEE"
+                   log.debug "Warm White - Relax ${hexCode}"
+                   }
+            	if (hexCode == null) {
+                	log.trace "normal"
+                	parent.domoticz_setcolorHue(getIDXAddress(), (color.hue*3.6), Math.round(color.saturation), color.level)
+                    }
+				else {
+                	log.trace "whitelevel"
+                    parent.domoticz_setcolorWhite(getIDXAddress(), hexCode, Math.round(color.saturation), color.level)
+                    }
+               }
+        	}
+        else {
+        	log.trace color
+            TRACE("SetColor HEX " + color.hex[-6..-1] + " Sat " + Math.round(color.saturation) + " Level " + state.setLevel)
+            if (parent) {
+                parent.domoticz_setcolor(getIDXAddress(), color.hex[-6..-1], Math.round(color.saturation), state.setLevel)
+                }
+            }
 }
 
 private def TRACE(message) {
@@ -190,7 +227,6 @@ def generateEvent (Map results) {
     	def v = value
     	if (name == "switch") {
         	if (v instanceof String) {
-            	log.debug "STRING"
                 if (v.toUpperCase() == "OFF" ) v = "off"
                 if (v.toUpperCase() == "ON") v = "on"
                 }
@@ -199,4 +235,12 @@ def generateEvent (Map results) {
         sendEvent(name:"${name}", value:"${v}")
         }
         return null
+}
+
+def getWhite(value) {
+	log.debug "getWhite($value)"
+	def level = Math.min(value as Integer, 99)    
+    level = 255 * level/99 as Integer
+	log.debug "level: ${level}"
+	return level
 }

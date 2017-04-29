@@ -21,6 +21,8 @@ metadata {
 		capability "Battery"
 		capability "Temperature Measurement"
         capability "Signal Strength"
+        
+        attribute "NotificationsDefinedInDomoticz", "enum", ["true","false"]
         }
 
 preferences {
@@ -64,12 +66,17 @@ tiles(scale: 2) {
             state "rssi", label:' Signal ${currentValue}', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzsensor.src/network-signal.png"
         }
 
+		valueTile("DZ", "device.NotificationsDefinedInDomoticz", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
+            state "NotificationsDefinedInDomoticz", label:' Notifications ${currentValue}'
+            state "false", label:' Notifications ${currentValue}', backGroundColor:"#e86d13"
+        }
+
 		standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
 			state "default", action:"refresh.refresh", icon:"st.secondary.refresh"
 		}
 
 		main (["contact", "temperature"])
-		details(["contact","temperature","battery", "rssi", "refresh"])
+		details(["contact","temperature","battery", "DZ", "rssi", "refresh"])
 	}
 
 }
