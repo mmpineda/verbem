@@ -264,6 +264,7 @@ private def setupDomoticz() {
 
     def inputIpAddress = [
         name        : "domoticzIpAddress",
+        submitOnChange : true,
         type        : "string",
         title       : "Local Domoticz IP Address",
         defaultValue: "0.0.0.0"
@@ -334,7 +335,7 @@ private def setupDomoticz() {
             input inputIpAddress
             input inputTcpPort
             input inputDzTypes
-            input inputRoomPlans
+            if (settings.containsKey('domoticzIpAddress') && settings?.domoticzIpAddress != "0.0.0.0") input inputRoomPlans
             if (domoticzRoomPlans && settings.containsKey('domoticzIpAddress')) input inputPlans
             input inputGroup
             input inputScene
