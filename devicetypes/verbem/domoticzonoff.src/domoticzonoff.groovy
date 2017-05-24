@@ -45,6 +45,7 @@ metadata {
        	command "setLevel"
         command "setColor"
         command "generateEvent"
+        command "eodRunOnce"
     }
 
     tiles(scale:2) {

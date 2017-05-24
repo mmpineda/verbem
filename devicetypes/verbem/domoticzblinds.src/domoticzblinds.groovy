@@ -15,6 +15,7 @@
  *  2.1 2016-11-21 Rework of setColor 
  *	2.2 2016-12-01 added calibration of the closing time, now you can use setlevel or ask alexa to dim to a percentage
  *	3.0 2016-12-24 cleanup of DTH statuses
+ *  3.1 2017-05-10 Adding end of day scheduling for blinds as an offset to sunset, these are set in the Smart Screens app. 
  */
 import groovy.time.TimeCategory 
 import groovy.time.TimeDuration
@@ -46,6 +47,9 @@ metadata {
 		attribute "cloudCover", "number"
 		attribute "sunBearing", "string"
         attribute "somfySupported", "enum", [true, false]
+        attribute "eodAction", "string"
+        attribute "eodTime", "string"
+        attribute "eodDone", "enum" , [true, false]
 
 
         // custom commands
@@ -56,6 +60,7 @@ metadata {
         command "setLevel"
         command "calibrate"
         command "generateEvent"
+        command "eodRunOnce"
 
     }
 
@@ -104,19 +109,19 @@ metadata {
 			state "windSpeed", label:'${currentValue} km/h', unit:"km/h", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/windSpeed.png",            
 							backgroundColors:[
 							// km/h -> bft
-							[value: 0, color: "#bef9b8"], 	//bft0 OK
-							[value: 1, color: "#a8f99f"], 	//bft1 OK
-							[value: 6, color: "#90f984"],	//bft2 OK
-							[value: 12, color: "#72fc62"],	//bft3 OK
-							[value: 20, color: "#4efc3a"],	//bft4 OK
-							[value: 29, color: "#1efc05"],	//bft5 OK
-							[value: 39, color: "#f6f7e8"],	//bft6 OK
-							[value: 50, color: "#f1f7a5"],	//bft7 OK
-							[value: 62, color: "#fafc74"],	//bft8 OK
-							[value: 75, color: "#f9fc20"],	//bft9 OK
-							[value: 89, color: "#f7ae60"],	//bft10 OK
-							[value: 103, color: "#fc8a11"],	//bft11 OK
-							[value: 117, color: "#f9260e"]	//bft12 OK
+							[value: 0, color: "#bef9b8"], 	//bft0 
+							[value: 1, color: "#a8f99f"], 	//bft1 
+							[value: 6, color: "#90f984"],	//bft2 
+							[value: 12, color: "#72fc62"],	//bft3 
+							[value: 20, color: "#4efc3a"],	//bft4 
+							[value: 29, color: "#1efc05"],	//bft5 
+							[value: 39, color: "#f6f7e8"],	//bft6 
+							[value: 50, color: "#f1f7a5"],	//bft7
+							[value: 62, color: "#fafc74"],	//bft8 
+							[value: 75, color: "#f9fc20"],	//bft9 
+							[value: 89, color: "#f7ae60"],	//bft10 
+							[value: 103, color: "#fc8a11"],	//bft11 
+							[value: 117, color: "#f9260e"]	//bft12 
 							]        
         }
 
@@ -136,6 +141,18 @@ metadata {
 			state "somfySupported", label:'${currentValue}', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/Somfy.png"
 		}
         
+		standardTile("eodAction", "device.eodAction", inactiveLabel: false, width: 2, height: 2, decoration:"flat") {
+			state "eodAction", label:'${currentValue} EoD Action', unit:""
+		}
+
+		standardTile("eodTime", "device.eodTime", inactiveLabel: false, width: 4, height: 1, decoration:"flat") {
+			state "eodTime", label:'${currentValue}', unit:""
+		}
+
+		standardTile("eodDone", "device.eodDone", inactiveLabel: false, width: 2, height: 2, decoration:"flat") {
+			state "eodDone", label:'${currentValue}', unit:""
+		}
+
         standardTile("Refresh", "device.refresh", width: 2, height: 2, inactiveLabel: false, decoration: "flat") {
             state "refresh", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
         }
@@ -191,7 +208,6 @@ def off() {
 def close() {
 	log.debug "Close()"
     if (parent) {
-    	log.debug parent.state.devices[getIDXAddress()].switchTypeVal
         parent.domoticz_on(getIDXAddress())
     }
 }
@@ -226,6 +242,24 @@ def stop() {
 
 }
 
+def handlerEod(data) {
+	sendEvent(name:'eodDone', value:true)
+    switch (data.eodAction) {
+    case "Up":
+    	open()	
+        break;
+    case "Down":
+    	close()
+        break;
+    case "Stop":
+    	stop()
+        break;
+    default:
+        log.error "Non handled eodAction(${tempEodAction})"
+        break;
+    }
+}
+
 def setLevel(level) {
 	log.debug "setLevel() level ${level}"
    
@@ -235,12 +269,12 @@ def setLevel(level) {
         		parent.domoticz_off(getIDXAddress())
 
 				def Sec = Math.round(device.currentValue("blindClosingTime").toInteger()/1000)
+                def Sec2 = Sec + Math.round(Sec*level/100)
 				log.debug "setLevel() OFF runIn ${Sec} s"
-                runIn(Sec, setLevelCloseAgain)
-         		
-                Sec = Sec + Math.round(Sec*level/100)
-				log.debug "setLevel() Stop runIn ${Sec} s"
-                runIn(Sec, setLevelStopAgain)
+				log.debug "setLevel() Stop runIn ${Sec2} s"
+
+				runIn(Sec, setLevelCloseAgain)           
+                runIn(Sec2, setLevelStopAgain)
          		
             }
         }
@@ -255,6 +289,7 @@ def setLevelCloseAgain() {
     parent.domoticz_on(getIDXAddress())
     log.debug "setLevel() ON "
 }
+
 def setLevelStopAgain() {
 
     if (stopSupported) {
@@ -292,6 +327,13 @@ def calibrate() {
         }
 }
 
+def eodRunOnce(tempTime) {
+
+def tempEodAction = device.currentValue("eodAction")
+runOnce(tempTime, handlerEod, [overwrite: false, data: ["eodAction": tempEodAction]])
+
+}
+
 // gets the IDX address of the device
 private getIDXAddress() {
 	
@@ -317,6 +359,12 @@ def generateEvent (Map results) {
 
 results.each { name, value ->
 	log.info "generateEvent " + name + " " + value
+    
+    if (name == "eodTime")	{
+    	log.info "sendevent eodDone"
+    	sendEvent(name:'eodDone', value:false)
+        }
+
 	sendEvent(name:"${name}", value:"${value}")
     }
     return null
