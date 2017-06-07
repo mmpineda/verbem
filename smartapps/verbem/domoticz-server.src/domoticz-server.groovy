@@ -13,6 +13,7 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *	
+	V4.03	Changed check for roomplans and related devices, needs more fixing 
 	V4.02	Implement Hubaction with callback handlers
 	V4.01	Fix bug, state.networkID is set too late, it will prevent plans to run when a fresh install is done
 	V4.00	Include new Nefit Easy thermostat (use Robert Klep Nefit Easy HTTP Server that (can) runs on the same raspberry as DZ)
@@ -35,7 +36,7 @@
 import groovy.json.*
 import java.Math.*
 
-private def textVersion() { return "Version 4.01"}
+private def textVersion() { return "Version 4.03"}
 
 definition(
     name: "Domoticz Server",
@@ -395,7 +396,7 @@ private def setupAddDevices() {
 	state.listOfRoomPlanDevices = []
     if (domoticzRoomPlans)
     	{
-        domoticzPlans.each { v ->       	
+        settings.domoticzPlans.each { v ->       	
         	state.statusPlansRsp.each {
             if (v == it.Name) {
             	socketSend("roomplan", it.idx, 0,0,0)
@@ -533,7 +534,7 @@ private def deleteChilds() {
 /*-----------------------------------------------------------------------------------------*/
 private def setupListDevices() {
     TRACE("[setupListDevices]")
-	updateDeviceList()
+	refreshDevicesFromDomoticz()
     def textNoDevices =
         "You have not configured any Domoticz devices yet. Tap Next to continue."
 
@@ -623,10 +624,14 @@ return
 /*-----------------------------------------------------------------------------------------*/
 private def onLocationEvtForRoom(evt) {
 def response = getResponse(evt)
-	def statusrsp = response.result
+if (response.result == null) {
+	TRACE("[onLocationEvtForRoom] Domoticz response ${response}")
+	return
+    }
+    def statusrsp = response.result
     TRACE("[onLocationEvtForRoom] Domoticz response with Title : ${response.title} number of items returned ${response.result.size()}") 
 
-	statusrsp.each {
+    statusrsp.each {
         TRACE("[onLocationEvtForRoom] Device ${it.Name} with idx ${it.devidx}")
         state.listOfRoomPlanDevices.add(it.devidx)
         pause 5
@@ -640,11 +645,15 @@ def response = getResponse(evt)
 void onLocationEvtForPlans(evt) {
 def response = getResponse(evt)
 state.statusPlansRsp = response.result
+
+if (response.result == null) return
+
 TRACE("[onLocationEvtForPlans] Domoticz response with Title : ${response.title} number of items returned ${response.result.size()}") 
 
 state.listPlans = []
+pause 1
 
-state.statusPlanRsp.each {
+response.result.each {
     TRACE("[onLocationEvtForPlans] ${it.Devices} devices in room plan ${it.Name} with idx ${it.idx}")
     state.listPlans.add(it.Name)
     pause 1
@@ -660,6 +669,9 @@ pause 1
 /*-----------------------------------------------------------------------------------------*/
 void onLocationEvtForScenes(evt) {
 def response = getResponse(evt)
+
+if (response.result == null) return
+
 TRACE("[onLocationEvtForScenes] Domoticz response with Title : ${response.title} number of items returned ${response.result.size()}") 
 
 state.statusGrpRsp = response.result
@@ -692,40 +704,93 @@ TRACE("[onLocationEvtForDevices]")
 def compareTypeVal
 
 	statusrsp.each { 
-        if ((state.listOfRoomPlanDevices?.contains(it.idx) && domoticzRoomPlans == true) || domoticzRoomPlans == false) {
-            compareTypeVal = null
-            if (it?.SwitchTypeVal != null) compareTypeVal = it.SwitchTypeVal
+        compareTypeVal = null
+        if (it?.SwitchTypeVal != null) compareTypeVal = it.SwitchTypeVal
+        if (it?.Temp != null) compareTypeVal = 99 
+        switch (compareTypeVal) 
+        {
+            case [3, 13, 6, 16]:		//	Window Coverings, 6 & 16 are inverted
+            if (domoticzTypes.contains('Window Coverings')) addSwitch(it.idx, "domoticzBlinds", it.Name, it.Status, it.Type, it)
+            break
+            case [0, 7]:		// 	Lamps OnOff, Dimmers and RGB
+            if (domoticzTypes.contains('On/Off/Dimmers/RGB')) addSwitch(it.idx, "domoticzOnOff", it.Name, it.Status, it.Type, it)
+            break
+            case 2:				//	Contact 
+            if (domoticzTypes.contains('Contact Sensors')) addSwitch(it.idx, "domoticzContact", it.Name, it.Status, it.Type, it)
+            break
+            case 5:				//	Smoke Detector
+            if (domoticzTypes.contains('Smoke Detectors')) addSwitch(it.idx, "domoticzSmokeDetector", it.Name, it.Status, it.Type, it)
+            break
+            case 8:				//	Motion Sensors
+            if (domoticzTypes.contains('Motion Sensors')) addSwitch(it.idx, "domoticzMotion", it.Name, it.Status, it.Type, it)
+            break
+            case 18:			//	Selector Switch
+            if (domoticzTypes.contains("On/Off/Dimmers/RGB")) addSwitch(it.idx, "domoticzSelector", it.Name, it.Status, it.SwitchType, it)
+            break
+            case 99:			//	Sensors
+            if (domoticzTypes.contains("(Virtual) Sensors")) addSwitch(it.idx, "domoticzSensor", it.Name, "Active", it.Type, it)
+            break
+            default:
+                log.error "[onLocationEvtForDevices] non handled SwitchTypeVal ${compareTypeVal} ${it}"
+            break
+        }	
+    }            
+}
 
-			if (it?.Temp != null) compareTypeVal = 99 
-            switch (compareTypeVal) 
-            	{
-                case [3, 13, 6, 16]:		//	Window Coverings, 6 & 16 are inverted
-                    if (domoticzTypes.contains('Window Coverings')) addSwitch(it.idx, "domoticzBlinds", it.Name, it.Status, it.Type, it)
-                    break
-                case [0, 7]:		// 	Lamps OnOff, Dimmers and RGB
-                    if (domoticzTypes.contains('On/Off/Dimmers/RGB')) addSwitch(it.idx, "domoticzOnOff", it.Name, it.Status, it.Type, it)
-                    break
-                case 2:				//	Contact 
-                    if (domoticzTypes.contains('Contact Sensors')) addSwitch(it.idx, "domoticzContact", it.Name, it.Status, it.Type, it)
-                    break
-                case 5:				//	Smoke Detector
-                    if (domoticzTypes.contains('Smoke Detectors')) addSwitch(it.idx, "domoticzSmokeDetector", it.Name, it.Status, it.Type, it)
-                    break
-                case 8:				//	Motion Sensors
-                    if (domoticzTypes.contains('Motion Sensors')) addSwitch(it.idx, "domoticzMotion", it.Name, it.Status, it.Type, it)
-                    break
-                case 18:			//	Selector Switch
-                    if (domoticzTypes.contains("On/Off/Dimmers/RGB")) addSwitch(it.idx, "domoticzSelector", it.Name, it.Status, it.SwitchType, it)
-                	break
-                case 99:			//	Sensors
-                    if (domoticzTypes.contains("(Virtual) Sensors")) addSwitch(it.idx, "domoticzSensor", it.Name, "Active", it.Type, it)
-                	break
-                default:
-                	log.error "[onLocationEvtForDevices] non handled SwitchTypeVal ${compareTypeVal} ${it}"
-                    break
-                }	
-        	}
-		}            
+/*-----------------------------------------------------------------------------------------*/
+/*		Execute the real add or status update of the child device
+/*-----------------------------------------------------------------------------------------*/
+private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, passedDomoticzStatus) {
+
+    def newdni = app.id + ":IDX:" + addr
+	def switchTypeVal = ""
+    def deviceType = ""
+ 
+ 	if (passedDomoticzStatus instanceof java.util.Map) {
+    	if (passedDomoticzStatus?.SwitchTypeVal != null) {
+        	switchTypeVal = passedDomoticzStatus.SwitchTypeVal
+            deviceType = "switch"
+            }
+        else if (passedFile == "domoticzSensor") {
+                deviceType = "sensor"
+                }
+    	}
+
+    if (getChildDevice(newdni)) {      
+        TRACE("[addSwitch] Updating child device ${addr}, ${passedFile}, ${passedName}, ${passedStatus}")
+        def attributeList = createAttributes(getChildDevice(newdni), passedDomoticzStatus, addr)
+        if (passedType == "RFY") {attributeList.put('somfySupported', true)}
+        getChildDevice(newdni).generateEvent(attributeList)
+    	}
+    else if ((state.listOfRoomPlanDevices?.contains(addr) && settings.domoticzRoomPlans == true) || settings.domoticzRoomPlans == false) {
+        
+        try {
+            TRACE("[addSwitch] Creating child device ${addr}, ${passedFile}, ${passedName}, ${passedStatus}, ${passedDomoticzStatus}")
+            def dev = addChildDevice("verbem", passedFile, newdni, getHubID(), [name:passedName, label:passedName, completedSetup:!state.domoticzRefresh])
+            pause 5
+            def attributeList = createAttributes(dev, passedDomoticzStatus, addr)
+            if (passedType == "RFY") {attributeList.put('somfySupported', true)}
+            
+            dev.generateEvent(attributeList)
+            state.devices[addr] = [
+                'dni'   : newdni,
+                'ip' : settings.domoticzIpAddress,
+                'port' : settings.domoticzTcpPort,
+                'idx' : addr,
+                'type'  : deviceType,
+                'deviceType' : passedFile,
+                'subType' : passedType,
+                'switchTypeVal' : switchTypeVal
+            	]
+			pause 5
+            } 
+        catch (e) 
+            {
+            log.error "[addSwitch] Cannot create child device. ${devParam} Error: ${e}"
+            return 
+            }
+        }
+
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -786,59 +851,6 @@ private def createAttributes(domoticzDevice, domoticzStatus, addr) {
 	return attributeList
 }
 
-/*-----------------------------------------------------------------------------------------*/
-/*		Execute the real add or status update of the child device
-/*-----------------------------------------------------------------------------------------*/
-private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, passedDomoticzStatus) {
-
-    def newdni = app.id + ":IDX:" + addr
-	def switchTypeVal = ""
-    def deviceType = ""
- 
- 	if (passedDomoticzStatus instanceof java.util.Map) {
-    	if (passedDomoticzStatus?.SwitchTypeVal != null) {
-        	switchTypeVal = passedDomoticzStatus.SwitchTypeVal
-            deviceType = "switch"
-            }
-        else if (passedFile == "domoticzSensor") {
-                deviceType = "sensor"
-                }
-    	}
-
-    if (getChildDevice(newdni)) {      
-        TRACE("[addSwitch] Updating child device ${addr}, ${passedFile}, ${passedName}, ${passedStatus}")
-        def attributeList = createAttributes(getChildDevice(newdni), passedDomoticzStatus, addr)
-        if (passedType == "RFY") {attributeList.put('somfySupported', true)}
-        getChildDevice(newdni).generateEvent(attributeList)
-    	}
-    else {
-        try {
-            TRACE("[addSwitch] Creating child device ${addr}, ${passedFile}, ${passedName}, ${passedStatus}, ${passedDomoticzStatus}")
-            def dev = addChildDevice("verbem", passedFile, newdni, getHubID(), [name:passedName, label:passedName, completedSetup:!state.domoticzRefresh])
-            pause 5
-            def attributeList = createAttributes(dev, passedDomoticzStatus, addr)
-            if (passedType == "RFY") {attributeList.put('somfySupported', true)}
-            dev.generateEvent(attributeList)
-            } 
-        catch (e) 
-            {
-            log.error "[addSwitch] Cannot create child device. ${devParam} Error: ${e}"
-            return 
-            }
-        }
-
-    state.devices[addr] = [
-        'dni'   : newdni,
-        'ip' : settings.domoticzIpAddress,
-        'port' : settings.domoticzTcpPort,
-        'idx' : addr,
-        'type'  : deviceType,
-        'deviceType' : passedFile,
-        'subType' : passedType,
-        'switchTypeVal' : switchTypeVal
-    ]
-	pause 5
-}
 
 private def addNefitEasy(addrNefitDevice) {
 /*-----------------------------------------------------------------------------------------*/
@@ -1299,23 +1311,26 @@ private def nefitEasySend(message, addrNefitEasy) {
 void refreshDevicesFromDomoticz() {
 
 	TRACE("[refreshDevicesFromDomoticz] Entering routine")
+    socketSend("roomplans",0,0,0,0)
+    pause 5
 
-	updateDeviceList()
     
 	state.domoticzRefresh = true
 	state.listOfRoomPlanDevices = []
-    if (domoticzRoomPlans)
-    	{
-        domoticzPlans.each { v ->       	
-        	state.statusPlansRsp.each {
+    settings.domoticzPlans.each { v -> 
+    	log.trace v
+        state.statusPlansRsp.each {
+        	log.trace it
             if (v == it.Name) {
-            	socketSend("roomplan", it.idx, 0,0,0)
+                socketSend("roomplan", it.idx, 0,0,0)
                 pause 10
-                }
+            	}
+            pause 2
         	}
-          }
-        }
+    	}
 
+	updateDeviceList()
+      
 	socketList()
     pause 10
     socketSend("scenes",0,0,0,0)
