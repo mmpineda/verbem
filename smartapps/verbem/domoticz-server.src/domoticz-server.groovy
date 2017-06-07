@@ -622,7 +622,7 @@ return
 /*-----------------------------------------------------------------------------------------*/
 /*		Build the idx list for Devices that are part of the selected room plans
 /*-----------------------------------------------------------------------------------------*/
-private def onLocationEvtForRoom(evt) {
+void onLocationEvtForRoom(evt) {
 def response = getResponse(evt)
 if (response.result == null) {
 	TRACE("[onLocationEvtForRoom] Domoticz response ${response}")
