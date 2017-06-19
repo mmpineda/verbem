@@ -76,7 +76,7 @@ def pageSetupForecastIO() {
 	def inputWeather = [
         name:       "z_weatherAPI",
         type:       "enum",
-        options:	["Darksky", "OpenWeatherMap"],
+        options:	["Darksky", "OpenWeatherMap", "WeatherUnderground"],
         title:      "Select Weather API",
         multiple:   false,
         submitOnChange: true,
@@ -136,7 +136,7 @@ def pageSetupForecastIO() {
     
     return dynamicPage(pageProperties) {
 		
-        section("Darksky.net or OpenWeatherMap API Key and Website") {
+        section("Darksky.net, WeatherUndergound or OpenWeatherMap API Key and Website") {
         	input inputWeather
         	
             if (z_weatherAPI) {
@@ -149,6 +149,15 @@ def pageSetupForecastIO() {
                      style: "external",
                      url: "https://darksky.net/dev/",
                      description: "tap to view Darksky website in mobile browser")
+                    }
+
+				if (z_weatherAPI == "WeatherUnderground") {
+                    href(name: "hrefNotRequired",
+                     title: "WeatherUnderground page",
+                     required: false,
+                     style: "external",
+                     url: "https://www.wunderground.com/weather/api/d/pricing.html",
+                     description: "tap to view WU website in mobile browser")
                     }
 
 				if (z_weatherAPI == "OpenWeatherMap") {
@@ -355,7 +364,7 @@ def getForecast() {
     def cloudCover
     def returnList = [:]
     
-    TRACE("getForecast for Lon:${location.longitude} Lat:${location.latitude}")
+    TRACE("[getForecast] ${settings.z_weatherAPI} for Lon:${location.longitude} Lat:${location.latitude}")
 
 	if (settings.z_weatherAPI == "Darksky") {
     	def units = "si"
@@ -396,6 +405,41 @@ def getForecast() {
             }
 		}
 
+	if (settings.z_weatherAPI == "WeatherUnderground") {
+        def params = "http://api.wunderground.com/api/${pageSetupAPI}/conditions/q/${location.latitude},${location.longitude}.json"
+        try {
+            httpGet(params) { resp ->
+            	log.info resp.data.current_observation
+                
+                returnList.put('windBearing',calcBearing(resp.data.current_observation.wind_degrees))
+                returnList.put('windSpeed', resp.data.current_observation.wind_kph.toDouble())  //all others do m/s if metric, account for this.
+                def CC = 100
+                switch (resp.data.current_observation.weather) {
+                case ["Sunny", "Clear"]:
+                    CC = 0
+                    break;
+                case "Scattered Clouds":
+                    CC = 20
+                    break;
+                case "Partly Cloudy":
+                    CC = 50
+                    break;
+                case ["Mostly Cloudy", "Overcast"]:
+                    CC = 75
+                    break;
+                default:
+                    CC = 100
+                    break
+                }
+                returnList.put('cloudCover', CC.toDouble())
+            	}
+            } 
+            catch (e) {
+                log.error "WU something went wrong: $e"
+				returnList = [:]
+            }
+		}
+TRACE("[getForecast] ${settings.z_weatherAPI} ${returnList}")
 return returnList
 }
 
@@ -415,13 +459,6 @@ def getSunpath() {
 def checkForSun(evt) {
 
 if (settings.z_Pause) return
-
-def sc = sunCalc()
-
-if (sc.altitude < 0) {
-	TRACE("[checkForSun] Sun below horizon, stop checking for Sun")
-	stopSunpath()
-    }
 
 TRACE("SUN checkForSun")
 state.sunBearing = getSunpath()
@@ -443,27 +480,34 @@ settings.z_blinds.each {
     /*			this is only needed if direction of wind is on the screens
     /*	 
     /*-----------------------------------------------------------------------------------------*/                 
-    TRACE("[checkForSun] ${blindParams.blindsOrientation.contains(state.sunBearing)} ${devStatus} ${eodDone}")
-    if(blindParams.blindsOrientation.contains(state.sunBearing) && devStatus == "Closed" && eodDone == 'false' ) {
+    TRACE("[checkForSun] Right Orientation ${blindParams.blindsOrientation.contains(state.sunBearing)} DOOR ${dev} ${devStatus} EOD ${eodDone} ACTION ${blindParams.closeMaxAction}")
+    pause 2
+    if(blindParams.blindsOrientation.contains(state.sunBearing) && devStatus == "Closed" && eodDone == 'false' ) 
+    {
+    	TRACE("[checkForSun] ${it} STATE ${state.cloudCover.toInteger()} BLINDPARAMS ${blindParams.cloudCover.toInteger()}")
+        pause 2
         if(state.cloudCover.toInteger() <= blindParams.cloudCover.toInteger()) 
         {           
             TRACE("[checkForSun] ${state.windSpeed.toInteger()} < ${blindParams.windForceCloseMax.toInteger()} ${blindParams.blindsOrientation.contains(state.windBearing)} ${blindParams.blindsType}")
-                if(state.windSpeed.toInteger() < blindParams.windForceCloseMax.toInteger() && blindParams.blindsOrientation.contains(state.windBearing) == true && blindParams.blindsType == "Screen") 
-                {
-                    if (blindParams.closeMaxAction == "Down") 	{it.close()}
-                    if (blindParams.closeMaxAction == "Up") 	{it.open()}
-                    if (blindParams.closeMaxAction == "Stop") 	{it.stop()}
-                    }
-                else 
-                {
-                    if (blindParams.closeMaxAction == "Down") 	{it.close()}
-                    if (blindParams.closeMaxAction == "Up") 	{it.open()}
-                    if (blindParams.closeMaxAction == "Stop") 	{it.stop()}
-                    }
-        	}
-    	}
-
-	}
+            pause 2
+                	if (blindParams.blindsType == "Screen")                     
+                		{
+                        if((state.windSpeed.toInteger() < blindParams.windForceCloseMax.toInteger() && blindParams.blindsOrientation.contains(state.windBearing)) || blindParams.blindsOrientation.contains(state.windBearing) == false )
+                   	    	{
+                            if (blindParams.closeMaxAction == "Down") 	{it.close()}
+                    	    if (blindParams.closeMaxAction == "Up") 	{it.open()}
+                        	if (blindParams.closeMaxAction == "Stop") 	{it.stop()}
+                           	}
+                        }
+                	else // shutter
+                		{
+                    	if (blindParams.closeMaxAction == "Down") 	{it.close()}
+                    	if (blindParams.closeMaxAction == "Up") 	{it.open()}
+                    	if (blindParams.closeMaxAction == "Stop") 	{it.stop()}
+                    	}
+        }
+    }
+}
 
 return null
 }
@@ -539,6 +583,8 @@ if (settings.z_Pause) return
 
 TRACE("WIND checkForWind")
 
+state.sunBearing = getSunpath()
+
 def windParms = [:]
 
 if (evt == null) {
@@ -546,7 +592,7 @@ if (evt == null) {
     windParms = getForecast()
     state.windBearing = windParms.windBearing
     state.windSpeed = windParms.windSpeed
-    if (settings.z_windForceMetric == "km/h") {state.windSpeed = windParms.windSpeed * 3.6}
+    if (settings.z_windForceMetric == "km/h" && settings.z_weatherAPI != "WeatherUnderground") {state.windSpeed = windParms.windSpeed * 3.6}
     state.cloudCover = windParms.cloudCover
     }
 
