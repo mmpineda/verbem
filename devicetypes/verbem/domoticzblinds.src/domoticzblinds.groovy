@@ -364,8 +364,35 @@ results.each { name, value ->
     	log.info "sendevent eodDone"
     	sendEvent(name:'eodDone', value:false)
         }
-
-	sendEvent(name:"${name}", value:"${value}")
+	if (name == "cloudCover") {
+    	def cloudIcon = "http://icons.wxug.com/i/c/k/cloudy.gif"
+        if (value != null) {
+    	switch (value.toInteger()) {
+        	case 0..20:
+            	cloudIcon = "http://icons.wxug.com/i/c/k/clear.gif"
+            	break
+            case 21..50:
+            	cloudIcon = "http://icons.wxug.com/i/c/k/partlycloudy.gif"
+            	break
+            case 51..80:
+            	cloudIcon = "http://icons.wxug.com/i/c/k/mostlycloudy.gif"
+            	break
+            default:
+            	break
+        	}
+        }
+    	sendEvent(name:"${name}", value:"${value}", data:[icon:cloudIcon])}
+		
+	else if(name == "windBearing" || name == "sunBearing") {
+    	def directionIcon = "https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/WindDirN.PNG"
+        if (value != null) {
+        	directionIcon = "https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/WindDir${value}.PNG"
+        	}
+       	log.info directionIcon
+    	sendEvent(name:"${name}", value:"${value}", data:[icon:directionIcon])}    	
+    	
+    else {sendEvent(name:"${name}", value:"${value}")}
+	
     }
     return null
 }
