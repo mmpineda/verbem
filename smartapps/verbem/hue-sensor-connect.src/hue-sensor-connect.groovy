@@ -73,10 +73,13 @@ def pageBridges() {
                 z_Bridges.each { dev ->
                     def serialNumber = dev.currentValue("serialNumber")
                     def networkAddress = dev.currentValue("networkAddress")
-
+					
+                    
                     section("Bridge ${dev}, Serial:${serialNumber}, IP:${networkAddress}, username for API is in device in IDE", hideable:true) {
+                    	href(name: "${dev.id}", title: "IDE Bridge device",required: false, style: "external", url: "${getApiServerUrl()}/device/show/${dev.id}", description: "tap to view device in IDE")
                         input "z_BridgesUsernameAPI_${serialNumber}", "text", required:true, title:"Username for API", submitOnChange:true
                     }
+                    
                 }	
                 if (state.devices) {
                     section("Associate a motion sensor with a Hue Sensor for boosted polling during motion, sensor will be checked 10 times with inbetween pause ") {
@@ -164,10 +167,17 @@ def pollBurst(evt) {
                 	def hostIP = dev.currentValue("networkAddress")
                     log.info "Turbo for ${value} defined in ${key}, mac ${mac}, hostIP ${hostIP}, username ${usernameAPI}"
 					def i = 0
+                    //first set of polls
                     for (i = 0; i <10; i++) {
                         pollSensor(hostIP, usernameAPI, sensor)    	
                         pause settings.z_pollTime.toInteger()
                     }
+                    //afterburner
+                    /*for (i = 0; i <5; i++) {
+                        pollSensor(hostIP, usernameAPI, sensor)    	
+                        pause 1000
+                    }*/
+
                 }
             }
         }
