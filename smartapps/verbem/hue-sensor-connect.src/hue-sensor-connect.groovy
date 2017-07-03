@@ -14,7 +14,7 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
- *	1.00 Initial Release
+ *	1.00 Initial Release, thanks to Anthony S for version control
  *
  */
 
@@ -29,10 +29,13 @@ definition(
 		iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Partner/hue@2x.png",
 		singleInstance: true
 )
+private def runningVersion() 	{ "1.00"}
+
 preferences {
 	page(name:pageMain)
     page(name:pageBridges, title:"", refreshInterval:20)
 }
+
 
 def pageMain() {
 	state.refreshCount = 0
@@ -71,7 +74,7 @@ def pageBridges() {
                     def serialNumber = dev.currentValue("serialNumber")
                     def networkAddress = dev.currentValue("networkAddress")
 
-                    section("Bridge ${dev}, Serial:${serialNumber}, IP:${networkAddress}", hideable:true) {
+                    section("Bridge ${dev}, Serial:${serialNumber}, IP:${networkAddress}, username for API is in device in IDE", hideable:true) {
                         input "z_BridgesUsernameAPI_${serialNumber}", "text", required:true, title:"Username for API", submitOnChange:true
                     }
                 }	
@@ -112,10 +115,20 @@ def uninstalled() {
 def initialize() {
 	log.debug "Initializing"
 	setupDeviceWatch()
-	if (settings.z_Bridges) {
+    
+    schedule("2015-01-09T12:00:00.000-0600", notifyNewVersion)
+	
+    if (settings.z_Bridges) {
     	subscribeToMotionEvents()
         runEvery1Minute("poll1Minute")
 	}
+}
+
+def notifyNewVersion() {
+
+	if (appVerInfo().split()[1] != runningVersion()) {
+    	sendNotificationEvent("Hue Sensor App has a newer version, please visit IDE to update app/devices")
+    }
 }
 
 def poll1Minute() {
@@ -132,9 +145,8 @@ def poll1Minute() {
 		}
 }
 
-
 def pollBurst(evt) {
-	// Looking for last fired Hue Sensor event every  defined ms!! for 20 times
+	// Looking for the last changed Hue Sensor button every defined ms!! for 10 times
     // only happens if you defined a normal motion sensor associated with a Hue sensor and motion has been detected.
 
 
@@ -395,3 +407,27 @@ private def parseEventMessage(String description) {
 
     event
 }
+
+def getWebData(params, desc, text=true) {
+	try {
+		httpGet(params) { resp ->
+			if(resp.data) {
+				if(text) {
+					return resp?.data?.text.toString()
+				} else { return resp?.data }
+			}
+		}
+	}
+	catch (ex) {
+		if(ex instanceof groovyx.net.http.HttpResponseException) {
+			log.error "${desc} file not found"
+		} else {
+			log.error "getWebData(params: $params, desc: $desc, text: $text) Exception:", ex
+		}
+		//sendExceptionData(ex, "getWebData")
+		return "${label} info not found"
+	}
+}
+
+
+private def appVerInfo()		{ return getWebData([uri: "https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/HueSensorData", contentType: "text/plain; charset=UTF-8"], "changelog") }
