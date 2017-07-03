@@ -68,7 +68,7 @@ def pageSetupForecastIO() {
     def pageSetupAPI = [
         name:       "pageSetupAPI",
         type:       "string",
-        title:      "API key(darksky) or APPID(OWM)",
+        title:      "API key(darksky), key(WU) or APPID(OWM)",
         multiple:   false,
         required:   true
     	]
@@ -76,7 +76,7 @@ def pageSetupForecastIO() {
 	def inputWeather = [
         name:       "z_weatherAPI",
         type:       "enum",
-        options:	["Darksky", "OpenWeatherMap", "WeatherUnderground"],
+        options:	["Darksky", "OpenWeatherMap", "WeatherUnderground", "WeatherUnderground-NoPWS"],
         title:      "Select Weather API",
         multiple:   false,
         submitOnChange: true,
@@ -151,7 +151,7 @@ def pageSetupForecastIO() {
                      description: "tap to view Darksky website in mobile browser")
                     }
 
-				if (z_weatherAPI == "WeatherUnderground") {
+				if (z_weatherAPI == "WeatherUnderground" || z_weatherAPI == "WeatherUnderground-NoPWS") {
                     href(name: "hrefNotRequired",
                      title: "WeatherUnderground page",
                      required: false,
@@ -230,14 +230,14 @@ def pageProperties = [
                 if (settings."z_blindType_${devId}" == "Screen") {
                     input	"z_windForceCloseMax_${devId}","number",title:"Allow Operation below under which windforce ${z_windForceMetric}",multiple:false,required:false,default:0                 
 
-                    if (blind) 	{input	"z_closeMaxAction_${devId}","enum",title:"", options: ["Down","Up","Stop"], default:"Stop" }
-                    else 		{input	"z_closeMaxAction_${devId}","enum",title:"", options: ["Down","Up"], default:"Up" }
+                    if (blind) 	{input	"z_closeMaxAction_${devId}","enum",title:"", options: ["Down","Up","Stop","Dynamic"], default:"Stop" }
+                    else 		{input	"z_closeMaxAction_${devId}","enum",title:"", options: ["Down","Up","Dynamic"], default:"Up" }
 					}
 
 					if (settings."z_blindType_${devId}" == "Shutter") {
 
-                    if (blind) 	{input	"z_closeMaxAction_${devId}","enum",title:"Action for Sun protection", options: ["Down","Up","Stop"], default:"Stop" }
-                    else 		{input	"z_closeMaxAction_${devId}","enum",title:"Action for Sun protection", options: ["Down","Up"], default:"Up" }
+                    if (blind) 	{input	"z_closeMaxAction_${devId}","enum",title:"Action for Sun protection", options: ["Down","Up","Stop","Dynamic"], default:"Stop" }
+                    else 		{input	"z_closeMaxAction_${devId}","enum",title:"Action for Sun protection", options: ["Down","Up","Dynamic"], default:"Up" }
 					}
 
                 input 	"z_cloudCover_${devId}","enum",title:"Protect until what cloudcover% (0=clear sky)", options:	["10","20","30","40","50","60","70","80","90","100"],multiple:false,required:false,default:30                
@@ -369,14 +369,14 @@ def getForecast() {
 	if (settings.z_weatherAPI == "Darksky") {
     	def units = "si"
 	    if (settings.z_windForceMetric == "mph") {units = "us"}
-		def params = [
+		def httpGetParams = [
             uri: "https://api.darksky.net",
-            path: "/forecast/${pageSetupAPI}/${location.latitude},${location.longitude}",
+            path: "/forecast/${settings.pageSetupAPI}/${location.latitude},${location.longitude}",
             contentType: "application/json", 
             query: ["units" : units, "exclude" : "minutely,hourly,daily,flags"]
         ]
         try {
-            httpGet(params) { response ->
+            httpGet(httpGetParams) { response ->
                 returnList.put('windBearing' ,calcBearing(response.data.currently.windBearing))
                 returnList.put('windSpeed', Math.round(response.data.currently.windSpeed.toDouble()))
                 returnList.put('cloudCover', response.data.currently.cloudCover.toDouble() * 100)
@@ -391,9 +391,9 @@ def getForecast() {
 	if (settings.z_weatherAPI == "OpenWeatherMap") {
     	def units = "metric"
 	    if (settings.z_windForceMetric == "mph") {units = "imperial"}
-        def params = "http://api.openweathermap.org/data/2.5/weather?lat=${location.latitude}&lon=${location.longitude}&APPID=${pageSetupAPI}&units=${units}"
+        def httpGetParams = "http://api.openweathermap.org/data/2.5/weather?lat=${location.latitude}&lon=${location.longitude}&APPID=${settings.pageSetupAPI}&units=${units}"
         try {
-            httpGet(params) { resp ->
+            httpGet(httpGetParams) { resp ->
                 returnList.put('windBearing',calcBearing(resp.data.wind.deg))
                 returnList.put('windSpeed', Math.round(resp.data.wind.speed.toDouble()))
                 returnList.put('cloudCover', resp.data.clouds.all.toDouble())
@@ -405,39 +405,49 @@ def getForecast() {
             }
 		}
 
-	if (settings.z_weatherAPI == "WeatherUnderground") {
-        def params = "http://api.wunderground.com/api/${pageSetupAPI}/conditions/q/${location.latitude},${location.longitude}.json"
-        try {
-            httpGet(params) { resp ->
-            	log.info resp.data.current_observation
-                
+	if (settings.z_weatherAPI.contains("WeatherUnderground")) {
+		def httpGetParams = "http://api.wunderground.com/api/${settings.pageSetupAPI}/conditions/pws:0/q/${location.latitude},${location.longitude}.json"
+
+		if (settings.z_weatherAPI.contains("NoPWS") == false) {
+            httpGetParams = "http://api.wunderground.com/api/${settings.pageSetupAPI}/conditions/pws:1/q/${location.latitude},${location.longitude}.json"
+        	TRACE("[getForecast] Use PWS is true ${httpGetParams}")
+            }
+        else {
+        	TRACE("[getForecast] Use PWS is false ${httpGetParams}")
+            }
+            
+		try {
+            httpGet(httpGetParams) { resp ->
+            	//log.info resp.data.current_observation
+                log.info resp.data
                 returnList.put('windBearing',calcBearing(resp.data.current_observation.wind_degrees))
                 returnList.put('windSpeed', resp.data.current_observation.wind_kph.toDouble())  //all others do m/s if metric, account for this.
                 def CC = 100
                 switch (resp.data.current_observation.weather) {
-                case ["Sunny", "Clear"]:
+                case ["Clear"]:
                     CC = 0
                     break;
                 case "Scattered Clouds":
-                    CC = 20
+                    CC = 30
                     break;
                 case "Partly Cloudy":
                     CC = 50
                     break;
                 case ["Mostly Cloudy", "Overcast"]:
-                    CC = 75
+                    CC = 80
                     break;
                 default:
                     CC = 100
                     break
-                }
+                	}
                 returnList.put('cloudCover', CC.toDouble())
             	}
-            } 
+          	} 
             catch (e) {
                 log.error "WU something went wrong: $e"
+                log.error "WU ${httpGetParams}"
 				returnList = [:]
-            }
+            } 
 		}
 TRACE("[getForecast] ${settings.z_weatherAPI} ${returnList}")
 return returnList
@@ -537,14 +547,12 @@ settings.z_blinds.each {
     {
         if(state.cloudCover.toInteger() > blindParams.cloudCover.toInteger() && blindParams.blindsType == "Screen") 
         {
-            sendNotificationEvent("CLOUDY, cloudcover ${state.cloudCover.toInteger()}% > ${blindParams.cloudCover} for Screen ${it.name}")
 			if (blindParams.closeMaxAction == "Down") it.open()
             if (blindParams.closeMaxAction == "Up") it.close()
             if (blindParams.closeMaxAction == "Stop") it.open()
         }
         if(state.cloudCover.toInteger() > blindParams.cloudCover.toInteger() && blindParams.blindsType == "Shutter") 
         {
-            sendNotificationEvent("CLOUDY, cloudcover ${state.cloudCover.toInteger()}% > ${blindParams.cloudCover} for Shutter ${it.name}")
 			if (blindParams.closeMaxAction == "Down") it.open()
             if (blindParams.closeMaxAction == "Up") it.close()
             if (blindParams.closeMaxAction == "Stop") it.stop()
@@ -579,10 +587,6 @@ if (evt.isStateChange()) {
 /*-----------------------------------------------------------------------------------------*/
 def checkForWind(evt) {
 
-if (settings.z_Pause) return
-
-TRACE("WIND checkForWind")
-
 state.sunBearing = getSunpath()
 
 def windParms = [:]
@@ -592,13 +596,19 @@ if (evt == null) {
     windParms = getForecast()
     state.windBearing = windParms.windBearing
     state.windSpeed = windParms.windSpeed
-    if (settings.z_windForceMetric == "km/h" && settings.z_weatherAPI != "WeatherUnderground") {state.windSpeed = windParms.windSpeed * 3.6}
+    if (settings.z_windForceMetric == "km/h" && settings.z_weatherAPI.contains("WeatherUnderground") == false) {state.windSpeed = windParms.windSpeed * 3.6}
     state.cloudCover = windParms.cloudCover
     }
 
-
 settings.z_blinds.each {
     it.generateEvent(["windBearing": state.windBearing, "windSpeed": state.windSpeed, "cloudCover": state.cloudCover, "sunBearing": state.sunBearing])
+}
+
+if (settings.z_Pause) return
+
+TRACE("WIND checkForWind")
+
+settings.z_blinds.each {
 
     def blindParams = fillBlindParams(it.id)
     def dev = blindParams.blindsOpenSensor
@@ -631,7 +641,7 @@ return null
 def eventRefresh(evt) {
 	if (state.night == true) return
     
-    TRACE("[eventRefresh]" + evt.device)
+    TRACE("[eventRefresh] ${evt.device} Source ${evt.source}")
     checkForClouds()
     checkForSun()
     checkForWind()
