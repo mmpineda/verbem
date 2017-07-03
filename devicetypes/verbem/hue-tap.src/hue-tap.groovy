@@ -24,7 +24,7 @@ metadata {
 
 	tiles {
 		standardTile("button", "device.button", width: 2, height: 2) {
-			state "default", label: "", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/Hue Tap.src/Hue Tap Button 1.png", backgroundColor: "#ffffff"
+			state "default", label: "", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/hue-tap.src/Hue Tap Button 1.PNG", backgroundColor: "#ffffff"
 		}
 		main "button"
 		details(["button"])
@@ -37,7 +37,8 @@ def parse(String description) {
 
 def buttonEvent(button) {
 	button = button as Integer
-    sendEvent(name: "button", value: "pushed", data: [buttonNumber: button], descriptionText: "$device.displayName button $button was pushed", isStateChange: true)
+    def iconPath = "https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/hue-tap.src/Hue Tap Button ${button.toString()}.PNG"
+    sendEvent(name: "button", value: "pushed", data: [buttonNumber: button, icon:iconPath], descriptionText: "$device.displayName button $button was pushed", isStateChange: true)
 
 }
 
