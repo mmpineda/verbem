@@ -1,10 +1,10 @@
 /**
- *  Domoticz OnOff SubType Switch.
+ *  Hue Dimmer Switch.
  *
  *  SmartDevice type for domoticz switches and dimmers.
  *  
  *
- *  Copyright (c) 2016 Martin Verbeek
+ *  Copyright (c) 2017 Martin Verbeek
  *
  *  This program is free software: you can redistribute it and/or modify it
  *  under the terms of the GNU General Public License as published by the Free
@@ -22,10 +22,7 @@
  *
  *  Revision History
  *  ----------------
- *  2017-04-28 3.13 Color setting for White types
- *  2017-04-14 3.12 Multistate support for DZ selector
- *  2017-01-25 3.09 Put in check for switch name in generateevent
- *	2017-01-18 3.08 get always an lowercase value for switch on/off in generateevent
+ *  2017-07-10 1.00 Initial Release
  */
 
 metadata {
@@ -37,6 +34,7 @@ metadata {
         capability "Refresh"
         capability "Polling"
         capability "Battery"
+		capability "Button"
         
       
         // custom commands
@@ -44,22 +42,19 @@ metadata {
        	command "setLevel"
        	command "buttonEvent", ["number"]
         command "batteryEvent", ["number"]
-        command "boost"
     }
 
     tiles(scale:2) {
-    	multiAttributeTile(name:"richDomoticzOnOff", type:"lighting",  width:6, height:4, canChangeIcon: true, canChangeBackground: true) {
+    	multiAttributeTile(name:"hueDimmerSwitch", type:"lighting",  width:6, height:4, canChangeIcon: true, canChangeBackground: true) {
         	tileAttribute("device.switch", key: "PRIMARY_CONTROL") {
-                attributeState "off", label:'Off', icon:"st.lights.philips.hue-single", backgroundColor:"#ffffff", action:"on", nextState:"Turning On"
-                attributeState "Off", label:'Off', icon:"st.lights.philips.hue-single", backgroundColor:"#ffffff", action:"on", nextState:"Turning On"
-                attributeState "OFF", label:'Off',icon:"st.lights.philips.hue-single", backgroundColor:"#ffffff", action:"on", nextState:"Turning On"
-                attributeState "Turning Off", label:'Turning Off', icon:"st.lights.philips.hue-single", backgroundColor:"#ffffff", nextState:"Turning On"
+                attributeState "off", label:'Off', icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/hue-switch.src/Hue Dimmer Switch.jpg", backgroundColor:"#ffffff"
+                attributeState "Off", label:'Off', icon:"st.lights.philips.hue-single", backgroundColor:"#ffffff"
+                attributeState "OFF", label:'Off',icon:"st.lights.philips.hue-single", backgroundColor:"#ffffff"
                 
-                attributeState "on", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#00a0dc", action:"off", nextState:"Turning Off"
-                attributeState "On", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#00a0dc", action:"off", nextState:"Turning Off"
-                attributeState "ON", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#00a0dc", action:"off", nextState:"Turning Off"
-                attributeState "Set Level", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#00a0dc", action:"off", nextState:"Turning Off"
-                attributeState "Turning On", label:'Turning On', icon:"st.lights.philips.hue-single", backgroundColor:"#00a0dc", nextState:"Turning Off"
+                attributeState "on", label:'On', icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/hue-switch.src/Hue Dimmer Switch.jpg", backgroundColor:"#00a0dc"
+                attributeState "On", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#00a0dc"
+                attributeState "ON", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#00a0dc"
+                //attributeState "Set Level", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#00a0dc"
                 
             }
             tileAttribute("device.level", key: "SLIDER_CONTROL", range:"0..16") {
@@ -71,37 +66,20 @@ metadata {
 			state "battery", label:'${currentValue}% battery', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzsensor.src/battery.png"
 		}
         
-        standardTile("debug", "device.motion", inactiveLabel: false, decoration: "flat", width:2, height:2) {
+        standardTile("refresh", "device.motion", inactiveLabel: false, decoration: "flat", width:2, height:2) {
             state "default", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
         }
 
-        main(["richDomoticzOnOff"])
+        main(["hueDimmerSwitch"])
         
-        details(["richDomoticzOnOff", "battery", "debug"])
+        details(["hueDimmerSwitch", "battery", "refresh"])
     }
 }
 
 def parse(String message) {
     TRACE("parse(${message})")
 
-    Map msg = stringToMap(message)
-    if (msg?.size() == 0) {
-        log.error "Invalid message: ${message}"
-        return null
-    }
-
-    if (msg.containsKey("switch")) {
-        def value = msg.switch.toInteger()
-        switch (value) {
-        case 0: off(); break
-        case 1: on(); break
-        }
-    }
-
-    STATE()
     return null
-}
-def boost() {	
 }
 
 def batteryEvent(level) {
@@ -109,30 +87,36 @@ def batteryEvent(level) {
 }
 
 def buttonEvent(button) {
-	button = button as Integer
-    switch (button) {
-        case "1002":
-            sendEvent(name: "switch", value: "on", data: [buttonNumber: button], descriptionText: "$device.displayName On button $button was pushed", isStateChange: true)
-            break
-        case "2002":
-            sendEvent(name: "switch", value: "on", data: [buttonNumber: button], descriptionText: "$device.displayName On button $button was pushed", isStateChange: true)
-            break
-        case "3002":
-            sendEvent(name: "switch", value: "on", data: [buttonNumber: button], descriptionText: "$device.displayName On button $button was pushed", isStateChange: true)
-            break
-        case "4002":
-            sendEvent(name: "switch", value: "off", data: [buttonNumber: button], descriptionText: "$device.displayName Off button $button was pushed", isStateChange: true)
-           break
-        case "17":
-            button = 3
-            break
-        case "18":
-            button = 4
-            break
-	}
-    
-    sendEvent(name: "button", value: "pushed", data: [buttonNumber: button, icon:iconPath], descriptionText: "$device.displayName button $button was pushed", isStateChange: true)
+	int xButton = (button / 1000)
 
+    switch (xButton) {
+        case 1:
+            sendEvent(name: "switch", value: "on", descriptionText: "$device.displayName On button $xButton was pushed", isStateChange: true)
+            break
+        case 2:
+        	def xLevel = 10
+            if (device.currentValue("level")) {
+                xLevel = device.currentValue("level")
+                if (xLevel < 91) xLevel = xLevel+10
+            }
+            sendEvent(name: "level", value: xLevel, isStateChange: true)
+            break
+        case 3:
+        	def xLevel = 100
+            if (device.currentValue("level")) {
+                xLevel = device.currentValue("level") 
+                if (xLevel > 9) xLevel = xLevel-10
+            }
+            sendEvent(name: "level", value: xLevel, isStateChange: true)
+            break
+        case 4:
+            sendEvent(name: "switch", value: "off", descriptionText: "$device.displayName Off button $xButton was pushed", isStateChange: true)
+           break
+	}
+
+	if (button in [1003, 2003, 3003, 4003]) sendEvent(name: "button", value: "held", data: [buttonNumber: xButton, icon:iconPath], descriptionText: "$device.displayName button $xButton was pushed Long", isStateChange: true)
+    else sendEvent(name: "button", value: "pushed", data: [buttonNumber: xButton], descriptionText: "$device.displayName button $xButton was pushed", isStateChange: true)
+    
 }
 // switch.poll() command handler
 def poll() {
@@ -152,6 +136,7 @@ def off() {
 
 // Custom setlevel() command handler
 def setLevel(level) {
+	sendEvent(name: "level", value: level, isStateChange: true)
 }
 
 private def TRACE(message) {
@@ -161,4 +146,19 @@ private def TRACE(message) {
 private def STATE() {
     log.debug "switch is ${device.currentValue("switch")}"
     log.debug "deviceNetworkId: ${device.deviceNetworkId}"
+}
+
+def installed() {
+	initialize()
+}
+
+def updated() {
+	initialize()
+}
+
+def initialize() {
+	// Arrival sensors only goes OFFLINE when Hub is off
+	sendEvent(name: "DeviceWatch-Enroll", value: JsonOutput.toJson([protocol: "zigbee", scheme:"untracked"]), displayed: false)
+    sendEvent(name: "level", value: 100)
+	sendEvent(name: "numberOfButtons", value: 4)  
 }

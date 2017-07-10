@@ -11,32 +11,37 @@ import groovy.json.JsonOutput
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
+ *  Revision History
+ *  ----------------
+ *  2017-07-10 1.00 Initial Release
  */
 metadata {
 	definition (name: "Hue Tap", namespace: "verbem", author: "Martin Verbeek") {
 		capability "Actuator"
 		capability "Button"
 		capability "Sensor"
+        capability "Refresh"
 		capability "Health Check"
 
 		command "buttonEvent", ["number"]
-        command "boost"
 	}
 
 	tiles {
-		standardTile("pushButton1", "device.button", decoration: "flat", width: 2, height: 2) {
+		standardTile("hueTap", "device.button", decoration: "flat", width: 2, height: 2) {
 			state "default", label: "", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/hue-tap.src/Hue Tap Button 1.PNG", backgroundColor: "#ffffff"
 		}
-		main "pushButton1"
-		details(["pushButton1"])
+        
+        standardTile("refresh", "device.motion", inactiveLabel: false, decoration: "flat", width:2, height:2) {
+            state "default", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
+        }
+
+		main "hueTap"
+		details(["hueTap", "refresh"])
 	}
 }
 
 def parse(String description) {
 
-}
-
-def boost() {	
 }
 
 def buttonEvent(button) {
@@ -57,8 +62,13 @@ def buttonEvent(button) {
 	}
     
     def iconPath = "https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/hue-tap.src/Hue Tap Button ${button.toString()}.PNG"
+    
     sendEvent(name: "button", value: "pushed", data: [buttonNumber: button, icon:iconPath], descriptionText: "$device.displayName button $button was pushed", isStateChange: true)
 
+}
+
+def refresh() {
+	
 }
 
 def installed() {

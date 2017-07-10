@@ -1,7 +1,7 @@
 /**
- *  domoticzMotion
+ *  Hue Motion
  *
- *  Copyright 2016 Martin Verbeek
+ *  Copyright 2017 Martin Verbeek
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -12,6 +12,9 @@
  *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
  *  for the specific language governing permissions and limitations under the License.
  *
+ *  Revision History
+ *  ----------------
+ *  2017-07-10 1.00 Initial Release
  */
 metadata {
 	definition (name: "Hue Motion", namespace: "verbem", author: "Martin Verbeek") {
@@ -19,6 +22,7 @@ metadata {
 		capability "Sensor"
 		capability "Battery"
 		capability "Actuator"
+        capability "Refresh"
         capability "Illuminance Measurement"
         capability "Temperature Measurement"
         
@@ -29,7 +33,7 @@ metadata {
         }
 
 	tiles(scale: 2) {
-		multiAttributeTile(name:"motion", type: "generic", width: 6, height: 4){
+		multiAttributeTile(name:"hueMotion", type: "generic", width: 6, height: 4){
 			tileAttribute ("device.motion", key: "PRIMARY_CONTROL") {
 				attributeState "active", label:'motion', icon:"st.motion.motion.active", backgroundColor:"#00a0dc"
 				attributeState "on", label:'motion', icon:"st.motion.motion.active", backgroundColor:"#00a0dc"
@@ -51,11 +55,15 @@ metadata {
 		}
         
 		standardTile("temperature", "device.temperature", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
-			state "temperature", label:'${currentValue}', unit:"C"
+			state "temperature", label:'${currentValue} C', unit:"C"
 		}
-        
-		main "motion"
-		details(["motion", "illiminance", "temperature", "battery"])
+
+        standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat", width:2, height:2) {
+            state "default", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
+        }
+
+		main "hueMotion"
+		details(["hueMotion", "illiminance", "temperature", "battery", "refresh"])
 	}
 }
 
@@ -82,6 +90,24 @@ def lightEvent(lux) {
 	sendEvent(name: "illuminance", value: lux)
 }
 
-def tempEvent(lux) {
-	sendEvent(name: "temperature", value: lux)
+def tempEvent(temp) {
+	sendEvent(name: "temperature", value: temp)
+}
+
+def refresh() {
+
+}
+
+def installed() {
+	initialize()
+}
+
+def updated() {
+	initialize()
+}
+
+def initialize() {
+	// Arrival sensors only goes OFFLINE when Hub is off
+	sendEvent(name: "DeviceWatch-Enroll", value: JsonOutput.toJson([protocol: "zigbee", scheme:"untracked"]), displayed: false)
+
 }
