@@ -82,8 +82,7 @@ def pageBridges() {
                     
                 }	
                 if (state.devices) {
-                    section("Associate a motion sensor with a Hue Sensor for boosted polling during motion, sensor will be checked 10 times with inbetween pause ") {
-                    input "z_pollTime", "enum", required:true, title:"Pause between poll in msec > 300ms", default:300, options:[300, 400, 500, 600, 700, 800, 900, 1000]
+                    section("Associate a ST motion sensor with a Hue Sensor for monitoring during motion, sensor will be checked during motion") {
                     state.devices.each { item, sdev ->
                         input "z_motionSensor_${sdev.dni}", "capability.motionSensor", required:false, title:"Associated motion sensor ${sdev.name} "
                         }	
@@ -148,36 +147,31 @@ def poll1Minute() {
 		}
 }
 
-def pollBurst(evt) {
-	// Looking for the last changed Hue Sensor button every defined ms!! for 10 times
-    // only happens if you defined a normal motion sensor associated with a Hue sensor and motion has been detected.
-
+def monitorSensor(evt) {
+	// Looking for the last changed Hue Sensor button every 1s for 10 times
+    // happens if you defined a normal motion sensor associated with a Hue sensor and motion has been detected.
 
 	settings.each { key, value ->
     	if (value.toString() == evt.displayName.toString()) {
-            def splits = key.split('/')
-            def sensor = splits[2].toString()
-            splits = splits[0].split('_')
-            def mac = splits[2].toString()
+
+			// z_motionSensor_0AF130/sensor/2
+            def sensor = key.split('/')[2].toString()
+            def mac = key.split('_')[2].split("/")[0].toString()
             def usernameAPI = settings."z_BridgesUsernameAPI_${mac}"
+			def dni = key.split('_')[2]
 
 			settings.z_Bridges.each { dev ->
 				def mac2 = dev.currentValue("serialNumber").toString()           	
                 if (mac == mac2) {
-                	def hostIP = dev.currentValue("networkAddress")
-                    log.info "Turbo for ${value} defined in ${key}, mac ${mac}, hostIP ${hostIP}, username ${usernameAPI}"
-					def i = 0
-                    //first set of polls
-                    for (i = 0; i <10; i++) {
-                        pollSensor(hostIP, usernameAPI, sensor)    	
-                        pause settings.z_pollTime.toInteger()
-                    }
-                    //afterburner
-                    /*for (i = 0; i <5; i++) {
-                        pollSensor(hostIP, usernameAPI, sensor)    	
-                        pause 1000
-                    }*/
+            		def devSensor = getChildDevice(dni)
+                	if (devSensor) {
+                        def hostIP = dev.currentValue("networkAddress")
+                        def i = 0
 
+						for (i = 1; i <11; i++) {
+                        	runIn(i, pollSensor, [data: [hostIP: hostIP, usernameAPI: usernameAPI, sensor: sensor], overwrite: false])
+                        }
+                	}
                 }
             }
         }
@@ -190,7 +184,7 @@ def subscribeToMotionEvents() {
     	if (settings."z_motionSensor_${dni}") {
         	def motionSensor = settings."z_motionSensor_${dni}"
         	log.info "subscribe to motion for ${motionSensor} defined for ${sensor.name}"
-            subscribe(motionSensor, "motion.active", pollBurst)
+            subscribe(motionSensor, "motion.active", monitorSensor)
         }
     }
 }
@@ -212,7 +206,6 @@ private updateSensorState(messageBody, mac) {
         }
     }
     
-
 	// Copy of sensors used to locate old sensors in state that are no longer on bridge
 	def toRemove = [:]
 	toRemove << sensors
@@ -241,70 +234,142 @@ def parse(childDevice, description) {
 	log.warn "[Parse] entered ${childDevice} ${description}"
 }
 
-def handleSensorCall(physicalgraph.device.HubResponse hubResponse) {
+def handlePoll(physicalgraph.device.HubResponse hubResponse) {
 
     def parsedEvent = parseEventMessage(hubResponse.description)
     def mac = parsedEvent.mac.substring(6)
-    if (parsedEvent.body.contains("error")) log.error "Error in ${mac} unauth user?"
-    def body = hubResponse.json
+  
+    if (hubResponse.json.error) {
+    	log.error "Error in ${mac} ${hubResponse.json.error}"	
+        return
+    }
+
+	def body = hubResponse.json
 
     body.each { item, sensor ->
-        if (sensor.type == "ZGPSwitch") {
+
+    	if (sensor.type == "ZLLLightLevel") {
+        	if (sensor.state.lightlevel) {
+            
+            	// hue to lux => x = 10 ^ ((y - 1) / 10000)
+                
+                def float luxf = (10 ** ((sensor.state.lightlevel - 1) / 10000)).round(0)
+                def lux = luxf.toInteger()
+                def dni  = findStateDeviceWithUniqueId(getMac(sensor.uniqueid))
+                if (state.devices[dni]) {
+                    def sensorDev = getChildDevice(dni)
+                    state.devices[dni].lightLevel = lux
+
+                    if (!state.devices[dni].lightLevelLastupdated) {
+                        state.devices[dni].lightLevelLastupdated = sensor.state.lastupdated
+                        if (sensorDev) sensorDev.lightEvent(lux)
+                    }
+                    else if (state.devices[dni].lightLevelLastupdated != sensor.state.lastupdated) {
+                        state.devices[dni].lightLevelLastupdated = sensor.state.lastupdated
+                        if (sensorDev) sensorDev.lightEvent(lux)
+                    }
+				}
+            }
+		}
+    	if (sensor.type == "ZLLTemperature") {
+        	if (sensor.state.temperature) {
+                def temp = (sensor.state.temperature / 100).toInteger()
+                def dni  = findStateDeviceWithUniqueId(getMac(sensor.uniqueid))
+                if (state.devices[dni]) {
+                    def sensorDev = getChildDevice(dni)
+                    state.devices[dni].temperature = temp
+
+                    if (!state.devices[dni].temperatureLastupdated) {
+                        state.devices[dni].temperatureLastupdated = sensor.state.lastupdated
+                        if (sensorDev) sensorDev.tempEvent(temp)
+                    }
+                    else if (state.devices[dni].temperatureLastupdated != sensor.state.lastupdated) {
+                        state.devices[dni].temperatureLastupdated = sensor.state.lastupdated
+                        if (sensorDev) sensorDev.tempEvent(temp)
+                    }
+            	}
+			}
+		}
+
+    	if (sensor.type == "ZGPSwitch" || sensor.type == "ZLLPresence" || sensor.type == "ZLLSwitch" ) {
             def dni = mac + "/sensor/" + item
             def sensorDev = getChildDevice(dni)
             if (!sensorDev) {
-            	log.info "Add Sensor ${dni}"
-            	sensorDev = addChildDevice("verbem", "Hue Tap", dni, null, [name:sensor.name, label:sensor.name, completedSetup:true])
+            	def devType
+                switch (sensor.type) {
+                	case "ZGPSwitch":
+                    	devType = "Hue Tap"
+                        break
+                	case "ZLLPresence":
+                    	devType = "Hue Motion"
+                        break
+                	case "ZLLSwitch":
+                    	devType = "Hue Switch"
+                        break  
+                }
+            	log.info "Add Sensor ${dni} ${sensor.type} ${devType} ${sensor.name} ${getMac(sensor.uniqueid)}"
+            	
+                sensorDev = addChildDevice("verbem", devType, dni, null, [name:sensor.name, label:sensor.name, completedSetup:true])
                 state.devices[dni] = [
                 	'lastUpdated'	: sensor.state.lastupdated, 
                     'mac'			: mac, 
                     'item'			: item, 
                     'dni'			: dni,
                     'name'			: sensor.name,
-                    'uniqueId'		: sensor.uniqueid,
-                    'type'			: sensor.type
+                    'uniqueId'		: getMac(sensor.uniqueid),
+                    'type'			: sensor.type,
+                    'monitorTap'	: false,	
+                    'id'			: sensorDev.id
                     ]
-                }
-            else {
+            }
+                
+            else 
+            {
             	if (state.devices[dni].name != sensor.name) {
                 	state.devices[dni].name = sensor.name
                     sensorDev.name = sensor.name
                     sensorDev.label = sensor.name
                 }
-                
-                if (state.devices[dni].lastUpdated != sensor.state.lastupdated) {
+
+				if (state.devices[dni].lastUpdated != sensor.state.lastupdated) {
                 	state.devices[dni].lastUpdated = sensor.state.lastupdated
-            		log.info "Buttonpress Sensor ${dni} ${sensor.state.buttonevent}"
-                    switch (sensor.state.buttonevent) {
-                        case "34":
-                            sensorDev.buttonEvent(1)
+                    switch (state.devices[dni].type) {
+                        case "ZGPSwitch":
+                            log.info "Buttonpress Tap ${dni} ${sensor.state.buttonevent}"
+                            sensorDev.buttonEvent(sensor.state.buttonevent)                          
                             break
-                        case "16":
-                            sensorDev.buttonEvent(2)
-                            break
-                        case "17":
-                            sensorDev.buttonEvent(3)
-                            break
-                        case "18":
-                            sensorDev.buttonEvent(4)
-                            break
-                        }
-                    }
-            	}
+                        case "ZLLPresence":
+                            log.info "Motion Sensor ${dni} ${sensor.state.presence}"
+                            sensorDev.motionEvent(sensor.state.presence)
+                            sensorDev.batteryEvent(sensor.config.battery)
+                        	break
+                        case "ZLLSwitch":
+                            log.info "Dimmer Switch ${dni} ${sensor.state.buttonevent}"
+                            sensorDev.buttonEvent(sensor.state.buttonevent)
+                            sensorDev.batteryEvent(sensor.config.battery)
+                            break                    
+	                }
+                }
             }
         }
+    }
         
     updateSensorState(body, mac)
 }
 
-def handleSensorBurst(physicalgraph.device.HubResponse hubResponse) {
+def handlePollSensor(physicalgraph.device.HubResponse hubResponse) {
 
     def parsedEvent = parseEventMessage(hubResponse.description)
     def mac = parsedEvent.mac.substring(6)
     def body = hubResponse.json
 
+    if (hubResponse.json.error) {
+    	log.error "Error in ${mac} ${hubResponse.json.error}"	
+        return
+    }
+
 	state.devices.each { key, sensor ->
-        if (sensor.uniqueId == body.uniqueid) {
+        if (sensor.uniqueId == getMac(body.uniqueid)) {
             def dni = sensor.dni
             def sensorDev = getChildDevice(dni)
             if (!sensorDev) {
@@ -313,35 +378,60 @@ def handleSensorBurst(physicalgraph.device.HubResponse hubResponse) {
             else {
                 if (state.devices[dni].lastUpdated != body.state.lastupdated) {
                 	state.devices[dni].lastUpdated = body.state.lastupdated
-            		log.info "Buttonpress Sensor ${dni} ${body.state.buttonevent}"
-                    switch (body.state.buttonevent) {
-                        case "34":
-                            sensorDev.buttonEvent(1)
+                    switch (state.devices[dni].type) {
+                        case "ZGPSwitch":
+                            log.info "Buttonpress Sensor ${dni} ${body.state.buttonevent}"
+                            sensorDev.buttonEvent(body.state.buttonevent)                          
                             break
-                        case "16":
-                            sensorDev.buttonEvent(2)
-                            break
-                        case "17":
-                            sensorDev.buttonEvent(3)
-                            break
-                        case "18":
-                            sensorDev.buttonEvent(4)
-                            break
-                        }
-                    }
-            	}
+                        case "ZLLPresence":
+                            log.info "Motion Sensor ${dni} ${body.state.presence}"
+                            sensorDev.motionEvent(body.state.presence)                           
+                        	break
+                        case "ZLLSwitch":
+                            log.info "Dimmer Switch ${dni} ${body.state.buttonevent}"
+                            sensorDev.buttonEvent(body.state.buttonevent)
+                            break                    
+	                }
+                }
             }
         }
+    }
 }
 
 private poll(hostIP, usernameAPI) {
-	def uri = "/api/${usernameAPI}/sensors/"
-	sendHubCommand(new physicalgraph.device.HubAction("GET ${uri} HTTP/1.1\r\n" + "HOST: ${hostIP}\r\n\r\n", physicalgraph.device.Protocol.LAN, null, [callback:handleSensorCall]))
+
+    def hubAction = new physicalgraph.device.HubAction(
+        method: "GET",
+        path: "/api/${usernameAPI}/sensors/",
+        headers: [HOST: "${hostIP}"],
+        null,
+        [callback: handlePoll] )
+
+    sendHubCommand(hubAction)
 }
 
-private pollSensor(hostIP, usernameAPI, sensor) {
-	def uri = "/api/${usernameAPI}/sensors/${sensor}"
-	sendHubCommand(new physicalgraph.device.HubAction("GET ${uri} HTTP/1.1\r\n" + "HOST: ${hostIP}\r\n\r\n", physicalgraph.device.Protocol.LAN, null, [callback:handleSensorBurst]))
+def pollSensor(data) {
+
+    def hubAction = new physicalgraph.device.HubAction(
+        method: "GET",
+        path: "/api/${data.usernameAPI}/sensors/${data.sensor}",
+        headers: [HOST: "${data.hostIP}"],
+        null,
+        [callback: handlePollSensor] )
+
+    sendHubCommand(hubAction)
+}
+
+private findStateDeviceWithUniqueId(uniqueId) {
+	def stateDevice = state.devices.find {key, dev -> 
+    	dev.uniqueId == uniqueId
+    }
+    return stateDevice.toString().split("=")[0]
+}
+
+private getMac(uniqueId) {
+	def mac = uniqueId.split("-")[0]
+	return mac
 }
 
 private Integer convertHexToInt(hex) {
@@ -438,6 +528,5 @@ def getWebData(params, desc, text=true) {
 		return "${label} info not found"
 	}
 }
-
 
 private def appVerInfo()		{ return getWebData([uri: "https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/HueSensorData", contentType: "text/plain; charset=UTF-8"], "changelog") }
