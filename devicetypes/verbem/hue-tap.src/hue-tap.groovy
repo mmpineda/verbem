@@ -20,14 +20,15 @@ metadata {
 		capability "Health Check"
 
 		command "buttonEvent", ["number"]
+        command "boost"
 	}
 
 	tiles {
-		standardTile("button", "device.button", width: 2, height: 2) {
+		standardTile("pushButton1", "device.button", decoration: "flat", width: 2, height: 2) {
 			state "default", label: "", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/hue-tap.src/Hue Tap Button 1.PNG", backgroundColor: "#ffffff"
 		}
-		main "button"
-		details(["button"])
+		main "pushButton1"
+		details(["pushButton1"])
 	}
 }
 
@@ -35,8 +36,26 @@ def parse(String description) {
 
 }
 
+def boost() {	
+}
+
 def buttonEvent(button) {
 	button = button as Integer
+    switch (button) {
+        case "34":
+            button = 1
+            break
+        case "16":
+            button = 2
+            break
+        case "17":
+            button = 3
+            break
+        case "18":
+            button = 4
+            break
+	}
+    
     def iconPath = "https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/hue-tap.src/Hue Tap Button ${button.toString()}.PNG"
     sendEvent(name: "button", value: "pushed", data: [buttonNumber: button, icon:iconPath], descriptionText: "$device.displayName button $button was pushed", isStateChange: true)
 
