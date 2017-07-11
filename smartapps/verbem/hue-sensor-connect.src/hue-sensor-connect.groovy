@@ -15,6 +15,7 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *	1.00 Initial Release, thanks to Anthony S for version control
+ *	1.01 Support for Hue B bridges or bridges that support username as an attribute
  *
  */
 
@@ -29,7 +30,7 @@ definition(
 		iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Partner/hue@2x.png",
 		singleInstance: true
 )
-private def runningVersion() 	{ "1.00"}
+private def runningVersion() 	{ "1.01"}
 
 preferences {
 	page(name:pageMain)
@@ -73,11 +74,19 @@ def pageBridges() {
                 z_Bridges.each { dev ->
                     def serialNumber = dev.currentValue("serialNumber")
                     def networkAddress = dev.currentValue("networkAddress")
-					
+                    def username = dev.currentValue("username") // HUE B Attribute
                     
                     section("Bridge ${dev}, Serial:${serialNumber}, IP:${networkAddress}, username for API is in device in IDE", hideable:true) {
-                    	href(name: "${dev.id}", title: "IDE Bridge device",required: false, style: "external", url: "${getApiServerUrl()}/device/show/${dev.id}", description: "tap to view device in IDE")
-                        input "z_BridgesUsernameAPI_${serialNumber}", "text", required:true, title:"Username for API", submitOnChange:true
+                    	if (!username) {
+                        	href(name: "${dev.id}", title: "IDE Bridge device",required: false, style: "external", url: "${getApiServerUrl()}/device/show/${dev.id}", description: "tap to view device in IDE")
+                            input "z_BridgesUsernameAPI_${serialNumber}", "text", required:true, title:"Username for API", submitOnChange:true
+                        }
+                        else {
+                        	paragraph username
+                        	input "z_BridgesUsernameAPI_${serialNumber}", "text", required:true, title:"Username for API", submitOnChange:true, description:username
+                        }
+                    	
+                        
                     }
                     
                 }	
