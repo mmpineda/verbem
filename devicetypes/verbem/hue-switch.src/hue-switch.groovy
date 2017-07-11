@@ -54,7 +54,7 @@ metadata {
                 attributeState "on", label:'On', icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/hue-switch.src/Hue Dimmer Switch.jpg", backgroundColor:"#00a0dc"
                 attributeState "On", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#00a0dc"
                 attributeState "ON", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#00a0dc"
-                //attributeState "Set Level", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#00a0dc"
+                attributeState "Error", label:'Install Error', icon:"st.lights.philips.hue-single", backgroundColor:"#bc2323"
                 
             }
             tileAttribute("device.level", key: "SLIDER_CONTROL", range:"0..16") {
@@ -158,7 +158,13 @@ def updated() {
 
 def initialize() {
 	// Arrival sensors only goes OFFLINE when Hub is off
-	sendEvent(name: "DeviceWatch-Enroll", value: JsonOutput.toJson([protocol: "zigbee", scheme:"untracked"]), displayed: false)
-    sendEvent(name: "level", value: 100)
-	sendEvent(name: "numberOfButtons", value: 4)  
+    if (parent) {
+        sendEvent(name: "DeviceWatch-Enroll", value: JsonOutput.toJson([protocol: "zigbee", scheme:"untracked"]), displayed: false)
+        sendEvent(name: "level", value: 100)
+        sendEvent(name: "numberOfButtons", value: 4)
+    }
+    else {
+    	log.error "You cannot use this DTH without the related SmartAPP Hue Sensor (Connect), the device needs to be a child of this App"
+        sendEvent(name: "switch", value: "Error", descriptionText: "$device.displayName You cannot use this DTH without the related SmartAPP Hue Sensor (Connect)", isStateChange: true)
+    }
 }

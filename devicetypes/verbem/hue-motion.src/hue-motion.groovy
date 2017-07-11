@@ -43,6 +43,7 @@ metadata {
 				attributeState "off", label:'no motion', icon:"st.motion.motion.inactive", backgroundColor:"#ffffff"
 				attributeState "Off", label:'no motion', icon:"st.motion.motion.inactive", backgroundColor:"#ffffff"
 				attributeState "OFF", label:'no motion', icon:"st.motion.motion.inactive", backgroundColor:"#ffffff"
+                attributeState "Error", label:'Install Error', icon:"st.motion.motion.inactive", backgroundColor:"#bc2323"
 			}
 		}
         
@@ -108,6 +109,9 @@ def updated() {
 
 def initialize() {
 	// Arrival sensors only goes OFFLINE when Hub is off
-	sendEvent(name: "DeviceWatch-Enroll", value: JsonOutput.toJson([protocol: "zigbee", scheme:"untracked"]), displayed: false)
-
+    if (parent)	{sendEvent(name: "DeviceWatch-Enroll", value: JsonOutput.toJson([protocol: "zigbee", scheme:"untracked"]), displayed: false)}
+	else {
+    	log.error "You cannot use this DTH without the related SmartAPP Hue Sensor (Connect), the device needs to be a child of this App"
+        sendEvent(name: "motion", value: "Error", descriptionText: "$device.displayName You cannot use this DTH without the related SmartAPP Hue Sensor (Connect)", isStateChange: true)
+    }
 }

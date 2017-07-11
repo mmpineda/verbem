@@ -29,6 +29,7 @@ metadata {
 	tiles {
 		standardTile("hueTap", "device.button", decoration: "flat", width: 2, height: 2) {
 			state "default", label: "", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/hue-tap.src/Hue Tap Button 1.PNG", backgroundColor: "#ffffff"
+			state "Error", label: "Install Error", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/hue-tap.src/Hue Tap Button 1.PNG", backgroundColor: "#bc2323"
 		}
         
         standardTile("refresh", "device.motion", inactiveLabel: false, decoration: "flat", width:2, height:2) {
@@ -81,6 +82,12 @@ def updated() {
 
 def initialize() {
 	// Arrival sensors only goes OFFLINE when Hub is off
-	sendEvent(name: "DeviceWatch-Enroll", value: JsonOutput.toJson([protocol: "zigbee", scheme:"untracked"]), displayed: false)
-	sendEvent(name: "numberOfButtons", value: 4)
+    if (parent) {
+        sendEvent(name: "DeviceWatch-Enroll", value: JsonOutput.toJson([protocol: "zigbee", scheme:"untracked"]), displayed: false)
+        sendEvent(name: "numberOfButtons", value: 4)
+    }
+    else {
+    	log.error "You cannot use this DTH without the related SmartAPP Hue Sensor (Connect), the device needs to be a child of this App"
+        sendEvent(name: "button", value: "Error", descriptionText: "$device.displayName You cannot use this DTH without the related SmartAPP Hue Sensor (Connect)", isStateChange: true)
+    }
 }
