@@ -1,3 +1,7 @@
+Version 1.02
+  Support for elevated polling during selected modes (e.g. Evening, Morning)
+  Support for no polling during selected modes (e.g. Away, Holidays)
+
 Version 1.01
   Support bridges that have username as an attribute
   Update DTH to show error when a standalone install has been done (without the smartapp)
