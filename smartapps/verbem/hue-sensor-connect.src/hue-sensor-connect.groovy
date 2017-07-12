@@ -93,8 +93,8 @@ def pageBridges() {
                 }	
                 if (state.devices) {
                 	section("Elevated and or No polling during selected modes") {
-                    	input "z_modes", "mode", title: "select elevated mode(s)", multiple: true
-                    	input "z_noPollModes", "mode", title: "select no polling mode(s)", multiple: true
+                    	input "z_modes", "mode", title: "select elevated mode(s)", multiple: true, required: false
+                    	input "z_noPollModes", "mode", title: "select no polling mode(s)", multiple: true, required: false
                     }
                     section("Associate a ST motion sensor with a Hue Sensor for monitoring during motion, sensor will be checked during motion") {
                     state.devices.each { item, sdev ->
@@ -138,19 +138,19 @@ def initialize() {
     	subscribeToMotionEvents()
         subscribe(location, "mode", handleChangeMode)
         
-        if (!settings.z_noPollModes.contains(location.mode)) {
-            if (settings.z_modes.contains(location.mode)) {
-                log.debug "mode is ${location.mode} elevated Polling"
-                runEvery1Minute("poll1Minute", [data: [elevatedPolling: true]])
+  			if (!settings?.z_noPollModes?.contains(location.mode)) {
+                if (settings?.z_modes?.contains(location.mode)) {
+                    log.debug "mode is ${location.mode} elevated Polling"
+                    runEvery1Minute("poll1Minute", [data: [elevatedPolling: true]])
+                }
+                else {
+                    log.debug "mode is ${location.mode} run normal 1 minute Polling"
+                    runEvery1Minute("poll1Minute", [data: [elevatedPolling: false]])
+                }
             }
             else {
-                log.debug "mode is ${location.mode} run normal 1 minute Polling"
-                runEvery1Minute("poll1Minute", [data: [elevatedPolling: false]])
+                log.debug "mode is ${location.mode} No Polling"
             }
-        }
-        else {
-            log.debug "mode is ${location.mode} No Polling"
-        }	
     }
 }
 
@@ -277,8 +277,8 @@ def parse(childDevice, description) {
 
 def handleChangeMode(evt) {
     
-    if (!settings.z_noPollModes.contains(evt.value)) {
-        if (settings.z_modes.contains(evt.value)) {
+    if (!settings?.z_noPollModes?.contains(evt.value)) {
+        if (settings?.z_modes?.contains(evt.value)) {
             log.debug "mode changed to ${evt.value} elevated Polling"
             runEvery1Minute("poll1Minute", [data: [elevatedPolling: true]])
         }
