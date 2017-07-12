@@ -16,6 +16,7 @@
  *
  *	1.00 Initial Release, thanks to Anthony S for version control
  *	1.01 Support for Hue B bridges or bridges that support username as an attribute
+ *	1.02 Support elevated polling or no normal polling depending on mode
  *
  */
 
@@ -30,7 +31,7 @@ definition(
 		iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Partner/hue@2x.png",
 		singleInstance: true
 )
-private def runningVersion() 	{ "1.01"}
+private def runningVersion() 	{ "1.02"}
 
 preferences {
 	page(name:pageMain)
@@ -54,7 +55,7 @@ def pageBridges() {
         	def sN = dev.currentValue("serialNumber")
             if ("z_BridgesUsernameAPI_${sN}") canPoll = true        	
         }
-        if (canPoll) poll1Minute()
+        if (canPoll) poll1Minute(data:[elevatedPolling:false])
     }
 
     def inputBridges= [
@@ -91,6 +92,10 @@ def pageBridges() {
                     
                 }	
                 if (state.devices) {
+                	section("Elevated and or No polling during selected modes") {
+                    	input "z_modes", "mode", title: "select elevated mode(s)", multiple: true
+                    	input "z_noPollModes", "mode", title: "select no polling mode(s)", multiple: true
+                    }
                     section("Associate a ST motion sensor with a Hue Sensor for monitoring during motion, sensor will be checked during motion") {
                     state.devices.each { item, sdev ->
                         input "z_motionSensor_${sdev.dni}", "capability.motionSensor", required:false, title:"Associated motion sensor ${sdev.name} "
@@ -131,8 +136,22 @@ def initialize() {
 	
     if (settings.z_Bridges) {
     	subscribeToMotionEvents()
-        runEvery1Minute("poll1Minute")
-	}
+        subscribe(location, "mode", handleChangeMode)
+        
+        if (!settings.z_noPollModes.contains(location.mode)) {
+            if (settings.z_modes.contains(location.mode)) {
+                log.debug "mode is ${location.mode} elevated Polling"
+                runEvery1Minute("poll1Minute", [data: [elevatedPolling: true]])
+            }
+            else {
+                log.debug "mode is ${location.mode} run normal 1 minute Polling"
+                runEvery1Minute("poll1Minute", [data: [elevatedPolling: false]])
+            }
+        }
+        else {
+            log.debug "mode is ${location.mode} No Polling"
+        }	
+    }
 }
 
 def notifyNewVersion() {
@@ -142,18 +161,31 @@ def notifyNewVersion() {
     }
 }
 
-def poll1Minute() {
-
+def poll1Minute(data) {
+	def bridgecount = 1
+	
     settings.z_Bridges.each { dev ->
-
+		
 		def serialNumber = dev.currentValue("serialNumber")
         def networkAddress = dev.currentValue("networkAddress")
 
 		if (settings."z_BridgesUsernameAPI_${serialNumber}") {
-        	poll(networkAddress, settings."z_BridgesUsernameAPI_${serialNumber}")
-    		}
-        
-		}
+        	if (!data.elevatedPolling) {
+            	poll(networkAddress, settings."z_BridgesUsernameAPI_${serialNumber}")
+            }
+            else {
+            	def i = 0
+                for (i = 0; i < 6; i++) {
+                	runIn(i*10+bridgecount, elevatedPoll, [data: [hostIP: networkAddress, usernameAPI: settings."z_BridgesUsernameAPI_${serialNumber}"], overwrite: false]) 
+                }
+            }
+        }
+        bridgecount++
+    }
+}
+
+def elevatedPoll(data) {
+	poll(data.hostIP,data.usernameAPI)
 }
 
 def monitorSensor(evt) {
@@ -241,6 +273,23 @@ private updateSensorState(messageBody, mac) {
 
 def parse(childDevice, description) {
 	log.warn "[Parse] entered ${childDevice} ${description}"
+}
+
+def handleChangeMode(evt) {
+    
+    if (!settings.z_noPollModes.contains(evt.value)) {
+        if (settings.z_modes.contains(evt.value)) {
+            log.debug "mode changed to ${evt.value} elevated Polling"
+            runEvery1Minute("poll1Minute", [data: [elevatedPolling: true]])
+        }
+        else {
+            log.debug "mode changed to ${evt.value} run normal 1 minute Polling"
+            runEvery1Minute("poll1Minute", [data: [elevatedPolling: false]])
+        }
+    }
+    else {
+    	unschedule()
+    }
 }
 
 def handlePoll(physicalgraph.device.HubResponse hubResponse) {
