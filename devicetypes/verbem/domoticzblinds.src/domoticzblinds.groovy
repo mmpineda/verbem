@@ -16,6 +16,7 @@
  *	2.2 2016-12-01 added calibration of the closing time, now you can use setlevel or ask alexa to dim to a percentage
  *	3.0 2016-12-24 cleanup of DTH statuses
  *  3.1 2017-05-10 Adding end of day scheduling for blinds as an offset to sunset, these are set in the Smart Screens app. 
+ *  3.2 2017-07-12 Adding HC and parent check
  */
 import groovy.time.TimeCategory 
 import groovy.time.TimeDuration
@@ -34,6 +35,7 @@ metadata {
         capability "Polling"
         capability "Door Control"
         capability "Signal Strength"
+		capability "Health Check"
 
         // custom attributes
         attribute "networkId", "string"
@@ -74,6 +76,7 @@ metadata {
                 
                 attributeState "Closed", 		label:"  Closed  ",  backgroundColor:"#00a0dc", nextState:"Going Up", action:"open"
                 attributeState "Going Down", 	label:"Going Down",  backgroundColor:"#00a0dc", nextState:"Going Up"
+				attributeState "Error", 		label:"Install Error", backgroundColor: "#bc2323"
             }
             tileAttribute("device.level", key: "SLIDER_CONTROL", range:"0..16") {
             	attributeState "level", action:"setLevel" 
@@ -395,4 +398,23 @@ results.each { name, value ->
 	
     }
     return null
+}
+
+def installed() {
+	initialize()
+}
+
+def updated() {
+	initialize()
+}
+
+def initialize() {
+
+	if (parent) {
+        sendEvent(name: "DeviceWatch-Enroll", value: JsonOutput.toJson([protocol: "LAN", scheme:"untracked"]), displayed: false)
+    }
+    else {
+    	log.error "You cannot use this DTH without the related SmartAPP Domoticz Server, the device needs to be a child of this App"
+        sendEvent(name: "switch", value: "Error", descriptionText: "$device.displayName You cannot use this DTH without the related SmartAPP Domoticz Server", isStateChange: true)
+    }
 }

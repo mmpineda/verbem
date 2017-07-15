@@ -21,7 +21,8 @@ metadata {
 		capability "Refresh"
 		capability "Battery"
         capability "Signal Strength"
-        }
+		capability "Health Check"
+}
 
     tiles (scale: 2){
         multiAttributeTile(name:"smoke", type: "lighting", width: 6, height: 4){
@@ -35,6 +36,7 @@ metadata {
                 attributeState("On", label:"SMOKE", icon:"st.alarm.smoke.smoke", backgroundColor:"#e86d13")
                 attributeState("ON", label:"SMOKE", icon:"st.alarm.smoke.smoke", backgroundColor:"#e86d13")
                 attributeState("tested", label:"TEST", icon:"st.alarm.smoke.test", backgroundColor:"#e86d13")
+				attributeState("Error", label:"Install Error", backgroundColor: "#bc2323")
             }
             tileAttribute ("device.battery", key: "SECONDARY_CONTROL") {
                 attributeState "battery", label:'Battery: ${currentValue}%', unit:"%"
@@ -109,4 +111,23 @@ def generateEvent (Map results) {
         sendEvent(name:"${name}", value:"${v}")
         }
         return null
+}
+
+def installed() {
+	initialize()
+}
+
+def updated() {
+	initialize()
+}
+
+def initialize() {
+
+	if (parent) {
+        sendEvent(name: "DeviceWatch-Enroll", value: JsonOutput.toJson([protocol: "LAN", scheme:"untracked"]), displayed: false)
+    }
+    else {
+    	log.error "You cannot use this DTH without the related SmartAPP Domoticz Server, the device needs to be a child of this App"
+        sendEvent(name: "contact", value: "Error", descriptionText: "$device.displayName You cannot use this DTH without the related SmartAPP Domoticz Server", isStateChange: true)
+    }
 }

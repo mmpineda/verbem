@@ -36,6 +36,7 @@ metadata {
         capability "Refresh"
         capability "Polling"
         capability "Signal Strength"
+		capability "Health Check"
         
         attribute "selector", "enum", [true, false]
         
@@ -55,6 +56,7 @@ metadata {
 				attributeState "Alarm", label:'${name}', icon:"st.Electronics.electronics13", backgroundColor: "#e86d13"
 				attributeState "Away", label:'${name}', icon:"st.Electronics.electronics13", backgroundColor: "#cccccc"
 				attributeState "Home", label:'${name}', icon:"st.Electronics.electronics13", backgroundColor: "#00a0dc"
+				attributeState "Error", label:"Install Error", backgroundColor: "#bc2323"
             }
             
             tileAttribute("device.level", key: "SECONDARY_CONTROL") {
@@ -196,4 +198,23 @@ def generateEvent (Map results) {
         sendEvent(name:"${name}", value:"${v}")
         }
         return null
+}
+
+def installed() {
+	initialize()
+}
+
+def updated() {
+	initialize()
+}
+
+def initialize() {
+
+	if (parent) {
+        sendEvent(name: "DeviceWatch-Enroll", value: JsonOutput.toJson([protocol: "LAN", scheme:"untracked"]), displayed: false)
+    }
+    else {
+    	log.error "You cannot use this DTH without the related SmartAPP Domoticz Server, the device needs to be a child of this App"
+        sendEvent(name: "selectorState", value: "Error", descriptionText: "$device.displayName You cannot use this DTH without the related SmartAPP Domoticz Server", isStateChange: true)
+    }
 }

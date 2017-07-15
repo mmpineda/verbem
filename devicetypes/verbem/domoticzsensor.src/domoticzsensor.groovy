@@ -22,6 +22,7 @@ metadata {
 		capability "Refresh"
         capability "Signal Strength"
         capability "Relative Humidity Measurement"
+		capability "Health Check"
         
         attribute "pressure", "number"
         }
@@ -52,6 +53,7 @@ metadata {
 							[value: 95, color: "#d04e00"],
 							[value: 96, color: "#bc2323"]
 					]		
+            state "Error", label:"Install Error", backgroundColor: "#bc2323"
         }
 
 		standardTile("humidity", "device.humidity", inactiveLabel: false, width: 2, height: 2) {
@@ -119,4 +121,24 @@ def generateEvent (Map results) {
         sendEvent(name:"${name}", value:"${v}")
         }
         return null
+}
+
+
+def installed() {
+	initialize()
+}
+
+def updated() {
+	initialize()
+}
+
+def initialize() {
+
+	if (parent) {
+        sendEvent(name: "DeviceWatch-Enroll", value: JsonOutput.toJson([protocol: "LAN", scheme:"untracked"]), displayed: false)
+    }
+    else {
+    	log.error "You cannot use this DTH without the related SmartAPP Domoticz Server, the device needs to be a child of this App"
+        sendEvent(name: "temperature", value: "Error", descriptionText: "$device.displayName You cannot use this DTH without the related SmartAPP Domoticz Server", isStateChange: true)
+    }
 }

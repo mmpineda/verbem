@@ -21,7 +21,8 @@ metadata {
 		capability "Battery"
 		capability "Temperature Measurement"
         capability "Signal Strength"
-        
+		capability "Health Check"
+
         attribute "NotificationsDefinedInDomoticz", "enum", ["true","false"]
         }
 
@@ -43,6 +44,7 @@ tiles(scale: 2) {
 				attributeState "on", label:'Closed', icon:"st.contact.contact.closed", backgroundColor:"#00a0dc"
 				attributeState "On", label:'Closed', icon:"st.contact.contact.closed", backgroundColor:"#00a0dc"
 				attributeState "ON", label:'Closed', icon:"st.contact.contact.closed", backgroundColor:"#00a0dc"
+				attributeState "Error", label:"Install Error", backgroundColor: "#bc2323"
 			}
 		}
 
@@ -125,4 +127,23 @@ def generateEvent (Map results) {
         sendEvent(name:"${name}", value:"${value}")
         }
     return null
+}
+
+def installed() {
+	initialize()
+}
+
+def updated() {
+	initialize()
+}
+
+def initialize() {
+
+	if (parent) {
+        sendEvent(name: "DeviceWatch-Enroll", value: JsonOutput.toJson([protocol: "LAN", scheme:"untracked"]), displayed: false)
+    }
+    else {
+    	log.error "You cannot use this DTH without the related SmartAPP Domoticz Server, the device needs to be a child of this App"
+        sendEvent(name: "contact", value: "Error", descriptionText: "$device.displayName You cannot use this DTH without the related SmartAPP Domoticz Server", isStateChange: true)
+    }
 }

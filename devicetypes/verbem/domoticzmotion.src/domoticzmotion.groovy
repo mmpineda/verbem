@@ -22,6 +22,7 @@ metadata {
 		capability "Actuator"
 		capability "Refresh"
         capability "Signal Strength"
+		capability "Health Check"
         }
 
 	tiles(scale: 2) {
@@ -35,6 +36,7 @@ metadata {
 				attributeState "off", label:'no motion', icon:"st.motion.motion.inactive", backgroundColor:"#ffffff"
 				attributeState "Off", label:'no motion', icon:"st.motion.motion.inactive", backgroundColor:"#ffffff"
 				attributeState "OFF", label:'no motion', icon:"st.motion.motion.inactive", backgroundColor:"#ffffff"
+				attributeState "Error", label:"Install Error", backgroundColor: "#bc2323"
 			}
 		}
 
@@ -107,4 +109,23 @@ def generateEvent (Map results) {
         sendEvent(name:"${name}", value:"${v}")
         }
         return null
+}
+
+def installed() {
+	initialize()
+}
+
+def updated() {
+	initialize()
+}
+
+def initialize() {
+
+	if (parent) {
+        sendEvent(name: "DeviceWatch-Enroll", value: JsonOutput.toJson([protocol: "LAN", scheme:"untracked"]), displayed: false)
+    }
+    else {
+    	log.error "You cannot use this DTH without the related SmartAPP Domoticz Server, the device needs to be a child of this App"
+        sendEvent(name: "motion", value: "Error", descriptionText: "$device.displayName You cannot use this DTH without the related SmartAPP Domoticz Server", isStateChange: true)
+    }
 }

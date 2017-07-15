@@ -35,6 +35,7 @@ metadata {
         capability "Switch"
         capability "Refresh"
         capability "Polling"
+		capability "Health Check"
         
         // custom commands
         command "parse"     // (String "<attribute>:<value>[,<attribute>:<value>]")
@@ -53,6 +54,7 @@ metadata {
                 attributeState "On", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#79b821", action:"off", nextState:"Turning Off"
                 attributeState "ON", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#79b821", action:"off", nextState:"Turning Off"
                 attributeState "Turning On", label:'Turning On', icon:"st.lights.philips.hue-single", backgroundColor:"#FE9A2E", nextState:"Turning Off"
+				attributeState "Error", label:"Install Error", backgroundColor: "#bc2323"
             }
         }
         
@@ -163,4 +165,23 @@ def generateEvent (Map results) {
         sendEvent(name:"${name}", value:"${value}")
         }
         return null
+}
+
+def installed() {
+	initialize()
+}
+
+def updated() {
+	initialize()
+}
+
+def initialize() {
+
+	if (parent) {
+        sendEvent(name: "DeviceWatch-Enroll", value: JsonOutput.toJson([protocol: "LAN", scheme:"untracked"]), displayed: false)
+    }
+    else {
+    	log.error "You cannot use this DTH without the related SmartAPP Domoticz Server, the device needs to be a child of this App"
+        sendEvent(name: "switch", value: "Error", descriptionText: "$device.displayName You cannot use this DTH without the related SmartAPP Domoticz Server", isStateChange: true)
+    }
 }
