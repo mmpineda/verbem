@@ -25,11 +25,7 @@ metadata {
         capability "Refresh"
         capability "Illuminance Measurement"
         capability "Temperature Measurement"
-        
-        command "motionEvent", ["string"]
-        command "batteryEvent", ["number"]
-        command "lightEvent", ["number"]
-        command "tempEvent", ["number"]
+		capability "Health Check"
         }
 
 	tiles(scale: 2) {
@@ -73,26 +69,6 @@ def parse(String description) {
 	log.debug "Parsing '${description}'"
 	// TODO: handle 'motion' attribute
     
-}
-
-def motionEvent(motion) {
-
-	log.info motion
-	if (motion == true) sendEvent(name: "motion", value: "active", descriptionText: "$device.displayName motion detected", isStateChange: true)
-    else sendEvent(name: "motion", value: "inactive", descriptionText: "$device.displayName motion stopped", isStateChange: true)
-
-}
-
-def batteryEvent(level) {
-	sendEvent(name: "battery", value: level)
-}
-
-def lightEvent(lux) {
-	sendEvent(name: "illuminance", value: lux)
-}
-
-def tempEvent(temp) {
-	sendEvent(name: "temperature", value: temp)
 }
 
 def refresh() {
