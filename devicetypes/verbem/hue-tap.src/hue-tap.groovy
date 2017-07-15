@@ -83,7 +83,7 @@ def updated() {
 def initialize() {
 	// Arrival sensors only goes OFFLINE when Hub is off
     if (parent) {
-        sendEvent(name: "DeviceWatch-Enroll", value: JsonOutput.toJson([protocol: "zigbee", scheme:"untracked"]), displayed: false)
+        sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson([protocol: "zigbee", scheme:"untracked"]), displayed: false)
         sendEvent(name: "numberOfButtons", value: 4)
     }
     else {

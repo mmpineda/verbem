@@ -41,7 +41,6 @@ metadata {
         command "parse"     // (String "<attribute>:<value>[,<attribute>:<value>]")
        	command "setLevel"
        	command "buttonEvent", ["number"]
-        command "batteryEvent", ["number"]
     }
 
     tiles(scale:2) {
@@ -80,10 +79,6 @@ def parse(String message) {
     TRACE("parse(${message})")
 
     return null
-}
-
-def batteryEvent(level) {
-	sendEvent(name: "battery", value: level)
 }
 
 def buttonEvent(button) {
@@ -159,9 +154,10 @@ def updated() {
 def initialize() {
 	// Arrival sensors only goes OFFLINE when Hub is off
     if (parent) {
-        sendEvent(name: "DeviceWatch-Enroll", value: JsonOutput.toJson([protocol: "zigbee", scheme:"untracked"]), displayed: false)
+        sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson([protocol: "zigbee", scheme:"untracked"]), displayed: false)
         sendEvent(name: "level", value: 100)
-        sendEvent(name: "numberOfButtons", value: 4)
+        sendEvent(name: "numberOfButtons", value: 14)
+        log.info "number of buttons is 14"
     }
     else {
     	log.error "You cannot use this DTH without the related SmartAPP Hue Sensor (Connect), the device needs to be a child of this App"
