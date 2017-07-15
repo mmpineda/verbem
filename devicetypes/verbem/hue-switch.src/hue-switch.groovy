@@ -35,7 +35,7 @@ metadata {
         capability "Polling"
         capability "Battery"
 		capability "Button"
-        
+		capability "Health Check"        
       
         // custom commands
         command "parse"     // (String "<attribute>:<value>[,<attribute>:<value>]")
@@ -114,7 +114,7 @@ def buttonEvent(button) {
            break
 	}
 
-	if (button in [1003, 2003, 3003, 4003]) sendEvent(name: "button", value: "held", data: [buttonNumber: xButton, icon:iconPath], descriptionText: "$device.displayName button $xButton was pushed Long", isStateChange: true)
+	if (button in [1001, 1003, 2001, 2003, 3001, 3003, 4001, 4003]) sendEvent(name: "button", value: "held", data: [buttonNumber: xButton, icon:iconPath], descriptionText: "$device.displayName button $xButton was pushed Long", isStateChange: true)
     else sendEvent(name: "button", value: "pushed", data: [buttonNumber: xButton], descriptionText: "$device.displayName button $xButton was pushed", isStateChange: true)
     
 }
