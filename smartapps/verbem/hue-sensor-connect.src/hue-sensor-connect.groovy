@@ -31,7 +31,7 @@ definition(
 		iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Partner/hue@2x.png",
 		singleInstance: true
 )
-private def runningVersion() 	{ "1.03"}
+private def runningVersion() 	{ "1.02"}
 
 preferences {
 	page(name:pageMain)
@@ -193,8 +193,11 @@ def monitorSensor(evt) {
                         def hostIP = dev.currentValue("networkAddress")
                         def i = 0
 
-						for (i = 1; i <11; i++) {
+						for (i = 1; i <15; i++) {
                         	runIn(i, pollSensor, [data: [hostIP: hostIP, usernameAPI: usernameAPI, sensor: sensor], overwrite: false])
+                        	if (state.devices[dni].sceneItem) {
+                            	runIn(i, pollSensorSceneCycle, [data: [hostIP: hostIP, usernameAPI: usernameAPI, sensor: state.devices[dni].sceneItem], overwrite: false])
+                            }
                         }
                 	}
                 }
@@ -342,6 +345,28 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
 			}
 		}
 
+		if (sensor.type == "CLIPGenericStatus") {  // Look for Dimmer Switch xx SceneCycle
+        	if (sensor.name.contains("SceneCycle")) {
+            	def itemSC = sensor.name.split()[2]
+				def dni = mac + "/sensor/" + itemSC
+
+				if (state.devices[dni]) {
+                    def sensorDev = getChildDevice(dni)
+
+                    if (!state.devices[dni].sceneCycleLastupdated) {
+                        state.devices[dni].sceneCycle = sensor.state.status
+                        state.devices[dni].sceneCycleLastupdated = sensor.state.lastupdated
+                        state.devices[dni].sceneItem = item
+                    }
+                    else if (state.devices[dni].sceneCycleLastupdated != sensor.state.lastupdated) {
+                        state.devices[dni].sceneCycle = sensor.state.status
+                        state.devices[dni].sceneCycleLastupdated = sensor.state.lastupdated
+                        state.devices[dni].sceneItem = item
+                    }
+            	}
+			}
+		}
+
     	if (sensor.type == "ZGPSwitch" || sensor.type == "ZLLPresence" || sensor.type == "ZLLSwitch" ) {
             def dni = mac + "/sensor/" + item
             def sensorDev = getChildDevice(dni)
@@ -391,7 +416,6 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
                             break
                         case "ZLLPresence":
                             log.info "Motion Sensor ${dni} ${sensor.state.presence}"
-                            //sensorDev.motionEvent(sensor.state.presence)
                             if (sensor.state.presence) 	sensorDev.sendEvent(name: "motion", value: "active", descriptionText: "$sensorDev motion detected", isStateChange: true)
                             else 						sensorDev.sendEvent(name: "motion", value: "inactive", descriptionText: "$sensorDev motion detected", isStateChange: true)
                             sensorDev.sendEvent(name: "battery", value: sensor.config.battery)
@@ -451,6 +475,35 @@ def handlePollSensor(physicalgraph.device.HubResponse hubResponse) {
     }
 }
 
+def handlePollSensorSceneCycle(physicalgraph.device.HubResponse hubResponse) {
+
+    def parsedEvent = parseEventMessage(hubResponse.description)
+    def mac = parsedEvent.mac.substring(6)
+    def body = hubResponse.json
+
+    if (hubResponse.json.error) {
+    	log.error "Error in ${mac} ${hubResponse.json.error}"	
+        return
+    }
+
+	if (body.name.contains("SceneCycle")) {
+        def itemSC = body.name.split()[2]       
+        def dni = mac + "/sensor/" + itemSC
+    	def sensorDev = getChildDevice(dni)     
+        if (state.devices[dni].sceneCycle != body.state.status) {
+            state.devices[dni].sceneCycle = body.state.status
+            state.devices[dni].sceneCycleLastupdated = body.state.lastupdated
+            def xButton = 10 + body.state.status.toInteger()
+            sensorDev.sendEvent(name: "button", value: "pushed", data: [buttonNumber: xButton], descriptionText: "$xButton was pushed Hue $body.state.status", isStateChange: true)
+        }
+    }
+    else {
+        log.info "SceneCycle Error ${body.name} status ${body}"
+        return
+    }
+	
+}
+
 private poll(hostIP, usernameAPI) {
 
     def hubAction = new physicalgraph.device.HubAction(
@@ -473,6 +526,26 @@ def pollSensor(data) {
         [callback: handlePollSensor] )
 
     sendHubCommand(hubAction)
+}
+
+def pollSensorSceneCycle(data) {
+
+    def hubAction = new physicalgraph.device.HubAction(
+        method: "GET",
+        path: "/api/${data.usernameAPI}/sensors/${data.sensor}",
+        headers: [HOST: "${data.hostIP}"],
+        null,
+        [callback: handlePollSensorSceneCycle] )
+
+    sendHubCommand(hubAction)
+}
+
+private findStateDeviceWithSceneItem(sceneItem) {
+	def stateDevice = state.devices.find {key, dev -> 
+    	dev.sceneItem == sceneItem
+    }
+    log.info stateDevice
+    return stateDevice.toString().split("=")[0]
 }
 
 private findStateDeviceWithUniqueId(uniqueId) {
