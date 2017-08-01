@@ -18,6 +18,8 @@
  *	1.01 Support for Hue B bridges or bridges that support username as an attribute
  *	1.02 Support elevated polling or no normal polling depending on mode
  *	1.03 Initial cleaning of code and removing the custom DTH command (replace by normal sendEvent)
+ *	1.04 Checking of bridge status online/offline and putting assoiciated devices offline or back online
+ *	1.05 Add immediate poll after motion sensed instead of waiting 1 second
  */
 
 
@@ -31,7 +33,7 @@ definition(
 		iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Partner/hue@2x.png",
 		singleInstance: true
 )
-private def runningVersion() 	{ "1.02"}
+private def runningVersion() 	{"1.05"}
 
 preferences {
 	page(name:pageMain)
@@ -67,7 +69,7 @@ def pageBridges() {
             required		: false
         ] 
 	
-		dynamicPage(name: "pageBridges", title: "Bridges found by Super Lan Connect", uninstall: true, install:true) {
+		dynamicPage(name: "pageBridges", title: "Bridges found by Super Lan Connect version ${runningVersion()}", uninstall: true, install:true) {
             section("Please select Hue Bridges that contain sensors") {
                 input inputBridges          
             }
@@ -130,21 +132,71 @@ def uninstalled() {
 
 def initialize() {
 	log.debug "Initializing"
-	setupDeviceWatch()
     
     schedule("2015-01-09T12:00:00.000-0600", notifyNewVersion)
 	
     if (settings.z_Bridges) {
     	subscribeToMotionEvents()
         subscribe(location, "mode", handleChangeMode)
+        subscribe(location, "alarmSystemStatus", handleAlarmStatus)
+        subscribe(z_Bridges, "status", handleBridges)
         handleChangeMode(null)
+    }
+}
+
+def handleBridges(evt) {
+	log.info "handleBridges ${evt.value} ${evt.device}"
+    checkBridges()
+}
+
+def checkBridges() {
+
+	settings.z_Bridges.each { bridge ->
+    	def mac = bridge.currentValue("serialNumber")
+        
+        state.devices.each { key, sensor -> 
+        	if (sensor.mac == mac) {
+            	def devSensor = getChildDevice(sensor.dni)
+                if (!devSensor?.currentValue("DeviceWatch-Enroll")) {
+	               	log.info "[checkBridges] Enroll ${devSensor}"
+            		devSensor.sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson([protocol: "LAN", scheme:"untracked"]), displayed: false)
+                }
+            }
+        }
+       
+    	if (bridge.currentValue("status") != "Online") {
+        	log.info "Bridge ${bridge} is OFFLINE"
+        	// set devices belonging to this bridge OFFLINE
+            state.devices.each { key, sensor -> 
+            	if (sensor.mac == mac) {
+                	def devSensor = getChildDevice(sensor.dni)
+
+                	if (devSensor?.currentValue("DeviceWatch-DeviceStatus") == "online") {
+                		log.info "[checkBridges] Put ${devSensor} OFFLINE" 
+                        devSensor.sendEvent(name: "DeviceWatch-DeviceStatus", value: "offline", displayed: false, isStateChange: true)
+                    }
+                }
+            }
+        }
+        else {
+        	// if devices where offline for this bridge, get them ONLINE again
+            state.devices.each { key, sensor -> 
+            	if (sensor.mac == mac) {
+                	def devSensor = getChildDevice(sensor.dni)
+                	if (devSensor?.currentValue("DeviceWatch-DeviceStatus") != "online") {
+                		log.info "[checkBridges] Put ${devSensor} ONLINE" 
+                        devSensor.sendEvent(name: "DeviceWatch-DeviceStatus", value: "online", displayed: false, isStateChange: true)
+                    }
+                }
+            }
+        }
     }
 }
 
 def notifyNewVersion() {
 
 	if (appVerInfo().split()[1] != runningVersion()) {
-    	sendNotificationEvent("Hue Sensor App has a newer version, please visit IDE to update app/devices")
+    	sendNotificationEvent("Hue Sensor App has a newer version, ${appVerInfo().split()[1]}, please visit IDE to update app/devices")
     }
 }
 
@@ -162,8 +214,8 @@ def pollTheSensors(data) {
             }
             else {
             	def i = 0
-                for (i = 0; i < 6; i++) {
-                	runIn(i*10+bridgecount, handleElevatedPoll, [data: [hostIP: networkAddress, usernameAPI: settings."z_BridgesUsernameAPI_${serialNumber}"], overwrite: false]) 
+                for (i = 0; i < 12; i++) {
+                	runIn(i*5+bridgecount, handleElevatedPoll, [data: [hostIP: networkAddress, usernameAPI: settings."z_BridgesUsernameAPI_${serialNumber}"], overwrite: false]) 
                 }
             }
         }
@@ -189,16 +241,18 @@ def monitorSensor(evt) {
                 if (mac == mac2) {
             		def devSensor = getChildDevice(dni)
                 	if (devSensor) {
-                    	log.info "Monitoring ${dni} with ${evt.displayName.toString()}"
+                    	log.info "[monitorSensor] Monitoring ${dni}(${devSensor.label}) with ${evt.displayName.toString()}"
                         def hostIP = dev.currentValue("networkAddress")
                         def i = 0
-
+						
+                        pollSensor(data: [hostIP: hostIP, usernameAPI: usernameAPI, sensor: sensor])
+                        
 						for (i = 1; i <15; i++) {
                         	runIn(i, pollSensor, [data: [hostIP: hostIP, usernameAPI: usernameAPI, sensor: sensor], overwrite: false])
                         	if (state.devices[dni].sceneItem) {
                             	runIn(i, pollSensorSceneCycle, [data: [hostIP: hostIP, usernameAPI: usernameAPI, sensor: state.devices[dni].sceneItem], overwrite: false])
-                            }
-                        }
+                            }   
+                        }                       
                 	}
                 }
             }
@@ -211,18 +265,10 @@ def subscribeToMotionEvents() {
 	state.devices.each { dni, sensor -> 
     	if (settings."z_motionSensor_${dni}") {
         	def motionSensor = settings."z_motionSensor_${dni}"
-        	log.info "subscribe to motion for ${motionSensor} defined for ${sensor.name}"
+        	log.info "[subscribeToMotionEvents] Subscribe to motion for ${motionSensor} defined for ${sensor.name}"
             subscribe(motionSensor, "motion.active", monitorSensor)
         }
     }
-}
-
-private setupDeviceWatch() {
-	def hub = location.hubs[0]
-	// Make sure that all child devices are enrolled in device watch
-	getChildDevices().each {
-		it.sendEvent(name: "DeviceWatch-Enroll", value: "{\"protocol\": \"LAN\", \"scheme\":\"untracked\", \"hubHardwareId\": \"${hub?.hub?.hardwareID}\"}")
-	}
 }
 
 private updateSensorState(messageBody, mac) {
@@ -251,7 +297,7 @@ private updateSensorState(messageBody, mac) {
 	// Remove sensors from state that are no longer discovered
 	toRemove.each { k, v ->
     	
-		log.warn "${sensors[k].name} no longer exists on bridge ${mac}, removing dni ${sensors[k].dni}"
+		log.warn "[updateSensorState] ${sensors[k].name} no longer exists on bridge ${mac}, removing dni ${sensors[k].dni}"
         def dni = sensors[k].dni
         deleteChildDevice(dni)
 		state.devices.remove(dni)
@@ -259,11 +305,21 @@ private updateSensorState(messageBody, mac) {
 }
 
 def parse(childDevice, description) {
-	log.warn "[Parse] entered ${childDevice} ${description}"
+	log.warn "[Parse] Entered ${childDevice} ${description}"
 }
 
 def handleElevatedPoll(data) {
 	poll(data.hostIP,data.usernameAPI)
+}
+
+def handleAlarmStatus(evt) {
+    log.debug "[handleAlarmStatus] Alarm status changed to: ${evt.value}"
+    if (evt.value == "away") {
+    	handleChangeMode([value : "Away"])
+    }
+    else {
+    	handleChangeMode([value : location.mode])
+    }
 }
 
 def handleChangeMode(evt) {
@@ -274,15 +330,16 @@ def handleChangeMode(evt) {
 
     if (!settings?.z_noPollModes?.contains(evtMode)) {
         if (settings?.z_modes?.contains(evtMode)) {
-            log.debug "mode is ${evtMode} elevated Polling"
+            log.debug "[handleChangeMode] Mode is ${evtMode} elevated Polling"
             runEvery1Minute("pollTheSensors", [data: [elevatedPolling: true]])
         }
         else {
-            log.debug "mode is ${evtMode} run normal 1 minute Polling"
+            log.debug "[handleChangeMode] Mode is ${evtMode} run normal 1 minute Polling"
             runEvery1Minute("pollTheSensors", [data: [elevatedPolling: false]])
         }
     }
     else {
+    	log.debug "mode is ${evtMode} No more Polling"
     	unschedule()
     }
 }
@@ -292,8 +349,8 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
     def parsedEvent = parseEventMessage(hubResponse.description)
     def mac = parsedEvent.mac.substring(6)
   
-    if (hubResponse.json.error) {
-    	log.error "Error in ${mac} ${hubResponse.json.error}"	
+    if (hubResponse?.json?.error) {
+    	log.error "[handlePoll] Error in ${mac} ${hubResponse.json.error}"	
         return
     }
 
@@ -315,11 +372,11 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
 
                     if (!state.devices[dni].lightLevelLastupdated) {
                         state.devices[dni].lightLevelLastupdated = sensor.state.lastupdated
-                        if (sensorDev) sensorDev.sendEvent(name: "illuminance", value: lux) //sensorDev.lightEvent(lux)
+                        if (sensorDev) sensorDev.sendEvent(name: "illuminance", value: lux) 
                     }
                     else if (state.devices[dni].lightLevelLastupdated != sensor.state.lastupdated) {
                         state.devices[dni].lightLevelLastupdated = sensor.state.lastupdated
-                        if (sensorDev) sensorDev.sendEvent(name: "illuminance", value: lux) //sensorDev.lightEvent(lux)
+                        if (sensorDev) sensorDev.sendEvent(name: "illuminance", value: lux) 
                     }
 				}
             }
@@ -335,11 +392,11 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
 
                     if (!state.devices[dni].temperatureLastupdated) {
                         state.devices[dni].temperatureLastupdated = sensor.state.lastupdated
-                        if (sensorDev) sensorDev.sendEvent(name: "temperature", value: temp) //tempEvent(temp)
+                        if (sensorDev) sensorDev.sendEvent(name: "temperature", value: temp)
                     }
                     else if (state.devices[dni].temperatureLastupdated != sensor.state.lastupdated) {
                         state.devices[dni].temperatureLastupdated = sensor.state.lastupdated
-                        if (sensorDev) sensorDev.sendEvent(name: "temperature", value: temp) //tempEvent(temp)
+                        if (sensorDev) sensorDev.sendEvent(name: "temperature", value: temp)
                     }
             	}
 			}
@@ -383,7 +440,7 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
                     	devType = "Hue Switch"
                         break  
                 }
-            	log.info "Add Sensor ${dni} ${sensor.type} ${devType} ${sensor.name} ${getMac(sensor.uniqueid)}"
+            	log.info "[handlePoll] Add Sensor ${dni} ${sensor.type} ${devType} ${sensor.name} ${getMac(sensor.uniqueid)}"
             	
                 sensorDev = addChildDevice("verbem", devType, dni, null, [name:sensor.name, label:sensor.name, completedSetup:true])
                 state.devices[dni] = [
@@ -411,17 +468,17 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
                 	state.devices[dni].lastUpdated = sensor.state.lastupdated
                     switch (state.devices[dni].type) {
                         case "ZGPSwitch":
-                            log.info "Buttonpress Tap ${dni} ${sensor.state.buttonevent}"
+                            log.info "[handlePoll] Buttonpress Tap ${dni} ${sensor.state.buttonevent}"
                             sensorDev.buttonEvent(sensor.state.buttonevent)                          
                             break
                         case "ZLLPresence":
-                            log.info "Motion Sensor ${dni} ${sensor.state.presence}"
+                            log.info "[handlePoll] Motion Sensor ${dni} ${sensor.state.presence}"
                             if (sensor.state.presence) 	sensorDev.sendEvent(name: "motion", value: "active", descriptionText: "$sensorDev motion detected", isStateChange: true)
                             else 						sensorDev.sendEvent(name: "motion", value: "inactive", descriptionText: "$sensorDev motion detected", isStateChange: true)
                             sensorDev.sendEvent(name: "battery", value: sensor.config.battery)
                         	break
                         case "ZLLSwitch":
-                            log.info "Dimmer Switch ${dni} ${sensor.state.buttonevent}"
+                            log.info "[handlePoll] Dimmer Switch ${dni} ${sensor.state.buttonevent}"
                             sensorDev.buttonEvent(sensor.state.buttonevent)
                             sensorDev.sendEvent(name: "battery", value: sensor.config.battery)
                             break                    
@@ -436,12 +493,13 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
 
 def handlePollSensor(physicalgraph.device.HubResponse hubResponse) {
 
-    def parsedEvent = parseEventMessage(hubResponse.description)
+	
+	def parsedEvent = parseEventMessage(hubResponse.description)
     def mac = parsedEvent.mac.substring(6)
     def body = hubResponse.json
 
     if (hubResponse.json.error) {
-    	log.error "Error in ${mac} ${hubResponse.json.error}"	
+    	log.error "[handlePollSensor] Error in ${mac} ${hubResponse.json.error}"	
         return
     }
 	
@@ -449,7 +507,7 @@ def handlePollSensor(physicalgraph.device.HubResponse hubResponse) {
     def sensorDev = getChildDevice(dni)
 
 	if (!sensorDev) {
-        log.error "Sensor ${dni} not found for update"
+        log.error "[handlePollSensor] Sensor ${dni} not found for update"
         return
     }
 
@@ -457,16 +515,16 @@ def handlePollSensor(physicalgraph.device.HubResponse hubResponse) {
         state.devices[dni].lastUpdated = body.state.lastupdated
         switch (state.devices[dni].type) {
         case "ZGPSwitch":
-            log.info "Buttonpress Sensor ${dni} ${body.state.buttonevent}"
+            log.info "[handlePollSensor] Buttonpress Sensor ${dni} ${body.state.buttonevent}"
             sensorDev.buttonEvent(body.state.buttonevent)                          
             break
         case "ZLLPresence":
-            log.info "Motion Sensor ${dni} ${body.state.presence}"
+            log.info "[handlePollSensor] Motion Sensor ${dni} ${body.state.presence}"
             if (body.state.presence) 	sensorDev.sendEvent(name: "motion", value: "active", descriptionText: "$sensorDev motion detected", isStateChange: true)
             else 						sensorDev.sendEvent(name: "motion", value: "inactive", descriptionText: "$sensorDev motion detected", isStateChange: true)
             break
         case "ZLLSwitch":
-            log.info "Dimmer Switch ${dni} ${body.state.buttonevent}"
+            log.info "[handlePollSensor] Dimmer Switch ${dni} ${body.state.buttonevent}"
             sensorDev.buttonEvent(body.state.buttonevent)
             break  
         default:
@@ -498,7 +556,7 @@ def handlePollSensorSceneCycle(physicalgraph.device.HubResponse hubResponse) {
         }
     }
     else {
-        log.info "SceneCycle Error ${body.name} status ${body}"
+        log.info "[handlePollSensorSceneCycle] SceneCycle Error ${body.name} status ${body}"
         return
     }
 	
@@ -544,7 +602,6 @@ private findStateDeviceWithSceneItem(sceneItem) {
 	def stateDevice = state.devices.find {key, dev -> 
     	dev.sceneItem == sceneItem
     }
-    log.info stateDevice
     return stateDevice.toString().split("=")[0]
 }
 
@@ -645,9 +702,9 @@ def getWebData(params, desc, text=true) {
 	}
 	catch (ex) {
 		if(ex instanceof groovyx.net.http.HttpResponseException) {log.error "${desc} file not found"} 
-        else { log.error "getWebData(params: $params, desc: $desc, text: $text) Exception:", ex}
+        else { log.error "[getWebData] (params: $params, desc: $desc, text: $text) Exception:", ex}
 		
-        return "${label} info not found"
+        return "[getWebData] ${label} info not found"
 	}
 }
 
