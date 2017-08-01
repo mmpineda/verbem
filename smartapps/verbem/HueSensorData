@@ -1,3 +1,8 @@
+Version 1.05
+  Add immediate poll after motion sensed instead of waiting 1 second
+  increased elevated polling
+  scenecycle checking of the dimmer
+
 Version 1.02
   Support for elevated polling during selected modes (e.g. Evening, Morning)
   Support for no polling during selected modes (e.g. Away, Holidays)
