@@ -1,3 +1,6 @@
+Version 1.06
+  Small rewrites and bug fixing
+
 Version 1.05
   Add immediate poll after motion sensed instead of waiting 1 second
   increased elevated polling
