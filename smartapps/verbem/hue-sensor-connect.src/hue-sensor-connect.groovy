@@ -20,6 +20,7 @@
  *	1.03 Initial cleaning of code and removing the custom DTH command (replace by normal sendEvent)
  *	1.04 Checking of bridge status online/offline and putting assoiciated devices offline or back online
  *	1.05 Add immediate poll after motion sensed instead of waiting 1 second
+ *	1.06 Bug fixes
  */
 
 
@@ -33,7 +34,7 @@ definition(
 		iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Partner/hue@2x.png",
 		singleInstance: true
 )
-private def runningVersion() 	{"1.05"}
+private def runningVersion() 	{"1.06"}
 
 preferences {
 	page(name:pageMain)
@@ -68,9 +69,22 @@ def pageBridges() {
             submitOnChange	: true,
             required		: false
         ] 
-	
+
+	def inputSensors= [
+            name			: "z_Sensors",
+            type			: "enum",
+            title			: "Select Sensor Types",
+            multiple		: true,
+            submitOnChange	: false,
+            options			: ["Hue Motion","Hue Switch Dimmer","Hue Tap"],
+            required		: true
+        ] 
+
+
 		dynamicPage(name: "pageBridges", title: "Bridges found by Super Lan Connect version ${runningVersion()}", uninstall: true, install:true) {
-            section("Please select Hue Bridges that contain sensors") {
+            section("Please select Hue Bridges that contain sensors and types to add") {
+ 
+ 				input inputSensors
                 input inputBridges          
             }
             if (z_Bridges) {
@@ -92,19 +106,21 @@ def pageBridges() {
                         
                     }
                     
-                }	
-                if (state.devices) {
-                	section("Elevated and or No polling during selected modes") {
-                    	input "z_modes", "mode", title: "select elevated mode(s)", multiple: true, required: false
-                    	input "z_noPollModes", "mode", title: "select no polling mode(s)", multiple: true, required: false
-                    }
-                    section("Associate a ST motion sensor with a Hue Sensor for monitoring during motion, sensor will be checked during motion") {
-                    state.devices.each { item, sdev ->
-                        input "z_motionSensor_${sdev.dni}", "capability.motionSensor", required:false, title:"Associated motion sensor ${sdev.name} "
-                        }	
-                    }
                 }
-                else section("No sensors found yet, wait a minute or so, or tap Done and reenter App")
+                if (z_Sensors) {
+                    if (state.devices) {
+                        section("Elevated and or No polling during selected modes") {
+                            input "z_modes", "mode", title: "select elevated mode(s)", multiple: true, required: false
+                            input "z_noPollModes", "mode", title: "select no polling mode(s)", multiple: true, required: false
+                        }
+                        section("Associate a ST motion sensor with a Hue Sensor for monitoring during motion, sensor will be checked during motion") {
+                        state.devices.each { item, sdev ->
+                            input "z_motionSensor_${sdev.dni}", "capability.motionSensor", required:false, title:"Associated motion sensor ${sdev.name} "
+                            }	
+                        }
+                    }
+                    else section("No sensors found yet, wait a minute or so, or tap Done and reenter App")
+                }
 			}
 		}
 }
@@ -222,11 +238,16 @@ def pollTheSensors(data) {
         bridgecount++
     }
 }
+def monitorSensorStop(evt) {
+
+	log.info "[monitorSensor] Motion Stopped for ${evt.displayName.toString()}"
+}
+
 
 def monitorSensor(evt) {
-	// Looking for the last changed Hue Sensor button every 1s for 10 times
-    // happens if you defined a normal motion sensor associated with a Hue sensor and motion has been detected.
 
+	log.info "[monitorSensor] Motion Started 	for ${evt.displayName.toString()}"
+    
 	settings.each { key, value ->
     	if (value.toString() == evt.displayName.toString()) {
 
@@ -241,7 +262,6 @@ def monitorSensor(evt) {
                 if (mac == mac2) {
             		def devSensor = getChildDevice(dni)
                 	if (devSensor) {
-                    	log.info "[monitorSensor] Monitoring ${dni}(${devSensor.label}) with ${evt.displayName.toString()}"
                         def hostIP = dev.currentValue("networkAddress")
                         def i = 0
 						
@@ -267,6 +287,7 @@ def subscribeToMotionEvents() {
         	def motionSensor = settings."z_motionSensor_${dni}"
         	log.info "[subscribeToMotionEvents] Subscribe to motion for ${motionSensor} defined for ${sensor.name}"
             subscribe(motionSensor, "motion.active", monitorSensor)
+            subscribe(motionSensor, "motion.inactive", monitorSensorStop)
         }
     }
 }
@@ -302,6 +323,19 @@ private updateSensorState(messageBody, mac) {
         deleteChildDevice(dni)
 		state.devices.remove(dni)
 	}
+	// sync state.devices with removed child devices
+	toRemove = [:]
+    
+    state.devices.each { key, sensor ->
+    	if (!getChildDevice(key)) {
+        	toRemove[key] = sensor
+        }
+    }
+    
+    toRemove.each { k, v ->
+    	state.devices.remove(k)
+    }
+    
 }
 
 def parse(childDevice, description) {
@@ -423,70 +457,72 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
             	}
 			}
 		}
-
-    	if (sensor.type == "ZGPSwitch" || sensor.type == "ZLLPresence" || sensor.type == "ZLLSwitch" ) {
-            def dni = mac + "/sensor/" + item
-            def sensorDev = getChildDevice(dni)
-            if (!sensorDev) {
-            	def devType
-                switch (sensor.type) {
-                	case "ZGPSwitch":
-                    	devType = "Hue Tap"
-                        break
-                	case "ZLLPresence":
-                    	devType = "Hue Motion"
-                        break
-                	case "ZLLSwitch":
-                    	devType = "Hue Switch"
-                        break  
-                }
-            	log.info "[handlePoll] Add Sensor ${dni} ${sensor.type} ${devType} ${sensor.name} ${getMac(sensor.uniqueid)}"
-            	
-                sensorDev = addChildDevice("verbem", devType, dni, null, [name:sensor.name, label:sensor.name, completedSetup:true])
-                state.devices[dni] = [
-                	'lastUpdated'	: sensor.state.lastupdated, 
-                    'mac'			: mac, 
-                    'item'			: item, 
-                    'dni'			: dni,
-                    'name'			: sensor.name,
-                    'uniqueId'		: getMac(sensor.uniqueid),
-                    'type'			: sensor.type,
-                    'monitorTap'	: false,	
-                    'id'			: sensorDev.id
-                    ]
-            }
-                
-            else 
-            {
-            	if (state.devices[dni].name != sensor.name) {
-                	state.devices[dni].name = sensor.name
-                    sensorDev.name = sensor.name
-                    sensorDev.label = sensor.name
-                }
-
-				if (state.devices[dni].lastUpdated != sensor.state.lastupdated) {
-                	state.devices[dni].lastUpdated = sensor.state.lastupdated
-                    switch (state.devices[dni].type) {
+		
+        if (settings.z_Sensors) {
+            if ((sensor.type == "ZGPSwitch" && settings.z_Sensors.contains("Hue Tap")) || (sensor.type == "ZLLPresence" && settings.z_Sensors.contains("Hue Motion")) || (sensor.type == "ZLLSwitch"  && settings.z_Sensors.contains("Hue Dimmer Switch")) ) {
+                def dni = mac + "/sensor/" + item
+                def sensorDev = getChildDevice(dni)
+                if (!sensorDev) {
+                    def devType
+                    switch (sensor.type) {
                         case "ZGPSwitch":
-                            log.info "[handlePoll] Buttonpress Tap ${dni} ${sensor.state.buttonevent}"
-                            sensorDev.buttonEvent(sensor.state.buttonevent)                          
+                            devType = "Hue Tap"
                             break
                         case "ZLLPresence":
-                            log.info "[handlePoll] Motion Sensor ${dni} ${sensor.state.presence}"
-                            if (sensor.state.presence) 	sensorDev.sendEvent(name: "motion", value: "active", descriptionText: "$sensorDev motion detected", isStateChange: true)
-                            else 						sensorDev.sendEvent(name: "motion", value: "inactive", descriptionText: "$sensorDev motion detected", isStateChange: true)
-                            sensorDev.sendEvent(name: "battery", value: sensor.config.battery)
-                        	break
+                            devType = "Hue Motion"
+                            break
                         case "ZLLSwitch":
-                            log.info "[handlePoll] Dimmer Switch ${dni} ${sensor.state.buttonevent}"
-                            sensorDev.buttonEvent(sensor.state.buttonevent)
-                            sensorDev.sendEvent(name: "battery", value: sensor.config.battery)
-                            break                    
-	                }
+                            devType = "Hue Switch"
+                            break  
+                    }
+                    log.info "[handlePoll] Add Sensor ${dni} ${sensor.type} ${devType} ${sensor.name} ${getMac(sensor.uniqueid)}"
+
+                    sensorDev = addChildDevice("verbem", devType, dni, null, [name:sensor.name, label:sensor.name, completedSetup:true])
+                    state.devices[dni] = [
+                        'lastUpdated'	: sensor.state.lastupdated, 
+                        'mac'			: mac, 
+                        'item'			: item, 
+                        'dni'			: dni,
+                        'name'			: sensor.name,
+                        'uniqueId'		: getMac(sensor.uniqueid),
+                        'type'			: sensor.type,
+                        'monitorTap'	: false,	
+                        'id'			: sensorDev.id
+                        ]
+                }
+
+                else 
+                {
+                    if (state.devices[dni].name != sensor.name) {
+                        state.devices[dni].name = sensor.name
+                        sensorDev.name = sensor.name
+                        sensorDev.label = sensor.name
+                    }
+
+                    if (state.devices[dni].lastUpdated != sensor.state.lastupdated) {
+                        state.devices[dni].lastUpdated = sensor.state.lastupdated
+                        switch (state.devices[dni].type) {
+                            case "ZGPSwitch":
+                                log.info "[handlePoll] Buttonpress Tap ${dni} ${sensor.state.buttonevent}"
+                                sensorDev.buttonEvent(sensor.state.buttonevent)                          
+                                break
+                            case "ZLLPresence":
+                                log.info "[handlePoll] Motion Sensor ${dni} ${sensor.state.presence}"
+                                if (sensor.state.presence) 	sensorDev.sendEvent(name: "motion", value: "active", descriptionText: "$sensorDev motion detected", isStateChange: true)
+                                else 						sensorDev.sendEvent(name: "motion", value: "inactive", descriptionText: "$sensorDev motion detected", isStateChange: true)
+                                sensorDev.sendEvent(name: "battery", value: sensor.config.battery)
+                                break
+                            case "ZLLSwitch":
+                                log.info "[handlePoll] Dimmer Switch ${dni} ${sensor.state.buttonevent}"
+                                sensorDev.buttonEvent(sensor.state.buttonevent)
+                                sensorDev.sendEvent(name: "battery", value: sensor.config.battery)
+                                break                    
+                        }
+                    }
                 }
             }
-        }
-    }
+		}
+}
         
     updateSensorState(body, mac)
 }
