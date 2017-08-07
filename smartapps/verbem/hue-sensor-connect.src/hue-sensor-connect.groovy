@@ -21,6 +21,7 @@
  *	1.04 Checking of bridge status online/offline and putting assoiciated devices offline or back online
  *	1.05 Add immediate poll after motion sensed instead of waiting 1 second
  *	1.06 Bug fixes
+ *  1.07 checked for Hue Dimmer Switch not Hue Switch Dimmer
  */
 
 
@@ -34,7 +35,7 @@ definition(
 		iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Partner/hue@2x.png",
 		singleInstance: true
 )
-private def runningVersion() 	{"1.06"}
+private def runningVersion() 	{"1.07"}
 
 preferences {
 	page(name:pageMain)
@@ -292,7 +293,8 @@ def subscribeToMotionEvents() {
     }
 }
 
-private updateSensorState(messageBody, mac) {
+private updateSensorState(messageBody, mac) { 
+
 	def sensors = [:]
 	// create sensor list of this bridge mac
     state.devices.each { key, sensor ->
@@ -304,26 +306,27 @@ private updateSensorState(messageBody, mac) {
 	// Copy of sensors used to locate old sensors in state that are no longer on bridge
 	def toRemove = [:]
 	toRemove << sensors
-
+	
 	messageBody.each { k, v ->
 
 		if (v instanceof Map) {
-			if (sensors[k] == null) {
-				sensors[k] = [:]
-			}
-			toRemove.remove(k)
+			if (sensors[k] != null) {
+            	toRemove.remove(k)
+            }
 		}
 	}
 
 	// Remove sensors from state that are no longer discovered
 	toRemove.each { k, v ->
-    	
-		log.warn "[updateSensorState] ${sensors[k].name} no longer exists on bridge ${mac}, removing dni ${sensors[k].dni}"
-        def dni = sensors[k].dni
-        deleteChildDevice(dni)
-		state.devices.remove(dni)
+		def dni = sensors[k].dni
+		if (getChildDevice(dni)) {
+            log.warn "[updateSensorState] ${sensors[k].name} no longer exists on bridge ${mac}, removing dni ${sensors[k].dni}"        
+            deleteChildDevice(dni)
+            state.devices.remove(dni)
+        }
 	}
-	// sync state.devices with removed child devices
+    
+	// sync state.devices with (manual) removed child devices 
 	toRemove = [:]
     
     state.devices.each { key, sensor ->
@@ -459,7 +462,7 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
 		}
 		
         if (settings.z_Sensors) {
-            if ((sensor.type == "ZGPSwitch" && settings.z_Sensors.contains("Hue Tap")) || (sensor.type == "ZLLPresence" && settings.z_Sensors.contains("Hue Motion")) || (sensor.type == "ZLLSwitch"  && settings.z_Sensors.contains("Hue Dimmer Switch")) ) {
+            if ((sensor.type == "ZGPSwitch" && settings.z_Sensors.contains("Hue Tap")) || (sensor.type == "ZLLPresence" && settings.z_Sensors.contains("Hue Motion")) || (sensor.type == "ZLLSwitch"  && settings.z_Sensors.contains("Hue Switch Dimmer")) ) {
                 def dni = mac + "/sensor/" + item
                 def sensorDev = getChildDevice(dni)
                 if (!sensorDev) {
@@ -522,7 +525,7 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
                 }
             }
 		}
-}
+	}
         
     updateSensorState(body, mac)
 }
