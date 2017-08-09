@@ -1,0 +1,46 @@
+Version 4.03	
+    Restructured socketSend method to pass a MAP, online/offline for healthcheck, Changed check for roomplans and related devices, needs more fixing
+    
+Version 4.02	
+    Implement Hubaction with callback handlers
+    
+Version 4.01	
+    Fix bug, state.networkID is set too late, it will prevent plans to run when a fresh install is done
+    
+Version 4.00	
+    Include new Nefit Easy thermostat (use Robert Klep Nefit Easy HTTP Server that (can) runs on the same raspberry as DZV3.12	Add (virtual) sensors
+    
+Version 3.11	
+    Fix in Domoticz_Stop function
+    
+Version 3.10	
+    Change to singleinstance App and enabled oauth
+    
+Version 3.09	
+    Changes to IP/Port calls to Domoticz
+    
+Version 3.08	
+    Add support for inverted blinds (SwitchTypeVal 6 and 16)
+    
+Version 3.07	
+    Catch error when Oauth is not enabled
+    
+Version 3.06	
+    Clean up code
+    
+Version 3.05	
+    Corrected typo in routine that selects which types to add
+    
+Version 3.03
+    Corrected event processing for Motion and Contact
+    
+Version 3.02	
+      Implemented a refresh for devices in Domoticz every hour, these will be shown as "not completed" devices
+      
+Version 3.01	
+      Implemented batterylevel as info that can be passed as an event to the devices
+      
+Version 3.00	
+      Add more granularity in adding devices from DZ to ST, Select on SwitchTypeVal and Room Plan
+ 			complete restructure of the onLocation Event to have more clear event processing
+      Added support for Smoke Detector, Motion Sensor and Contact Sensor
