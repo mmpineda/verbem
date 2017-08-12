@@ -27,8 +27,10 @@
  
  */
 
+
 import groovy.json.*
 import java.Math.*
+private def runningVersion() 	{"2.00"}
 
 definition(
     name: "Smart Screens",
@@ -327,6 +329,8 @@ def initialize() {
 	subscribe(location, "sunsetTime", sunsetTimeHandler)
 	subscribe(location, "sunset", stopSunpath,  [filterEvents:true])
     subscribe(location, "sunrise", startSunpath,  [filterEvents:true])
+    
+    schedule("2015-01-09T12:00:00.000-0600", notifyNewVersion)
 
 	def blindParams = [:]
     settings.z_blinds.each {
@@ -336,24 +340,32 @@ def initialize() {
 		}	
   
     subscribe(z_sensors, "WindStrength", eventNetatmo)
+    
     z_blinds.each {
     	subscribeToCommand(it, "refresh", eventRefresh)
         }
     
+    settings.each { k, v ->
+    	if (k.contains("z_blindsOpenSensor")) {
+        	subscribe(v, "contact.Closed", eventDoorClosed) 
+        }
+    }
+    
     checkForWind()
     checkForSun()
+    checkForClouds()
     
     runEvery30Minutes(checkForSun)
     runEvery1Hour(checkForClouds)
     runEvery10Minutes(checkForWind)
 }
 
-def handlerLocation(evt) {
-	TRACE("handlerLocation")
+def eventDoorClosed(evt) {
+	TRACE("[eventDoorClosed] ${evt.device} has closed") 
+ 	
+    if (state.night == false) checkForSun()
 
 }
-
-
 /*-----------------------------------------------------------------------------------------*/
 /*	This routine will get information relating to the weather at location and current time
 /*-----------------------------------------------------------------------------------------*/
@@ -418,8 +430,6 @@ def getForecast() {
             
 		try {
             httpGet(httpGetParams) { resp ->
-            	//log.info resp.data.current_observation
-                log.info resp.data
                 returnList.put('windBearing',calcBearing(resp.data.current_observation.wind_degrees))
                 returnList.put('windSpeed', resp.data.current_observation.wind_kph.toDouble())  //all others do m/s if metric, account for this.
                 def CC = 100
@@ -457,7 +467,7 @@ return returnList
 /*	This routine will get information relating to the SUN´s position
 /*-----------------------------------------------------------------------------------------*/
 def getSunpath() {
-    TRACE("getSunpath")
+    TRACE("[getSunpath]")
     def sp = sunCalc()
     return calcBearing(sp.azimuth)  
 }
@@ -470,7 +480,7 @@ def checkForSun(evt) {
 
 if (settings.z_Pause) return
 
-TRACE("SUN checkForSun")
+TRACE("[checkForSun]")
 state.sunBearing = getSunpath()
 
 settings.z_blinds.each {
@@ -490,16 +500,16 @@ settings.z_blinds.each {
     /*			this is only needed if direction of wind is on the screens
     /*	 
     /*-----------------------------------------------------------------------------------------*/                 
-    TRACE("[checkForSun] Right Orientation ${blindParams.blindsOrientation.contains(state.sunBearing)} DOOR ${dev} ${devStatus} EOD ${eodDone} ACTION ${blindParams.closeMaxAction}")
-    pause 2
+    TRACE("[checkForSun] ${it} has ${blindParams.blindsOrientation.contains(state.sunBearing)} sun orientation, DOOR ${dev} is ${devStatus}, EOD ${eodDone}, ACTION to take ${blindParams.closeMaxAction}")
+    
     if(blindParams.blindsOrientation.contains(state.sunBearing) && devStatus == "Closed" && eodDone == 'false' ) 
     {
-    	TRACE("[checkForSun] ${it} STATE ${state.cloudCover.toInteger()} BLINDPARAMS ${blindParams.cloudCover.toInteger()}")
-        pause 2
+    	TRACE("[checkForSun] ${it} Forecast is ${state.cloudCover.toInteger()}% cloud, BLINDPARAMS is ${blindParams.cloudCover.toInteger()}%")
+        
         if(state.cloudCover.toInteger() <= blindParams.cloudCover.toInteger()) 
         {           
-            TRACE("[checkForSun] ${state.windSpeed.toInteger()} < ${blindParams.windForceCloseMax.toInteger()} ${blindParams.blindsOrientation.contains(state.windBearing)} ${blindParams.blindsType}")
-            pause 2
+            TRACE("[checkForSun] ${it} Forecasted ${state.windSpeed.toInteger()} < ${blindParams.windForceCloseMax.toInteger()}, wind orientation ${blindParams.blindsOrientation.contains(state.windBearing)}, Type is ${blindParams.blindsType}")
+            
                 	if (blindParams.blindsType == "Screen")                     
                 		{
                         if((state.windSpeed.toInteger() < blindParams.windForceCloseMax.toInteger() && blindParams.blindsOrientation.contains(state.windBearing)) || blindParams.blindsOrientation.contains(state.windBearing) == false )
@@ -526,11 +536,11 @@ return null
 /*	This is a scheduled event that will get latest SUN related info on position
 /*	and will check the blinds that provide sun protection if they need to be opened
 /*-----------------------------------------------------------------------------------------*/
-def checkForClouds(evt) {
+def checkForClouds() {
 
 if (settings.z_Pause) return
 
-TRACE("CLOUDS checkForClouds")
+TRACE("[checkForClouds] ${params}")
 state.sunBearing = getSunpath()
 
 settings.z_blinds.each {
@@ -566,18 +576,19 @@ return null
 /*	This is an event handler that will be provided with wind events from NETATMO devices
 /*-----------------------------------------------------------------------------------------*/
 def eventNetatmo(evt) {
+	TRACE("[eventNetatmo]")
 
-def dev = evt.getDevice()
-def windAngle 		= calcBearing(dev.latestValue("WindAngle"))
-def gustStrength 	= dev.latestValue("GustStrength")
-def gustAngle 		= calcBearing(dev.latestValue("GustAngle"))
-def windStrength 	= dev.latestValue("WindStrength")
-def units 			= dev.latestValue("units")
+    def dev = evt.getDevice()
+    def windAngle 		= calcBearing(dev.latestValue("WindAngle"))
+    def gustStrength 	= dev.latestValue("GustStrength")
+    def gustAngle 		= calcBearing(dev.latestValue("GustAngle"))
+    def windStrength 	= dev.latestValue("WindStrength")
+    def units 			= dev.latestValue("units")
 
-if (evt.isStateChange()) {
-    state.windBearing = windAngle
-    state.windSpeed = windStrength
-    checkForWind("NETATMO")
+    if (evt.isStateChange()) {
+        state.windBearing = windAngle
+        state.windSpeed = windStrength
+        checkForWind("NETATMO")
     }
 }
 
@@ -587,55 +598,55 @@ if (evt.isStateChange()) {
 /*-----------------------------------------------------------------------------------------*/
 def checkForWind(evt) {
 
-state.sunBearing = getSunpath()
+    state.sunBearing = getSunpath()
 
-def windParms = [:]
+    def windParms = [:]
 
-if (evt == null) {
-	evt = settings.z_weatherAPI
-    windParms = getForecast()
-    state.windBearing = windParms.windBearing
-    state.windSpeed = windParms.windSpeed
-    if (settings.z_windForceMetric == "km/h" && settings.z_weatherAPI.contains("WeatherUnderground") == false) {state.windSpeed = windParms.windSpeed * 3.6}
-    state.cloudCover = windParms.cloudCover
+    if (evt == null) {
+        evt = settings.z_weatherAPI
+        windParms = getForecast()
+        state.windBearing = windParms.windBearing
+        state.windSpeed = windParms.windSpeed
+        if (settings.z_windForceMetric == "km/h" && settings.z_weatherAPI.contains("WeatherUnderground") == false) {state.windSpeed = windParms.windSpeed * 3.6}
+        state.cloudCover = windParms.cloudCover
     }
 
-settings.z_blinds.each {
-    it.generateEvent(["windBearing": state.windBearing, "windSpeed": state.windSpeed, "cloudCover": state.cloudCover, "sunBearing": state.sunBearing])
-}
+    settings.z_blinds.each {
+        it.generateEvent(["windBearing": state.windBearing, "windSpeed": state.windSpeed, "cloudCover": state.cloudCover, "sunBearing": state.sunBearing])
+    }
 
-if (settings.z_Pause) return
+    if (settings.z_Pause) return
 
-TRACE("WIND checkForWind")
+    TRACE("[checkForWind]")
 
-settings.z_blinds.each {
+    settings.z_blinds.each {
 
-    def blindParams = fillBlindParams(it.id)
-    def dev = blindParams.blindsOpenSensor
-    def devStatus = "Closed"
-    if (dev) {
-    	devStatus = dev.currentValue("contact")
-    	}
-            
-	/*-----------------------------------------------------------------------------------------*/
-    /*	WIND determine if we need to close (or OPEN if wind speed is above allowed max for blind)
-    /*-----------------------------------------------------------------------------------------*/      
-    if(blindParams.blindsOrientation.contains(state.windBearing) && devStatus == "Closed") {
-        if(state.windSpeed.toInteger() > blindParams.windForceCloseMin.toInteger() && blindParams.blindsType == "Shutter") {
-            if (blindParams.closeMinAction == "Down") it.close()
-            if (blindParams.closeMinAction == "Up") it.open()
-            if (blindParams.closeMinAction == "Stop") it.stop()
-        	}
-        if(state.windSpeed.toInteger() > blindParams.windForceCloseMax.toInteger() && blindParams.blindsType == "Screen") {
-			//reverse the defined MaxAction
-			if (blindParams.closeMaxAction == "Down") it.open()
-            if (blindParams.closeMaxAction == "Up") it.close()
-            if (blindParams.closeMaxAction == "Stop") it.open()
+        def blindParams = fillBlindParams(it.id)
+        def dev = blindParams.blindsOpenSensor
+        def devStatus = "Closed"
+        if (dev) {
+            devStatus = dev.currentValue("contact")
+        }
+
+        /*-----------------------------------------------------------------------------------------*/
+        /*	WIND determine if we need to close (or OPEN if wind speed is above allowed max for blind)
+        /*-----------------------------------------------------------------------------------------*/      
+        if(blindParams.blindsOrientation.contains(state.windBearing) && devStatus == "Closed") {
+            if(state.windSpeed.toInteger() > blindParams.windForceCloseMin.toInteger() && blindParams.blindsType == "Shutter") {
+                if (blindParams.closeMinAction == "Down") it.close()
+                if (blindParams.closeMinAction == "Up") it.open()
+                if (blindParams.closeMinAction == "Stop") it.stop()
             }
-    	}
+            if(state.windSpeed.toInteger() > blindParams.windForceCloseMax.toInteger() && blindParams.blindsType == "Screen") {
+                //reverse the defined MaxAction
+                if (blindParams.closeMaxAction == "Down") it.open()
+                if (blindParams.closeMaxAction == "Up") it.close()
+                if (blindParams.closeMaxAction == "Stop") it.open()
+            }
+        }
     }
 
-return null
+    return null
 }
 
 def eventRefresh(evt) {
@@ -652,7 +663,7 @@ def eventRefresh(evt) {
 /*	this will stop the scheduling of events called at SUNSET
 /*-----------------------------------------------------------------------------------------*/
 def stopSunpath(evt) {
-	TRACE("Stop Scheduling")
+	TRACE("[stopSunpath] Stop Scheduling")
     state.night = true
     pause 5
 	unschedule(checkForSun)
@@ -667,7 +678,7 @@ def stopSunpath(evt) {
 /*	this will start the scheduling of events called at SUNRISE
 /*-----------------------------------------------------------------------------------------*/
 def startSunpath(evt) {
-	TRACE("start Scheduling")
+	TRACE("[startSunpath] Start Scheduling")
     state.night = false
     pause 5
 	runEvery30Minutes(checkForSun)
@@ -871,3 +882,32 @@ def J1970() { return 2440588}
 def J2000() { return 2451545}
 def rad() { return  Math.PI / 180}
 def e() { return  rad() * 23.4397}
+
+/*-----------------------------------------------------------------------------------------*/
+/*	Version Control
+/*-----------------------------------------------------------------------------------------*/
+def getWebData(params, desc, text=true) {
+	try {
+		httpGet(params) { resp ->
+			if(resp.data) {
+				if(text) { return resp?.data?.text.toString() } 
+                else { return resp?.data }
+			}
+		}
+	}
+	catch (ex) {
+		if(ex instanceof groovyx.net.http.HttpResponseException) {log.error "${desc} file not found"} 
+        else { log.error "[getWebData] (params: $params, desc: $desc, text: $text) Exception:", ex}
+		
+        return "[getWebData] ${label} info not found"
+	}
+}
+
+def notifyNewVersion() {
+
+	if (appVerInfo().split()[1] != runningVersion()) {
+    	sendNotificationEvent("Hue Sensor App has a newer version, ${appVerInfo().split()[1]}, please visit IDE to update app/devices")
+    }
+}
+
+private def appVerInfo()		{ return getWebData([uri: "https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/SmartScreensData", contentType: "text/plain; charset=UTF-8"], "changelog") }
