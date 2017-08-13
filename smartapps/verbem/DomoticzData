@@ -1,3 +1,7 @@
+Version 4.04	
+    Clean up in the composite Domoticz device routines
+    Add Dusk Sensor Switch type device domoticzDuskSensor is the DTH
+
 Version 4.03	
     Restructured socketSend method to pass a MAP, online/offline for healthcheck, Changed check for roomplans and related devices, needs more fixing
     
