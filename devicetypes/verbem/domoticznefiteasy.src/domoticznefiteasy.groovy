@@ -144,20 +144,20 @@ def generateEvent(Map results) {
 				isChange = isStateChange(device, name, value.toString())
 				isDisplayed = isChange
 				event << [value: sendValue, unit: temperatureScale, isStateChange: isChange, displayed: isDisplayed]
-			}  else if (name=="maxHeatingSetpoint" || name=="minHeatingSetpoint") {
-				def sendValue =  value.toInteger()
-				event << [value: sendValue, unit: temperatureScale, displayed: false]
-			}  else if (name=="manual" || name=="auto" ){
-				isChange = isStateChange(device, name, value.toString())
-				event << [value: value.toString(), isStateChange: isChange, displayed: false]
-			} else if (name == "deviceAlive") {
-				isChange = isStateChange(device, name, value.toString())
-				event['isStateChange'] = isChange
-				event['displayed'] = false
-			} else {
-				isChange = isStateChange(device, name, value.toString())
-				isDisplayed = isChange
-				event << [value: value.toString(), isStateChange: isChange, displayed: isDisplayed]
+			}  	else if (name=="maxHeatingSetpoint" || name=="minHeatingSetpoint") {
+                    def sendValue =  value.toInteger()
+                    event << [value: sendValue, unit: temperatureScale, displayed: false]
+			}  	else if (name=="manual" || name=="auto" ){
+                    isChange = isStateChange(device, name, value.toString())
+                    event << [value: value.toString(), isStateChange: isChange, displayed: false]
+			} 	else if (name == "deviceAlive") {
+                    isChange = isStateChange(device, name, value.toString())
+                    event['isStateChange'] = isChange
+                    event['displayed'] = false
+			} 	else {
+                    isChange = isStateChange(device, name, value.toString())
+                    isDisplayed = isChange
+                    event << [value: value.toString(), isStateChange: isChange, displayed: isDisplayed]
 			}
 			sendEvent(event)
 		}
@@ -360,13 +360,16 @@ def generateSetpointEvent() {
 
 	if (mode == "manual") {
 		sendEvent("name":"thermostatSetpoint", "value":heatingSetpoint, "unit":location.temperatureScale)
-	} else if (mode == "auto") {
-		sendEvent("name":"thermostatSetpoint", "value":"Auto")
-	} else if (mode == "holiday") {
-		sendEvent("name":"thermostatSetpoint", "value":"Holiday")
-	} else if (mode == "eco") {
-		sendEvent("name":"thermostatSetpoint", "value":"Eco")
-	} 
+	} 	
+    else if (mode == "auto") {
+        sendEvent("name":"thermostatSetpoint", "value":"Auto")
+    } 	
+    else if (mode == "holiday") {
+        sendEvent("name":"thermostatSetpoint", "value":"Holiday")
+    }
+    else if (mode == "eco") {
+        sendEvent("name":"thermostatSetpoint", "value":"Eco")
+    } 
 }
 
 void raiseSetpoint() {

@@ -22,7 +22,7 @@ import groovy.time.TimeCategory
 import groovy.time.TimeDuration
 
 preferences {
-    input(name:"stopSupported", type:"bool", title: "Stop command supported?", description:"Does your blind use the STOP command to halt the blind. Not the Somfy Stop/My command!", defaultValue:false)
+    input(name:"stopSupported", type:"bool", title: "Stop command supported?", description:"Does your blind use the STOP command to halt the blind. NOT to be confused with the Somfy Stop/My command!", defaultValue:false)
 }   
 metadata {
 	definition (name: "domoticzBlinds", namespace: "verbem", author: "Martin Verbeek") {

@@ -23,6 +23,8 @@ metadata {
 		capability "Refresh"
         capability "Signal Strength"
 		capability "Health Check"
+        capability "Illuminance Measurement"
+        capability "Power"
         }
 
 	tiles(scale: 2) {
@@ -52,12 +54,20 @@ metadata {
 			state "temparature", label:'${currentValue}', unit:"", icon:"st.Weather.weather2"
 		}
 
+		standardTile("illuminance", "device.illuminance", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
+			state "illuminance", label:'${currentValue} Lux', unit:"", icon:""
+		}
+
+		standardTile("power", "device.power", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
+			state "power", label:'${currentValue} W', unit:"", icon:""
+		}
+
 		standardTile("rssi", "device.rssi", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
             state "rssi", label:'Signal ${currentValue}', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzsensor.src/network-signal.png"
         }
 
 		main "motion"
-		details(["motion", "temperature", "battery", "rssi", "refresh"])
+		details(["motion", "temperature", "battery", "illuminance", "power", "rssi", "refresh"])
 	}
 }
 

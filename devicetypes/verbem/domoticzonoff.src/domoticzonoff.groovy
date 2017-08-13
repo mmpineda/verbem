@@ -38,7 +38,8 @@ metadata {
         capability "Refresh"
         capability "Polling"
         capability "Signal Strength"
-		capability "Health Check"        
+		capability "Health Check"
+        capability "Power Meter"
       
         // custom commands
         command "parse"     // (String "<attribute>:<value>[,<attribute>:<value>]")
@@ -64,6 +65,10 @@ metadata {
 				attributeState "Error", label:"Install Error", backgroundColor: "#bc2323"
                 
             }
+            tileAttribute ("device.power", key: "SECONDARY_CONTROL") {
+                attributeState "power", label:'Power level: ${currentValue}', icon: "st.Appliances.appliances17"
+            }
+            
             tileAttribute("device.level", key: "SLIDER_CONTROL", range:"0..16") {
             	attributeState "level", action:"setLevel" 
             }
