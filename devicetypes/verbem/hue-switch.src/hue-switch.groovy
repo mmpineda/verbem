@@ -127,7 +127,7 @@ log.info "Button ${button} xButton ${xButton}"
             if (state.sceneCycle > 14) state.sceneCycle = 10 
     	}
     		else {
-            	state.sceneCycle = 10
+            	if (xButton == 4) state.sceneCycle = 10
         		sendEvent(name: "button", value: "pushed", data: [buttonNumber: xButton], descriptionText: "$device.displayName button $xButton was pushed", isStateChange: true)
             }
     
