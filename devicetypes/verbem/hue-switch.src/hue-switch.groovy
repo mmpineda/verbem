@@ -41,6 +41,7 @@ metadata {
         command "parse"     // (String "<attribute>:<value>[,<attribute>:<value>]")
        	command "setLevel"
        	command "buttonEvent", ["number"]
+
     }
 
     tiles(scale:2) {
@@ -84,6 +85,9 @@ def parse(String message) {
 def buttonEvent(button) {
 	int xButton = (button / 1000)
 
+	
+log.info "Button ${button} xButton ${xButton}" 
+	
     switch (xButton) {
         case 1:
             sendEvent(name: "switch", value: "on", descriptionText: "$device.displayName On button $xButton was pushed", isStateChange: true)
@@ -109,8 +113,23 @@ def buttonEvent(button) {
            break
 	}
 
-	if (button in [1001, 1003, 2001, 2003, 3001, 3003, 4001, 4003]) sendEvent(name: "button", value: "held", data: [buttonNumber: xButton, icon:iconPath], descriptionText: "$device.displayName button $xButton was pushed Long", isStateChange: true)
-    else sendEvent(name: "button", value: "pushed", data: [buttonNumber: xButton], descriptionText: "$device.displayName button $xButton was pushed", isStateChange: true)
+	
+	if (button in [1001, 1003, 2001, 2003, 3001, 3003, 4001, 4003]) {
+    	state.sceneCycle = 10
+    	sendEvent(name: "button", value: "held", data: [buttonNumber: xButton, icon:iconPath], descriptionText: "$device.displayName button $xButton was pushed Long", isStateChange: true)
+        }
+    else if (button == 1002) {
+    		if (!state.sceneCycle) state.sceneCycle = 10
+            
+    		sendEvent(name: "button", value: "pushed", data: [buttonNumber: state.sceneCycle], descriptionText: "$device.displayName button $state.sceneCycle was pushed", isStateChange: true)
+            state.sceneCycle = state.sceneCycle + 1
+            
+            if (state.sceneCycle > 14) state.sceneCycle = 10 
+    	}
+    		else {
+            	state.sceneCycle = 10
+        		sendEvent(name: "button", value: "pushed", data: [buttonNumber: xButton], descriptionText: "$device.displayName button $xButton was pushed", isStateChange: true)
+            }
     
 }
 // switch.poll() command handler
@@ -157,6 +176,7 @@ def initialize() {
         sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson([protocol: "LAN", scheme:"untracked"]), displayed: false)
         sendEvent(name: "level", value: 100)
         sendEvent(name: "numberOfButtons", value: 14)
+        state.sceneCycle = 10
         log.info "number of buttons is 14"
     }
     else {
