@@ -22,6 +22,7 @@
  *	1.05 Add immediate poll after motion sensed instead of waiting 1 second
  *	1.06 Bug fixes
  *  1.07 checked for Hue Dimmer Switch not Hue Switch Dimmer
+ *	1.08 check for config = reachable and on to be true and put device offline if either one is not true, online if again reachable or config on again 
  */
 
 
@@ -35,7 +36,7 @@ definition(
 		iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Partner/hue@2x.png",
 		singleInstance: true
 )
-private def runningVersion() 	{"1.07"}
+private def runningVersion() 	{"1.08"}
 
 preferences {
 	page(name:pageMain)
@@ -496,13 +497,20 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
 
                 else 
                 {
-                    if (state.devices[dni].name != sensor.name) {
+                    log.info "[handlePoll] Update Sensor ${dni} ${sensor.type} ${sensor.name} ${getMac(sensor.uniqueid)} CONFIG ${sensor?.config?.on} Reachable ${sensor?.config?.reachable}"
+                    
+                    if (sensor?.config?.reachable == false || sensor?.config?.on == false) sensorDev.sendEvent(name: "DeviceWatch-DeviceStatus", value: "offline", displayed: false, isStateChange: true)
+                    else if (sensor?.config?.reachable == null && sensor?.config?.on == true ) sensorDev.sendEvent(name: "DeviceWatch-DeviceStatus", value: "online", displayed: false, isStateChange: true)
+                   	else if (sensor?.config?.reachable == true && sensor?.config?.on == true ) sensorDev.sendEvent(name: "DeviceWatch-DeviceStatus", value: "online", displayed: false, isStateChange: true)
+                    
+                    
+                    if (state.devices[dni]?.name && state.devices[dni]?.name != sensor.name) {
                         state.devices[dni].name = sensor.name
                         sensorDev.name = sensor.name
                         sensorDev.label = sensor.name
                     }
 
-                    if (state.devices[dni].lastUpdated != sensor.state.lastupdated) {
+                    if (state.devices[dni]?.lastUpdated && state.devices[dni]?.lastUpdated != sensor.state.lastupdated) {
                         state.devices[dni].lastUpdated = sensor.state.lastupdated
                         switch (state.devices[dni].type) {
                             case "ZGPSwitch":
@@ -550,6 +558,8 @@ def handlePollSensor(physicalgraph.device.HubResponse hubResponse) {
         return
     }
 
+	log.info "[handlePollSensor] Sensor ${dni} CONFIG ${body?.config?.on}"
+
 	if (state.devices[dni].lastUpdated != body.state.lastupdated) {
         state.devices[dni].lastUpdated = body.state.lastupdated
         switch (state.devices[dni].type) {
@@ -583,10 +593,11 @@ def handlePollSensorSceneCycle(physicalgraph.device.HubResponse hubResponse) {
         return
     }
 
+
 	if (body.name.contains("SceneCycle")) {
         def itemSC = body.name.split()[2]       
         def dni = mac + "/sensor/" + itemSC
-    	def sensorDev = getChildDevice(dni)     
+    	def sensorDev = getChildDevice(dni)  
         if (state.devices[dni].sceneCycle != body.state.status) {
             state.devices[dni].sceneCycle = body.state.status
             state.devices[dni].sceneCycleLastupdated = body.state.lastupdated
