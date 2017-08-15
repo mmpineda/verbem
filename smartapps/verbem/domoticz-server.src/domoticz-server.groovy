@@ -13,14 +13,13 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *	
-	V4.04	Clean up in the composite Domoticz device routines
-    		Add Dusk Sensor Switch type device domoticzDuskSensor is the DTH
+	V4.05	check for null on result in onLocationEvtForEveryThing
  */
  
 import groovy.json.*
 import java.Math.*
 
-private def runningVersion() {"4.04"}
+private def runningVersion() {"4.05"}
 
 private def textVersion() { return "Version ${runningVersion()}"}
 
@@ -888,6 +887,8 @@ private def onLocationEvtForDevices(statusrsp) {
 def onLocationEvtForEveryThing(evt) {
 
     def response = getResponse(evt)
+    
+	if (response?.result == null) return
 
 	TRACE("[onLocationEvtForEveryThing] Domoticz response with Title : ${response.title} number of items returned ${response.result.size()}")
 
