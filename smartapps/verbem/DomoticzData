@@ -1,3 +1,6 @@
+Version 4.05
+    check for null on result in onLocationEvtForEveryThing
+
 Version 4.04	
     Clean up in the composite Domoticz device routines
     Add Dusk Sensor Switch type device domoticzDuskSensor is the DTH
