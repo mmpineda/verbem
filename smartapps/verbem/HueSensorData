@@ -1,3 +1,6 @@
+Version 1.09
+  Minor fixing and added checking
+
 Version 1.08
   Check for config = reachable and on to be true and put device offline if either one is not true, online if again reachable or config on again
 
