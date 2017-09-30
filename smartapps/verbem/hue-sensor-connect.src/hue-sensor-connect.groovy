@@ -22,7 +22,8 @@
  *	1.05 Add immediate poll after motion sensed instead of waiting 1 second
  *	1.06 Bug fixes
  *  1.07 checked for Hue Dimmer Switch not Hue Switch Dimmer
- *	1.08 check for config = reachable and on to be true and put device offline if either one is not true, online if again reachable or config on again 
+ *	1.08 check for config = reachable and on to be true and put device offline if either one is not true, online if again reachable or config on again
+ *	1.09 minor fixing and added checking
  */
 
 
@@ -36,7 +37,7 @@ definition(
 		iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Partner/hue@2x.png",
 		singleInstance: true
 )
-private def runningVersion() 	{"1.08"}
+private def runningVersion() 	{"1.09"}
 
 preferences {
 	page(name:pageMain)
@@ -271,7 +272,8 @@ def monitorSensor(evt) {
                         
 						for (i = 1; i <15; i++) {
                         	runIn(i, pollSensor, [data: [hostIP: hostIP, usernameAPI: usernameAPI, sensor: sensor], overwrite: false])
-                        	if (state.devices[dni].sceneItem) {
+                            
+                        	if (state.devices[dni].hasProperty('sceneItem') != null) {
                             	runIn(i, pollSensorSceneCycle, [data: [hostIP: hostIP, usernameAPI: usernameAPI, sensor: state.devices[dni].sceneItem], overwrite: false])
                             }   
                         }                       
@@ -499,9 +501,9 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
                 {
                     log.info "[handlePoll] Update Sensor ${dni} ${sensor.type} ${sensor.name} ${getMac(sensor.uniqueid)} CONFIG ${sensor?.config?.on} Reachable ${sensor?.config?.reachable}"
                     
-                    if (sensor?.config?.reachable == false || sensor?.config?.on == false) sensorDev.sendEvent(name: "DeviceWatch-DeviceStatus", value: "offline", displayed: false, isStateChange: true)
-                    else if (sensor?.config?.reachable == null && sensor?.config?.on == true ) sensorDev.sendEvent(name: "DeviceWatch-DeviceStatus", value: "online", displayed: false, isStateChange: true)
-                   	else if (sensor?.config?.reachable == true && sensor?.config?.on == true ) sensorDev.sendEvent(name: "DeviceWatch-DeviceStatus", value: "online", displayed: false, isStateChange: true)
+                    if ((sensor?.config?.reachable == false || sensor?.config?.on == false) && (sensorDev?.currentValue("DeviceWatch-DeviceStatus") == "online")) sensorDev.sendEvent(name: "DeviceWatch-DeviceStatus", value: "offline", displayed: false, isStateChange: true)
+                    else if ((sensor?.config?.reachable == null && sensor?.config?.on == true ) && (sensorDev?.currentValue("DeviceWatch-DeviceStatus") != "online")) sensorDev.sendEvent(name: "DeviceWatch-DeviceStatus", value: "online", displayed: false, isStateChange: true)
+                   	else if ((sensor?.config?.reachable == true && sensor?.config?.on == true ) && (sensorDev?.currentValue("DeviceWatch-DeviceStatus") != "online")) sensorDev.sendEvent(name: "DeviceWatch-DeviceStatus", value: "online", displayed: false, isStateChange: true)
                     
                     
                     if (state.devices[dni]?.name && state.devices[dni]?.name != sensor.name) {
@@ -554,7 +556,7 @@ def handlePollSensor(physicalgraph.device.HubResponse hubResponse) {
     def sensorDev = getChildDevice(dni)
 
 	if (!sensorDev) {
-        log.error "[handlePollSensor] Sensor ${dni} not found for update"
+        log.error "[handlePollSensor] Sensor ${dni} not found for update ${body.name} ${body.uniqueid}"
         return
     }
 
@@ -664,6 +666,7 @@ private findStateDeviceWithUniqueId(uniqueId) {
 
 private getMac(uniqueId) {
 	def mac = uniqueId.split("-")[0]
+    //log.info "[getMac] input ${uniqueId} output ${mac}"	
 	return mac
 }
 
