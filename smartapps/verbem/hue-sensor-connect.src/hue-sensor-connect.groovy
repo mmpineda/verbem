@@ -60,6 +60,8 @@ def pageBridges() {
     	def canPoll = false
     	z_Bridges.each { dev ->
         	def sN = dev.currentValue("serialNumber")
+            if (dev.currentValue("username")) sN = sN.substring(6)  // Hue B
+            
             if ("z_BridgesUsernameAPI_${sN}") canPoll = true        	
         }
         if (canPoll) pollTheSensors(data:[elevatedPolling:false])
@@ -175,6 +177,7 @@ def checkBridges() {
 
 	settings.z_Bridges.each { bridge ->
     	def mac = bridge.currentValue("serialNumber")
+        if (bridge.currentValue("username")) mac = mac.substring(6) // Hue B
         
         state.devices.each { key, sensor -> 
         	if (sensor.mac == mac) {
@@ -228,6 +231,8 @@ def pollTheSensors(data) {
     settings.z_Bridges.each { dev ->
 		
 		def serialNumber = dev.currentValue("serialNumber")
+        if (dev.currentValue("username")) serialNumber = serialNumber.substring(6)	// Hue B
+        
         def networkAddress = dev.currentValue("networkAddress")
 
 		if (settings."z_BridgesUsernameAPI_${serialNumber}") {
@@ -266,7 +271,9 @@ def monitorSensor(evt) {
 			def dni = key.split('_')[2]
 
 			settings.z_Bridges.each { dev ->
-				def mac2 = dev.currentValue("serialNumber").toString()           	
+				def mac2 = dev.currentValue("serialNumber").toString() 
+                if (dev.currentValue("username")) mac2 = mac2.substring(6) // Hue B
+                
                 if (mac == mac2) {
             		def devSensor = getChildDevice(dni)
                 	if (devSensor) {
