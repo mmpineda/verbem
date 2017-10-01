@@ -24,6 +24,7 @@
  *  1.07 checked for Hue Dimmer Switch not Hue Switch Dimmer
  *	1.08 check for config = reachable and on to be true and put device offline if either one is not true, online if again reachable or config on again
  *	1.09 minor fixing and added checking
+ *	1.10 adjust mac from Hue B smart to comply
  */
 
 
@@ -37,7 +38,7 @@ definition(
 		iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Partner/hue@2x.png",
 		singleInstance: true
 )
-private def runningVersion() 	{"1.09"}
+private def runningVersion() 	{"1.10"}
 
 preferences {
 	page(name:pageMain)
@@ -79,7 +80,7 @@ def pageBridges() {
             title			: "Select Sensor Types",
             multiple		: true,
             submitOnChange	: false,
-            options			: ["Hue Motion","Hue Switch Dimmer","Hue Tap"],
+            options			: ["Hue Rooms","Hue Motion","Hue Switch Dimmer","Hue Tap"],
             required		: true
         ] 
 
@@ -94,7 +95,8 @@ def pageBridges() {
                 z_Bridges.each { dev ->
                     def serialNumber = dev.currentValue("serialNumber")
                     def networkAddress = dev.currentValue("networkAddress")
-                    def username = dev.currentValue("username") // HUE B Attribute
+                    def username = dev.currentValue("username") // HUE B Attribute  
+                    if (username) serialNumber = serialNumber.substring(6) // HUE B Attribute 
                     
                     section("Bridge ${dev}, Serial:${serialNumber}, IP:${networkAddress}, username for API is in device in IDE", hideable:true) {
                     	if (!username) {
@@ -102,6 +104,7 @@ def pageBridges() {
                             input "z_BridgesUsernameAPI_${serialNumber}", "text", required:true, title:"Username for API", submitOnChange:true
                         }
                         else {
+                          
                         	paragraph username
                         	input "z_BridgesUsernameAPI_${serialNumber}", "text", required:true, title:"Username for API", submitOnChange:true, description:username
                         }
@@ -228,6 +231,8 @@ def pollTheSensors(data) {
         def networkAddress = dev.currentValue("networkAddress")
 
 		if (settings."z_BridgesUsernameAPI_${serialNumber}") {
+        	pollRooms(networkAddress, settings."z_BridgesUsernameAPI_${serialNumber}")
+            
         	if (!data.elevatedPolling) {
             	poll(networkAddress, settings."z_BridgesUsernameAPI_${serialNumber}")
             }
@@ -382,6 +387,26 @@ def handleChangeMode(evt) {
     	log.debug "mode is ${evtMode} No more Polling"
     	unschedule()
     }
+}
+
+def handleRooms(physicalgraph.device.HubResponse hubResponse) {
+
+    def parsedEvent = parseEventMessage(hubResponse.description)
+    def mac = parsedEvent.mac.substring(6)
+  
+    if (hubResponse?.json?.error) {
+    	log.error "[handleRooms] Error in ${mac} ${hubResponse.json.error}"	
+        return
+    }
+
+	def body = hubResponse.json
+    
+    body.each { item, group ->
+    	if (group.type == "Room") {
+        	def dni = mac + "/group/" + item
+        	log.info "[handleRooms] ${dni} ${group.name}"
+        }
+   	}
 }
 
 def handlePoll(physicalgraph.device.HubResponse hubResponse) {
@@ -646,6 +671,18 @@ def pollSensorSceneCycle(data) {
         headers: [HOST: "${data.hostIP}"],
         null,
         [callback: handlePollSensorSceneCycle] )
+
+    sendHubCommand(hubAction)
+}
+
+private pollRooms(hostIP, usernameAPI) {
+
+    def hubAction = new physicalgraph.device.HubAction(
+        method: "GET",
+        path: "/api/${usernameAPI}/groups/",
+        headers: [HOST: "${hostIP}"],
+        null,
+        [callback: handleRooms] )
 
     sendHubCommand(hubAction)
 }
