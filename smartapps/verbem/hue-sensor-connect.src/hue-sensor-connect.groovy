@@ -60,11 +60,17 @@ def pageBridges() {
     	def canPoll = false
     	z_Bridges.each { dev ->
         	def sN = dev.currentValue("serialNumber")
-            if (dev.currentValue("username")) sN = sN.substring(6)  // Hue B
+            if (dev.currentValue("username")) {
+            	sN = sN.substring(6)  // Hue B
+                log.debug "[pageBridges] Hue B SMART detected for ${sN}"
+            }
             
             if ("z_BridgesUsernameAPI_${sN}") canPoll = true        	
         }
-        if (canPoll) pollTheSensors(data:[elevatedPolling:false])
+        if (canPoll) {
+            log.debug "[pageBridges] bridges present canPoll!}"
+        	pollTheSensors(data:[elevatedPolling:false])
+       	}
     }
 
     def inputBridges= [
@@ -98,7 +104,10 @@ def pageBridges() {
                     def serialNumber = dev.currentValue("serialNumber")
                     def networkAddress = dev.currentValue("networkAddress")
                     def username = dev.currentValue("username") // HUE B Attribute  
-                    if (username) serialNumber = serialNumber.substring(6) // HUE B Attribute 
+                    if (username) {
+                    	log.info "[pageBridges] Hue B Smart page build ${serialNumber}"
+                    	serialNumber = serialNumber.substring(6) // HUE B Attribute 
+                    }
                     
                     section("Bridge ${dev}, Serial:${serialNumber}, IP:${networkAddress}, username for API is in device in IDE", hideable:true) {
                     	if (!username) {
@@ -177,7 +186,10 @@ def checkBridges() {
 
 	settings.z_Bridges.each { bridge ->
     	def mac = bridge.currentValue("serialNumber")
-        if (bridge.currentValue("username")) mac = mac.substring(6) // Hue B
+        if (bridge.currentValue("username")) {
+        	mac = mac.substring(6) // Hue B
+        	log.info "[checkBridges] Hue B Smart detected for mac ${mac}"
+        }
         
         state.devices.each { key, sensor -> 
         	if (sensor.mac == mac) {
@@ -227,13 +239,18 @@ def notifyNewVersion() {
 
 def pollTheSensors(data) {
 	def bridgecount = 1
-	
+    log.debug "[pollTheSensors] entered"
+
     settings.z_Bridges.each { dev ->
 		
 		def serialNumber = dev.currentValue("serialNumber")
-        if (dev.currentValue("username")) serialNumber = serialNumber.substring(6)	// Hue B
+        if (dev.currentValue("username")) {
+        	serialNumber = serialNumber.substring(6)	// Hue B
+            log.debug "[pollTheSensors] Hue B Smart detected ${serialNumber}"
+        }
         
         def networkAddress = dev.currentValue("networkAddress")
+
 
 		if (settings."z_BridgesUsernameAPI_${serialNumber}") {
         	pollRooms(networkAddress, settings."z_BridgesUsernameAPI_${serialNumber}")
@@ -259,7 +276,7 @@ def monitorSensorStop(evt) {
 
 def monitorSensor(evt) {
 
-	log.info "[monitorSensor] Motion Started 	for ${evt.displayName.toString()}"
+	log.info "[monitorSensor] Motion Started for ${evt.displayName.toString()}"
     
 	settings.each { key, value ->
     	if (value.toString() == evt.displayName.toString()) {
@@ -272,7 +289,10 @@ def monitorSensor(evt) {
 
 			settings.z_Bridges.each { dev ->
 				def mac2 = dev.currentValue("serialNumber").toString() 
-                if (dev.currentValue("username")) mac2 = mac2.substring(6) // Hue B
+                if (dev.currentValue("username"))  {
+                	mac2 = mac2.substring(6) // Hue B
+                    log.info "[monitorSensor] Hue B Smart detected for mac2 ${mac2}"
+                }
                 
                 if (mac == mac2) {
             		def devSensor = getChildDevice(dni)
@@ -420,7 +440,9 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
 
     def parsedEvent = parseEventMessage(hubResponse.description)
     def mac = parsedEvent.mac.substring(6)
-  
+
+    log.debug "[handlePoll] entered for mac ${mac}"
+
     if (hubResponse?.json?.error) {
     	log.error "[handlePoll] Error in ${mac} ${hubResponse.json.error}"	
         return
@@ -577,6 +599,7 @@ def handlePollSensor(physicalgraph.device.HubResponse hubResponse) {
 	
 	def parsedEvent = parseEventMessage(hubResponse.description)
     def mac = parsedEvent.mac.substring(6)
+	log.debug "[handlePollSensor] Entered for mac ${mac}"   
     def body = hubResponse.json
 
     if (hubResponse.json.error) {
