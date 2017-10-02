@@ -105,8 +105,8 @@ def pageBridges() {
                     def networkAddress = dev.currentValue("networkAddress")
                     def username = dev.currentValue("username") // HUE B Attribute  
                     if (username) {
-                    	log.info "[pageBridges] Hue B Smart page build ${serialNumber}"
                     	serialNumber = serialNumber.substring(6) // HUE B Attribute 
+                    	log.info "[pageBridges] Hue B Smart page build ${serialNumber}"
                     }
                     
                     section("Bridge ${dev}, Serial:${serialNumber}, IP:${networkAddress}, username for API is in device in IDE", hideable:true) {
@@ -246,11 +246,10 @@ def pollTheSensors(data) {
 		def serialNumber = dev.currentValue("serialNumber")
         if (dev.currentValue("username")) {
         	serialNumber = serialNumber.substring(6)	// Hue B
-            log.debug "[pollTheSensors] Hue B Smart detected ${serialNumber}"
+            log.debug "[pollTheSensors] Hue B Smart detected ${serialNumber} IP ${dev.currentValue("networkAddress")}"
         }
         
         def networkAddress = dev.currentValue("networkAddress")
-
 
 		if (settings."z_BridgesUsernameAPI_${serialNumber}") {
         	pollRooms(networkAddress, settings."z_BridgesUsernameAPI_${serialNumber}")
@@ -264,6 +263,9 @@ def pollTheSensors(data) {
                 	runIn(i*5+bridgecount, handleElevatedPoll, [data: [hostIP: networkAddress, usernameAPI: settings."z_BridgesUsernameAPI_${serialNumber}"], overwrite: false]) 
                 }
             }
+        }
+        else {
+        	log.debug "[pollTheSensors] no bridge yet mac ${serialNumber} IP ${networkAddress}"
         }
         bridgecount++
     }
@@ -671,6 +673,8 @@ def handlePollSensorSceneCycle(physicalgraph.device.HubResponse hubResponse) {
 
 private poll(hostIP, usernameAPI) {
 
+	if(hostIP.indexOf(":") == -1) hostIP = hostIP + ":80"
+
     def hubAction = new physicalgraph.device.HubAction(
         method: "GET",
         path: "/api/${usernameAPI}/sensors/",
@@ -682,6 +686,8 @@ private poll(hostIP, usernameAPI) {
 }
 
 def pollSensor(data) {
+
+	if(data.hostIP.indexOf(":") == -1) data.hostIP = data.hostIP + ":80"
 
     def hubAction = new physicalgraph.device.HubAction(
         method: "GET",
@@ -695,6 +701,8 @@ def pollSensor(data) {
 
 def pollSensorSceneCycle(data) {
 
+	if(data.hostIP.indexOf(":") == -1) data.hostIP = data.hostIP + ":80"
+
     def hubAction = new physicalgraph.device.HubAction(
         method: "GET",
         path: "/api/${data.usernameAPI}/sensors/${data.sensor}",
@@ -707,7 +715,9 @@ def pollSensorSceneCycle(data) {
 
 private pollRooms(hostIP, usernameAPI) {
 
-    def hubAction = new physicalgraph.device.HubAction(
+	if(hostIP.indexOf(":") == -1) hostIP = hostIP + ":80"
+
+	def hubAction = new physicalgraph.device.HubAction(
         method: "GET",
         path: "/api/${usernameAPI}/groups/",
         headers: [HOST: "${hostIP}"],
