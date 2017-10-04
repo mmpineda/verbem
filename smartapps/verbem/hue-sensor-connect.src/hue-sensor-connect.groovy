@@ -159,12 +159,13 @@ def updated() {
 def uninstalled() {
 	// Remove bridgedevice connection to allow uninstall of smartapp even though bridge is listed
 	// as user of smartapp
-    
+	
+    unsubscribe()
+    unschedule()
 	log.trace "Uninstall"
 
     removeChildDevices(getChildDevices())
-    //unsubscribe()	
-	//unschedule()
+
 }
 
 private removeChildDevices(delete) {
