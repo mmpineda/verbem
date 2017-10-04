@@ -56,7 +56,8 @@ def pageMain() {
 
 def pageBridges() {
     state.refreshCount = state.refreshCount + 1
-	
+	def sourceBridge = "Super LAN Connect"
+    
 	if (z_Bridges) {
     	def canPoll = false
     	z_Bridges.each { dev ->
@@ -64,6 +65,7 @@ def pageBridges() {
             if (dev.currentValue("username")) {
             	sN = sN.substring(6)  // Hue B
                 log.debug "[pageBridges] Hue B SMART detected for ${sN}"
+                sourceBridge = "Hue B Smart"
             }
             
             if ("z_BridgesUsernameAPI_${sN}") canPoll = true        	
@@ -94,7 +96,7 @@ def pageBridges() {
         ] 
 
 
-		dynamicPage(name: "pageBridges", title: "Bridges found by Super Lan Connect version ${runningVersion()}", uninstall: true, install:true) {
+		dynamicPage(name: "pageBridges", title: "Bridges found by ${sourceBridge} version ${runningVersion()}", uninstall: true, install:true) {
             section("Please select Hue Bridges that contain sensors and types to add") {
  
  				input inputSensors
@@ -553,18 +555,23 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
                     if (devType != null) {
                         log.info "[handlePoll] Add Sensor ${dni} ${sensor.type} ${devType} ${sensor.name} ${getMac(sensor.uniqueid)}"
 
-                        sensorDev = addChildDevice("verbem", devType, dni, null, [name:sensor.name, label:sensor.name, completedSetup:true])
-                        state.devices[dni] = [
-                            'lastUpdated'	: sensor.state.lastupdated, 
-                            'mac'			: mac, 
-                            'item'			: item, 
-                            'dni'			: dni,
-                            'name'			: sensor.name,
-                            'uniqueId'		: getMac(sensor.uniqueid),
-                            'type'			: sensor.type,
-                            'monitorTap'	: false,	
-                            'id'			: sensorDev.id
-                            ]
+						try {
+                            sensorDev = addChildDevice("verbem", devType, dni, null, [name:sensor.name, label:sensor.name, completedSetup:true])
+                            state.devices[dni] = [
+                                'lastUpdated'	: sensor.state.lastupdated, 
+                                'mac'			: mac, 
+                                'item'			: item, 
+                                'dni'			: dni,
+                                'name'			: sensor.name,
+                                'uniqueId'		: getMac(sensor.uniqueid),
+                                'type'			: sensor.type,
+                                'monitorTap'	: false,	
+                                'id'			: sensorDev.id
+                                ]
+                     	}
+                        catch (ex) {
+                        	log.error "[handlePoll] error ${ex} during add of child ${dni},${sensor.name}"
+                        }
                 	}
                 }
 
