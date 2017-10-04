@@ -25,6 +25,7 @@
  *	1.08 check for config = reachable and on to be true and put device offline if either one is not true, online if again reachable or config on again
  *	1.09 minor fixing and added checking
  *	1.10 adjust mac from Hue B smart to comply
+ *	1.11 changed motion detect to always do a active-incative sequence when lastupdated changed on the sensor, motion is not being missed this way
  */
 
 
@@ -38,7 +39,7 @@ definition(
 		iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Partner/hue@2x.png",
 		singleInstance: true
 )
-private def runningVersion() 	{"1.10"}
+private def runningVersion() 	{"1.11"}
 
 preferences {
 	page(name:pageMain)
@@ -106,7 +107,6 @@ def pageBridges() {
                     def username = dev.currentValue("username") // HUE B Attribute  
                     if (username) {
                     	serialNumber = serialNumber.substring(6) // HUE B Attribute 
-                    	log.info "[pageBridges] Hue B Smart page build ${serialNumber}"
                     }
                     
                     section("Bridge ${dev}, Serial:${serialNumber}, IP:${networkAddress}, username for API is in device in IDE", hideable:true) {
@@ -159,8 +159,16 @@ def uninstalled() {
 	// as user of smartapp
     
 	log.trace "Uninstall"
-	unschedule()
-    state.devices.each { key, dev -> deleteChildDevice(dev.dni)}
+
+    removeChildDevices(getChildDevices())
+    //unsubscribe()	
+	//unschedule()
+}
+
+private removeChildDevices(delete) {
+    delete.each {
+        deleteChildDevice(it.deviceNetworkId)
+    }
 }
 
 def initialize() {
@@ -188,7 +196,6 @@ def checkBridges() {
     	def mac = bridge.currentValue("serialNumber")
         if (bridge.currentValue("username")) {
         	mac = mac.substring(6) // Hue B
-        	log.info "[checkBridges] Hue B Smart detected for mac ${mac}"
         }
         
         state.devices.each { key, sensor -> 
@@ -246,7 +253,6 @@ def pollTheSensors(data) {
 		def serialNumber = dev.currentValue("serialNumber")
         if (dev.currentValue("username")) {
         	serialNumber = serialNumber.substring(6)	// Hue B
-            log.debug "[pollTheSensors] Hue B Smart detected ${serialNumber} IP ${dev.currentValue("networkAddress")}"
         }
         
         def networkAddress = dev.currentValue("networkAddress")
@@ -254,10 +260,16 @@ def pollTheSensors(data) {
 		if (settings."z_BridgesUsernameAPI_${serialNumber}") {
         	pollRooms(networkAddress, settings."z_BridgesUsernameAPI_${serialNumber}")
             
+            // Create motion polling
+            
+            
+            
         	if (!data.elevatedPolling) {
+            	state.elevatedPolling = false
             	poll(networkAddress, settings."z_BridgesUsernameAPI_${serialNumber}")
             }
             else {
+            	state.elevatedPolling = true
             	def i = 0
                 for (i = 0; i < 12; i++) {
                 	runIn(i*5+bridgecount, handleElevatedPoll, [data: [hostIP: networkAddress, usernameAPI: settings."z_BridgesUsernameAPI_${serialNumber}"], overwrite: false]) 
@@ -270,6 +282,7 @@ def pollTheSensors(data) {
         bridgecount++
     }
 }
+
 def monitorSensorStop(evt) {
 
 	log.info "[monitorSensor] Motion Stopped for ${evt.displayName.toString()}"
@@ -293,7 +306,6 @@ def monitorSensor(evt) {
 				def mac2 = dev.currentValue("serialNumber").toString() 
                 if (dev.currentValue("username"))  {
                 	mac2 = mac2.substring(6) // Hue B
-                    log.info "[monitorSensor] Hue B Smart detected for mac2 ${mac2}"
                 }
                 
                 if (mac == mac2) {
@@ -443,7 +455,7 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
     def parsedEvent = parseEventMessage(hubResponse.description)
     def mac = parsedEvent.mac.substring(6)
 
-    log.debug "[handlePoll] entered for mac ${mac}"
+    //log.debug "[handlePoll] entered for mac ${mac}"
 
     if (hubResponse?.json?.error) {
     	log.error "[handlePoll] Error in ${mac} ${hubResponse.json.error}"	
@@ -526,6 +538,7 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
                 def sensorDev = getChildDevice(dni)
                 if (!sensorDev) {
                     def devType
+                    devType = null
                     switch (sensor.type) {
                         case "ZGPSwitch":
                             devType = "Hue Tap"
@@ -537,25 +550,26 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
                             devType = "Hue Switch"
                             break  
                     }
-                    log.info "[handlePoll] Add Sensor ${dni} ${sensor.type} ${devType} ${sensor.name} ${getMac(sensor.uniqueid)}"
+                    if (devType != null) {
+                        log.info "[handlePoll] Add Sensor ${dni} ${sensor.type} ${devType} ${sensor.name} ${getMac(sensor.uniqueid)}"
 
-                    sensorDev = addChildDevice("verbem", devType, dni, null, [name:sensor.name, label:sensor.name, completedSetup:true])
-                    state.devices[dni] = [
-                        'lastUpdated'	: sensor.state.lastupdated, 
-                        'mac'			: mac, 
-                        'item'			: item, 
-                        'dni'			: dni,
-                        'name'			: sensor.name,
-                        'uniqueId'		: getMac(sensor.uniqueid),
-                        'type'			: sensor.type,
-                        'monitorTap'	: false,	
-                        'id'			: sensorDev.id
-                        ]
+                        sensorDev = addChildDevice("verbem", devType, dni, null, [name:sensor.name, label:sensor.name, completedSetup:true])
+                        state.devices[dni] = [
+                            'lastUpdated'	: sensor.state.lastupdated, 
+                            'mac'			: mac, 
+                            'item'			: item, 
+                            'dni'			: dni,
+                            'name'			: sensor.name,
+                            'uniqueId'		: getMac(sensor.uniqueid),
+                            'type'			: sensor.type,
+                            'monitorTap'	: false,	
+                            'id'			: sensorDev.id
+                            ]
+                	}
                 }
 
                 else 
                 {
-                    log.info "[handlePoll] Update Sensor ${dni} ${sensor.type} ${sensor.name} ${getMac(sensor.uniqueid)} CONFIG ${sensor?.config?.on} Reachable ${sensor?.config?.reachable}"
                     
                     if ((sensor?.config?.reachable == false || sensor?.config?.on == false) && (sensorDev?.currentValue("DeviceWatch-DeviceStatus") == "online")) sensorDev.sendEvent(name: "DeviceWatch-DeviceStatus", value: "offline", displayed: false, isStateChange: true)
                     else if ((sensor?.config?.reachable == null && sensor?.config?.on == true ) && (sensorDev?.currentValue("DeviceWatch-DeviceStatus") != "online")) sensorDev.sendEvent(name: "DeviceWatch-DeviceStatus", value: "online", displayed: false, isStateChange: true)
@@ -577,8 +591,10 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
                                 break
                             case "ZLLPresence":
                                 log.info "[handlePoll] Motion Sensor ${dni} ${sensor.state.presence}"
-                                if (sensor.state.presence) 	sensorDev.sendEvent(name: "motion", value: "active", descriptionText: "$sensorDev motion detected", isStateChange: true)
-                                else 						sensorDev.sendEvent(name: "motion", value: "inactive", descriptionText: "$sensorDev motion detected", isStateChange: true)
+                                //just do a motion sequence when lastupdate changed for presence
+                                sensorDev.sendEvent(name: "motion", value: "active", descriptionText: "$sensorDev motion detected", isStateChange: true)
+                                pause 3
+                                sensorDev.sendEvent(name: "motion", value: "inactive", descriptionText: "$sensorDev motion detected", isStateChange: true)                            
                                 sensorDev.sendEvent(name: "battery", value: sensor.config.battery)
                                 break
                             case "ZLLSwitch":
@@ -686,8 +702,10 @@ private poll(hostIP, usernameAPI) {
 }
 
 def pollSensor(data) {
+	
+    if(data?.hostIP == null) return
 
-	if(data.hostIP.indexOf(":") == -1) data.hostIP = data.hostIP + ":80"
+	if(data?.hostIP?.indexOf(":") == -1) data.hostIP = data.hostIP + ":80"
 
     def hubAction = new physicalgraph.device.HubAction(
         method: "GET",
