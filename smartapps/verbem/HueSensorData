@@ -1,3 +1,9 @@
+Version 1.13 
+  Move motion sensor inactive event to runIn 30 seconds handler, to have a more natural motion time
+  
+Version 1.12
+  Clean up of scenecycle, moved it to DTH, now independent of Hue scenecycle
+
 Version 1.11
   Changed motion detect to always do a active-incative sequence when lastupdated changed on the sensor, motion is not being missed this way
 
