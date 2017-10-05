@@ -586,7 +586,7 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
                                 sensorList[motionCount] = dni
                                 log.info "[handlePoll] Motion Sensor ${dni} ${sensor.state.presence} DTH Status is ${sensorDev.currentValue("motion")}"
                                
-                                if (sensorDev.currentValue("motion") == "inactive") sensorDev.sendEvent(name: "motion", value: "active", descriptionText: "$sensorDev motion started", isStateChange: true)
+                                if (sensorDev.currentValue("motion") == "inactive" || sensorDev.currentValue("motion") == null ) sensorDev.sendEvent(name: "motion", value: "active", descriptionText: "$sensorDev motion started", isStateChange: true)
                                 
                                 sensorDev.sendEvent(name: "battery", value: sensor.config.battery)
                                 break
