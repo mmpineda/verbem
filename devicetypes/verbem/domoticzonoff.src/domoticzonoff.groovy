@@ -43,8 +43,8 @@ metadata {
       
         // custom commands
         command "parse"     // (String "<attribute>:<value>[,<attribute>:<value>]")
-       	command "setLevel"
-        command "setColor"
+       	//command "setLevel"
+        //command "setColor"
         command "generateEvent"
         command "eodRunOnce"
     }
@@ -62,15 +62,15 @@ metadata {
                 attributeState "ON", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#00a0dc", action:"off", nextState:"Turning Off"
                 attributeState "Set Level", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#00a0dc", action:"off", nextState:"Turning Off"
                 attributeState "Turning On", label:'Turning On', icon:"st.lights.philips.hue-single", backgroundColor:"#00a0dc", nextState:"Turning Off"
-				attributeState "Error", label:"Install Error", backgroundColor: "#bc2323"
+				attributeState "Error", label:'Install Error', backgroundColor: "#bc2323"
                 
             }
             tileAttribute ("device.power", key: "SECONDARY_CONTROL") {
                 attributeState "power", label:'Power level: ${currentValue}', icon: "st.Appliances.appliances17"
             }
             
-            tileAttribute("device.level", key: "SLIDER_CONTROL", range:"0..16") {
-            	attributeState "level", action:"setLevel" 
+            tileAttribute("device.level", key: "SLIDER_CONTROL") {
+            	attributeState "level", label:'Dim Level: ${currentValue}', action:"setLevel" 
             }
             tileAttribute ("device.color", key: "COLOR_CONTROL") {
         		attributeState "color", action:"setColor"
@@ -210,7 +210,7 @@ private def STATE() {
 
 // gets the IDX address of the device
 private getIDXAddress() {
-	
+    
     def idx = getDataValue("idx")
         
     if (!idx) {
@@ -218,7 +218,8 @@ private getIDXAddress() {
         if (parts.length == 3) {
             idx = parts[2]
         } else {
-            log.warn "Can't figure out idx for device: ${device.id}"
+            log.warn "Can't figure out idx for device: ${device.id} returning ${device.deviceNetworkId} for parent ${parent}"
+            return device.deviceNetworkId
         }
     }
 

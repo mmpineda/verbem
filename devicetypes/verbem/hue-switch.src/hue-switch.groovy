@@ -23,6 +23,7 @@
  *  Revision History
  *  ----------------
  *  2017-07-10 1.00 Initial Release
+ *	1.01 Respond to on and off commands with a sendevent
  */
 
 metadata {
@@ -124,7 +125,8 @@ log.info "Button ${button} xButton ${xButton}"
     		sendEvent(name: "button", value: "pushed", data: [buttonNumber: state.sceneCycle], descriptionText: "$device.displayName button $state.sceneCycle was pushed", isStateChange: true)
             state.sceneCycle = state.sceneCycle + 1
             
-            if (state.sceneCycle > 14) state.sceneCycle = 10 
+            if (state.sceneCycle > 14) state.sceneCycle = 10
+            runIn(300, resetCycle)
     	}
     		else {
             	if (xButton == 4) state.sceneCycle = 10
@@ -132,6 +134,10 @@ log.info "Button ${button} xButton ${xButton}"
             }
     
 }
+def resetCycle() {
+	state.sceneCycle = 10
+}
+
 // switch.poll() command handler
 def poll() {
 }
@@ -142,10 +148,12 @@ def refresh() {
 
 // switch.on() command handler
 def on() {
+	sendEvent(name: "switch", value: "on", descriptionText: "$device.displayName On button $xButton was pushed", isStateChange: true)
 }
 
 // switch.off() command handler
 def off() {
+	sendEvent(name: "switch", value: "off", descriptionText: "$device.displayName Off button $xButton was pushed", isStateChange: true)
 }
 
 // Custom setlevel() command handler

@@ -15,6 +15,7 @@
  *  Revision History
  *  ----------------
  *  2017-07-10 1.00 Initial Release
+ *	1.01 Initialize with motion is inactive
  */
 metadata {
 	definition (name: "Hue Motion", namespace: "verbem", author: "Martin Verbeek") {
@@ -85,7 +86,10 @@ def updated() {
 
 def initialize() {
 	// Arrival sensors only goes OFFLINE when Hub is off
-    if (parent)	{sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson([protocol: "LAN", scheme:"untracked"]), displayed: false)}
+    if (parent)	{
+    	sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson([protocol: "LAN", scheme:"untracked"]), displayed: false)
+    	sendEvent(name: "motion", value: "inactive", isStateChange: true, displayed: false)
+        }
 	else {
     	log.error "You cannot use this DTH without the related SmartAPP Hue Sensor (Connect), the device needs to be a child of this App"
         sendEvent(name: "motion", value: "Error", descriptionText: "$device.displayName You cannot use this DTH without the related SmartAPP Hue Sensor (Connect)", isStateChange: true)
