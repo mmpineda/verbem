@@ -116,7 +116,7 @@ log.info "Button ${button} xButton ${xButton}"
 	}
 
 	
-	if (button in [1000, 1001, 1003, 2000, 2001, 2003, 3000, 3001, 3003, 4000, 4001, 4003]) {
+	if (button in [1001, 1003, 2001, 2003, 3001, 3003, 4001, 4003]) {
     	state.sceneCycle = 10
     	sendEvent(name: "button", value: "held", data: [buttonNumber: xButton, icon:iconPath], descriptionText: "$device.displayName button $xButton was pushed Long", isStateChange: true)
         }
