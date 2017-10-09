@@ -24,7 +24,7 @@
  *  ----------------
  *  2017-07-10 1.00 Initial Release
  *	1.01 Respond to on and off commands with a sendevent
- *	1.02 Added initial press for button events
+ *	1.02 Buttonpush event for button 1 was missing
  */
 
 metadata {
@@ -86,9 +86,6 @@ def parse(String message) {
 
 def buttonEvent(button) {
 	int xButton = (button / 1000)
-
-	
-log.info "Button ${button} xButton ${xButton}" 
 	
     switch (xButton) {
         case 1:
@@ -121,8 +118,10 @@ log.info "Button ${button} xButton ${xButton}"
     	sendEvent(name: "button", value: "held", data: [buttonNumber: xButton, icon:iconPath], descriptionText: "$device.displayName button $xButton was pushed Long", isStateChange: true)
         }
     else if (button == 1002) {
+    
     		if (!state.sceneCycle) state.sceneCycle = 10
             
+            sendEvent(name: "button", value: "pushed", data: [buttonNumber: xButton], descriptionText: "$device.displayName button $xButton was pushed", isStateChange: true)
     		sendEvent(name: "button", value: "pushed", data: [buttonNumber: state.sceneCycle], descriptionText: "$device.displayName button $state.sceneCycle was pushed", isStateChange: true)
             state.sceneCycle = state.sceneCycle + 1
             
@@ -149,12 +148,12 @@ def refresh() {
 
 // switch.on() command handler
 def on() {
-	sendEvent(name: "switch", value: "on", descriptionText: "$device.displayName On button $xButton was pushed", isStateChange: true)
+	sendEvent(name: "switch", value: "on", descriptionText: "$device.displayName On was pushed", isStateChange: true)
 }
 
 // switch.off() command handler
 def off() {
-	sendEvent(name: "switch", value: "off", descriptionText: "$device.displayName Off button $xButton was pushed", isStateChange: true)
+	sendEvent(name: "switch", value: "off", descriptionText: "$device.displayName Off was pushed", isStateChange: true)
 }
 
 // Custom setlevel() command handler
