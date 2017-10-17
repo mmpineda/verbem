@@ -43,7 +43,7 @@ definition(
 		iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Partner/hue@2x.png",
 		singleInstance: true
 )
-private def runningVersion() 	{"1.14"}
+private def runningVersion() 	{"1.15"}
 
 preferences {
 	page(name:pageMain)
