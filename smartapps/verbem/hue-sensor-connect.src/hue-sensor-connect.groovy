@@ -29,6 +29,7 @@
  *	1.12 clean up of scenecycle, moved it to DTH, now independent of Hue scenecycle
  *	1.13 move motion sensor inactive event to runIn 30 seconds handler, to have a more natural motion time
  *	1.14 made code more efficient in the pollsensor for elevated polling and poll more evenly in a minute 
+ *	1.15 added the option of autodefine room type groups that exists on the bridges, device is domoticzOnOff. Added TRACE switch
  */
 
 
@@ -67,14 +68,14 @@ def pageBridges() {
         	def sN = dev.currentValue("serialNumber")
             if (dev.currentValue("username")) {
             	sN = sN.substring(6)  // Hue B
-                log.debug "[pageBridges] Hue B SMART detected for ${sN}"
+                TRACE("[pageBridges] Hue B SMART detected for ${sN}")
                 sourceBridge = "Hue B Smart"
             }
             
             if ("z_BridgesUsernameAPI_${sN}") canPoll = true        	
         }
         if (canPoll) {
-            log.debug "[pageBridges] bridges present canPoll!}"
+            TRACE("[pageBridges] bridges present canPoll!}")
         	pollTheSensors(data:[elevatedPolling:false])
        	}
     }
@@ -98,11 +99,18 @@ def pageBridges() {
             required		: true
         ] 
 
+    def inputTrace = [
+            name        : "z_Trace",
+            type        : "bool",
+            title       : "Debug trace output in IDE log",
+            defaultValue: true
+        ]
 
 		dynamicPage(name: "pageBridges", title: "Bridges found by ${sourceBridge} version ${runningVersion()}", uninstall: true, install:true) {
             section("Please select Hue Bridges that contain sensors and types to add") {
  
- 				input inputSensors
+ 				input inputTrace
+                input inputSensors
                 input inputBridges          
             }
             if (z_Bridges) {
@@ -148,12 +156,12 @@ def pageBridges() {
 }
 
 def installed() {
-	log.trace "Installed with settings: ${settings}"
+	TRACE("Installed with settings: ${settings}")
 	initialize()
 }
 
 def updated() {
-	log.trace "Updated with settings: ${settings}"
+	TRACE("Updated with settings: ${settings}")
 	unsubscribe()
 	unschedule()
 	initialize()
@@ -165,7 +173,7 @@ def uninstalled() {
 	
     unsubscribe()
     unschedule()
-	log.trace "Uninstall"
+	TRACE("Uninstall")
 
     removeChildDevices(getChildDevices())
 
@@ -178,7 +186,7 @@ private removeChildDevices(delete) {
 }
 
 def initialize() {
-	log.debug "Initializing"
+	TRACE("Initializing")
     
     schedule("2015-01-09T12:00:00.000-0600", notifyNewVersion)
 	
@@ -193,7 +201,7 @@ def initialize() {
 }
 
 def handleBridges(evt) {
-	log.info "handleBridges ${evt.value} ${evt.device}"
+	TRACE("[handleBridges] ${evt.value} ${evt.device}")
     checkBridges()
 }
 
@@ -209,21 +217,21 @@ def checkBridges() {
         	if (sensor.mac == mac) {
             	def devSensor = getChildDevice(sensor.dni)
                 if (!devSensor?.currentValue("DeviceWatch-Enroll")) {
-	               	log.info "[checkBridges] Enroll ${devSensor}"
+	               	TRACE("[checkBridges] Enroll ${devSensor}")
             		devSensor.sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson([protocol: "LAN", scheme:"untracked"]), displayed: false)
                 }
             }
         }
        
     	if (bridge.currentValue("status") != "Online") {
-        	log.info "Bridge ${bridge} is OFFLINE"
+        	TRACE("Bridge ${bridge} is OFFLINE")
         	// set devices belonging to this bridge OFFLINE
             state.devices.each { key, sensor -> 
             	if (sensor.mac == mac) {
                 	def devSensor = getChildDevice(sensor.dni)
 
                 	if (devSensor?.currentValue("DeviceWatch-DeviceStatus") == "online") {
-                		log.info "[checkBridges] Put ${devSensor} OFFLINE" 
+                		TRACE("[checkBridges] Put ${devSensor} OFFLINE") 
                         devSensor.sendEvent(name: "DeviceWatch-DeviceStatus", value: "offline", displayed: false, isStateChange: true)
                     }
                 }
@@ -235,7 +243,7 @@ def checkBridges() {
             	if (sensor.mac == mac) {
                 	def devSensor = getChildDevice(sensor.dni)
                 	if (devSensor?.currentValue("DeviceWatch-DeviceStatus") != "online") {
-                		log.info "[checkBridges] Put ${devSensor} ONLINE" 
+                		TRACE("[checkBridges] Put ${devSensor} ONLINE")
                         devSensor.sendEvent(name: "DeviceWatch-DeviceStatus", value: "online", displayed: false, isStateChange: true)
                     }
                 }
@@ -276,7 +284,7 @@ def elevatedDeviceCall(deviceId) {
 
 def pollTheSensors(data) {
 	def bridgecount = 1
-    log.debug "[pollTheSensors] entered "
+    TRACE("[pollTheSensors] entered ")
 
 	def numberBridges = 0
     settings.z_Bridges.each {
@@ -299,20 +307,22 @@ def pollTheSensors(data) {
 		if (settings."z_BridgesUsernameAPI_${serialNumber}") {
         	pollRooms(networkAddress, settings."z_BridgesUsernameAPI_${serialNumber}")         
             
-        	if (!data.elevatedPolling) {
-            	state.elevatedPolling = false
-            	poll(networkAddress, settings."z_BridgesUsernameAPI_${serialNumber}")
-            }
-            else {
-            	if (data?.dni == null) state.elevatedPolling = true
-            	def i = 0
-                for (i = 0; i < 60; i = i + interval) {
-                	runIn(i+bridgecount, handleElevatedPoll, [data: [hostIP: networkAddress, usernameAPI: settings."z_BridgesUsernameAPI_${serialNumber}"], overwrite: false]) 
+            if (state.pollSensors) {
+                if (!data.elevatedPolling) {
+                    state.elevatedPolling = false
+                    poll(networkAddress, settings."z_BridgesUsernameAPI_${serialNumber}")
                 }
-            }
+                else {
+                    if (data?.dni == null) state.elevatedPolling = true
+                    def i = 0
+                    for (i = 0; i < 60; i = i + interval) {
+                        runIn(i+bridgecount, handleElevatedPoll, [data: [hostIP: networkAddress, usernameAPI: settings."z_BridgesUsernameAPI_${serialNumber}"], overwrite: false]) 
+                    }
+                }
+        	}
         }
         else {
-        	log.debug "[pollTheSensors] no bridge yet mac ${serialNumber} IP ${networkAddress}"
+        	TRACE("[pollTheSensors] no bridge yet mac ${serialNumber} IP ${networkAddress}")
         }
         bridgecount++
     }
@@ -320,13 +330,13 @@ def pollTheSensors(data) {
 
 def monitorSensorStop(evt) {
 
-	log.info "[monitorSensor] Motion Stopped for ${evt.displayName.toString()}"
+	TRACE("[monitorSensor] Motion Stopped for ${evt.displayName.toString()}")
 }
 
 
 def monitorSensor(evt) {
 
-	log.info "[monitorSensor] Motion Started for ${evt.displayName.toString()}"
+	TRACE("[monitorSensor] Motion Started for ${evt.displayName.toString()}")
     
 	settings.each { key, value ->
     	if (value.toString() == evt.displayName.toString()) {
@@ -366,7 +376,7 @@ def subscribeToMotionEvents() {
 	state.devices.each { dni, sensor -> 
     	if (settings."z_motionSensor_${dni}") {
         	def motionSensor = settings."z_motionSensor_${dni}"
-        	log.info "[subscribeToMotionEvents] Subscribe to motion for ${motionSensor} defined for ${sensor.name}"
+        	TRACE("[subscribeToMotionEvents] Subscribe to motion for ${motionSensor} defined for ${sensor.name}")
             subscribe(motionSensor, "motion.active", monitorSensor)
             subscribe(motionSensor, "motion.inactive", monitorSensorStop)
         }
@@ -390,7 +400,7 @@ private updateSensorState(messageBody, mac) {
             def itemDevice = device.deviceNetworkId.split("/")[2]
             if (mac == macDevice) {
                 if (!sensorListBridge[itemDevice]) {
-                    log.warn "[updateSensorState] ${macDevice} remove childDevice ${itemDevice} ${device}"
+                    TRACE("[updateSensorState] ${macDevice} remove childDevice ${itemDevice} ${device}")
                     deleteChildDevice(device.deviceNetworkId)
                 }
             }
@@ -404,7 +414,7 @@ private updateSensorState(messageBody, mac) {
 	state.devices.each { dni, sensor ->
     	
 		if (!getChildDevice(dni)) {       	
-            log.info "[updateSensorState] ${dni} no longer exists in childdevices, keep on removeList"
+            TRACE("[updateSensorState] ${dni} no longer exists in childdevices, keep on removeList")
         }
         else {
             sensorRemoveFromState.remove(dni)
@@ -413,7 +423,7 @@ private updateSensorState(messageBody, mac) {
     
 	// remove from state.devices
     sensorRemoveFromState.each { dni, sensor ->
-    	log.info "[updateSensorState] ${dni} removed from state"
+    	TRACE("[updateSensorState] ${dni} removed from state")
     	state.devices.remove(dni)
         pause 2
     }
@@ -425,7 +435,7 @@ def parse(childDevice, description) {
 }
 
 def handleMotionInactive(data) {
-	log.info "[handleMotionInactive] ${data.sensors}"
+	TRACE("[handleMotionInactive] ${data.sensors}")
     def listSensors = data.sensors
     
     listSensors.each { key, dni ->
@@ -438,8 +448,9 @@ def handleElevatedPoll(data) {
 	poll(data.hostIP,data.usernameAPI)
 }
 
+
 def handleAlarmStatus(evt) {
-    log.debug "[handleAlarmStatus] Alarm status changed to: ${evt.value}"
+    TRACE("[handleAlarmStatus] Alarm status changed to: ${evt.value}")
     if (evt.value == "away") {
     	handleChangeMode([value : "Away"])
     }
@@ -455,23 +466,25 @@ def handleChangeMode(evt) {
     else evtMode = location.mode
 
     if (!settings?.z_noPollModes?.contains(evtMode)) {
+        state.pollSensors = true
         if (settings?.z_modes?.contains(evtMode)) {
-            log.debug "[handleChangeMode] Mode is ${evtMode} elevated Polling"
+            TRACE("[handleChangeMode] Mode is ${evtMode} elevated Polling for sensors")
             runEvery1Minute("pollTheSensors", [data: [elevatedPolling: true]])
         }
         else {
-            log.debug "[handleChangeMode] Mode is ${evtMode} run normal 1 minute Polling"
+            TRACE("[handleChangeMode] Mode is ${evtMode} run normal 1 minute Polling for sensors")
             runEvery1Minute("pollTheSensors", [data: [elevatedPolling: false]])
         }
     }
     else {
-    	log.debug "mode is ${evtMode} No more Polling"
-    	unschedule()
+    	TRACE("mode is ${evtMode} No more Polling for sensors")
+        state.pollSensors = false
+    	runEvery1Minute("pollTheSensors", [data: [elevatedPolling: false]])
     }
 }
 
 def handleRooms(physicalgraph.device.HubResponse hubResponse) {
-
+	TRACE("[handleRooms] entered")
 	def parsedEvent = parseEventMessage(hubResponse.description)
     def mac = parsedEvent.mac.substring(6)
   
@@ -487,13 +500,50 @@ def handleRooms(physicalgraph.device.HubResponse hubResponse) {
         	def dni = mac + "/group/" + item
             def groupDev = getChildDevice(dni)
             if (!groupDev) {
-            	log.info "[handleRooms] add room ${dni} ${group.name}"
+            	TRACE("[handleRooms] add room ${dni} ${group.name}")
             	groupDev = addChildDevice("verbem", "domoticzOnOff", dni, null, [name:group.name, label:group.name, completedSetup:true])
            	}
+            	else {
+                	if (group.name != groupDev.name) {
+                    	groupDev.name = group.name
+                        groupDev.label = group.name
+                    }
+                }
+            //sendEvents...
+            if (group?.state?.all_on || group?.state?.any_on) groupDev.sendEvent(name: "switch", value: "on")
+            	else groupDev.sendEvent(name: "switch", value: "off")
+            if (group?.action?.hue) groupDev.sendEvent(name:"hue", value: Math.round(group.action.hue*100/65535)) 
+            if (group?.action?.bri) groupDev.sendEvent(name:"level", value: Math.round(group.action.bri*100/254))
+            if (group?.action?.sat) groupDev.sendEvent(name:"saturation", value: Math.round(group.action.sat*100/254))            
+            if (group?.action?.ct) groupDev.sendEvent(name:"colorTemperature", value: Math.round(1000000/group.action.ct))            
         }
    	}
 }
 
+def handleRoomPut(physicalgraph.device.HubResponse hubResponse) {
+
+	def dev
+    def parsedEvent = parseEventMessage(hubResponse.description)
+    def mac = parsedEvent.mac.substring(6)
+    
+	TRACE("[handleRoomPut] ${hubResponse.status} for mac ${mac}")
+	TRACE("[handleRoomPut] ${hubResponse.body}. ${hubResponse.json}")
+    hubResponse.json.each { key ->
+    	key.success.each { item, value ->
+        	def dni = mac + "/group/" + item.split("/")[2]
+            if (!dev) dev = getChildDevice(dni)
+            if (item.indexOf("/action/hue") != -1) dev.sendEvent(name:"hue", value: Math.round(value*100/65535))
+            if (item.indexOf("/action/sat") != -1) dev.sendEvent(name:"saturation", value: Math.round(value*100/254))
+            if (item.indexOf("/action/bri") != -1) dev.sendEvent(name:"level", value: Math.round(value*100/254))
+            if (item.indexOf("/action/on") != -1) {
+                if (value == true)	dev.sendEvent(name:"switch", value:"on")
+                if (value == false) dev.sendEvent(name:"switch", value:"off")
+           	}
+        }
+    }
+    
+}
+    
 def handleCheckDevices(physicalgraph.device.HubResponse hubResponse) {
 
     def parsedEvent = parseEventMessage(hubResponse.description)
@@ -513,8 +563,6 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
     def mac = parsedEvent.mac.substring(6)
     def motionCount = 0
     def sensorList = [:]
-
-    //log.debug "[handlePoll] entered for mac ${mac}"
 
     if (hubResponse?.json?.error) {
     	log.error "[handlePoll] Error in ${mac} ${hubResponse.json.error}"	
@@ -588,7 +636,7 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
                             break  
                     }
                     if (devType != null) {
-                        log.info "[handlePoll] Add Sensor ${dni} ${sensor.type} ${devType} ${sensor.name} ${getMac(sensor.uniqueid)}"
+                        TRACE("[handlePoll] Add Sensor ${dni} ${sensor.type} ${devType} ${sensor.name} ${getMac(sensor.uniqueid)}")
 
 						try {
                             sensorDev = addChildDevice("verbem", devType, dni, null, [name:sensor.name, label:sensor.name, completedSetup:true])
@@ -628,20 +676,20 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
                         state.devices[dni].lastUpdated = sensor.state.lastupdated
                         switch (state.devices[dni].type) {
                             case "ZGPSwitch":
-                                log.info "[handlePoll] Buttonpress Tap ${dni} ${sensor.state.buttonevent}"
+                                TRACE("[handlePoll] Buttonpress Tap ${dni} ${sensor.state.buttonevent}")
                                 sensorDev.buttonEvent(sensor.state.buttonevent)                          
                                 break
                             case "ZLLPresence":
                             	motionCount++
                                 sensorList[motionCount] = dni
-                                log.info "[handlePoll] Motion Sensor ${dni} ${sensor.state.presence} DTH Status is ${sensorDev.currentValue("motion")}"
+                                TRACE("[handlePoll] Motion Sensor ${dni} ${sensor.state.presence} DTH Status is ${sensorDev.currentValue("motion")}")
                                
                                 if (sensorDev.currentValue("motion") == "inactive" || sensorDev.currentValue("motion") == null ) sensorDev.sendEvent(name: "motion", value: "active", descriptionText: "$sensorDev motion started", isStateChange: true)
                                 
                                 sensorDev.sendEvent(name: "battery", value: sensor.config.battery)
                                 break
                             case "ZLLSwitch":
-                                log.info "[handlePoll] Dimmer Switch ${dni} ${sensor.state.buttonevent}"
+                                TRACE("[handlePoll] Dimmer Switch ${dni} ${sensor.state.buttonevent}")
                                 sensorDev.sendEvent(name: "battery", value: sensor.config.battery)
                                 sensorDev.buttonEvent(sensor.state.buttonevent)
                                 break                    
@@ -750,6 +798,7 @@ def pollSensor(data) {
 }
 
 private pollRooms(hostIP, usernameAPI) {
+	if (settings.z_Sensors.indexOf("Hue Rooms") == -1) return
 
 	if(hostIP.indexOf(":") == -1) hostIP = hostIP + ":80"
 
@@ -772,7 +821,6 @@ private findStateDeviceWithUniqueId(uniqueId) {
 
 private getMac(uniqueId) {
 	def mac = uniqueId.split("-")[0]
-    //log.info "[getMac] input ${uniqueId} output ${mac}"	
 	return mac
 }
 
@@ -780,65 +828,67 @@ private getMac(uniqueId) {
 	device type command handlers for rooms, uses the standard domoticzOnOff
     -----------------------------------------------------------------------
 */
+void groupCommand(attr) {
 
-def domoticz_poll(dni) {
-	//log.info "[domoticz_poll] Command Poll received for ${dni}"
-    groupCommand([command: "poll", dni: ${dni}])
-}
-
-def domoticz_on(dni) {
-	log.info "[domoticz_on] Command On received for ${dni}"
-    groupCommand([command: "on", dni: ${dni}])
-}
-
-def domoticz_off(dni) {
-	log.info "[domoticz_off] Command Off received for ${dni}"
-    groupCommand([command: "off", dni: ${dni}])
-}
-
-def domoticz_setLevel(dni, level) {
-	log.info "[domoticz_setLevel] Command setLevel received for ${dni} level ${level}"
-    groupCommand([command: "level", dni: ${dni}, level: ${level}])
-}
-
-def domoticz_setColorHue(dni, hue, sat, level) {
-	log.info "[domoticz_setColorHue] Command setColorHue received for ${dni} hue ${hue} sat ${sat} level ${level}"
-    groupCommand([command: "hue", dni: ${dni}, level: ${level}, hue: ${hue}, sat: ${sat}])
-}
-
-def domoticz_setColorWhite(dni, hex, sat, level) {
-	log.info "[domoticz_setColorWhite] Command setColorWhite received for ${dni} hex ${hue} sat ${sat} level ${level}"
-    groupCommand([command: "white", dni: ${dni}, level: ${level}, hex: ${hex}, sat: ${sat}])
-}
-
-private def groupCommand(attr) {
-
-	def apiGroupActionBody
+	def apiGroupActionBody = "invalid"
+    def hostIP
+    def group = attr.dni.split("/")[2]
+    def mac = attr.dni.split("/")[0]
+    def usernameAPI = settings."z_BridgesUsernameAPI_${mac}"
     
 	switch(attr.command) {
     case "on":
-    	apiGroupActionBody = '{"on": true}'
+    	apiGroupActionBody = ["on": true]
         break
     case "off":
-    	apiGroupActionBody = '{"on": false}'
+    	apiGroupActionBody = ["on": false]
         break
     case "level":
-    	def level = attr.level / 100 * 254
-        apiGroupActionBody = '{"on": true, "bri": $level}'
+    	def int level = Math.round((attr.level / 100 * 254))
+        apiGroupActionBody = ["on": true, "bri": level]
 		break
     case "hue":
+    	def int hue = Math.round(attr.hue / 100 * 65535)
+    	def int level = Math.round(attr.level / 100 * 254)
+        def int sat = Math.round(attr.sat / 100 * 254)
+        apiGroupActionBody = ["on": true, "hue": hue, "bri": level, "sat": sat]
     	break
     case "white":
+    	def int hue = Math.round(attr.hue / 100 * 65535)
+    	def int level = Math.round(attr.level / 100 * 254)
+        def int sat = Math.round(attr.sat / 100 * 254)
+        apiGroupActionBody = ["on": true, "hue": hue, "bri": level, "sat": sat]
     	break
     case "poll":
     	break
     default:
     	apiGroupActionBody = null
     }
+     
+    settings.z_Bridges.each { bridge ->
+        def match = bridge.currentValue("serialNumber").indexOf(mac)
+    	if (match != -1) {
+        	hostIP = bridge.currentValue("networkAddress") 
+            if(hostIP.indexOf(":") == -1) hostIP = hostIP + ":80" // Hue B
+    	}
+    }
     
-    log.info apiGroupActionBody
-}
+    if (apiGroupActionBody == null || apiGroupActionBody == "invalid" ) return
+    if (usernameAPI == null) return
+    if (group == null) return
+    if (group == hostIP) return
+       
+    def hubAction = new physicalgraph.device.HubAction(
+        method: "PUT",
+        path: "/api/${usernameAPI}/groups/${group}/action",
+        headers: [HOST: "${hostIP}"],
+        null,
+        body: apiGroupActionBody,
+        [callback: handleRoomPut] )
 
+    sendHubCommand(hubAction)
+
+}
 
 private Integer convertHexToInt(hex) {
 	Integer.parseInt(hex, 16)
@@ -912,6 +962,10 @@ private def parseEventMessage(String description) {
     }
 
     event
+}
+
+private def TRACE(message) {
+    if(z_Trace) {log.trace message}
 }
 
 def getWebData(params, desc, text=true) {

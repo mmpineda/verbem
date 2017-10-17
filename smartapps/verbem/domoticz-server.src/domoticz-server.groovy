@@ -14,12 +14,13 @@
  *
  *	
 	V4.05	check for null on result in onLocationEvtForEveryThing
+    V4.06	[updateDeviceList] remove obsolete childs, ones that are unused in Domoticz
  */
  
 import groovy.json.*
 import java.Math.*
 
-private def runningVersion() {"4.05"}
+private def runningVersion() {"4.06"}
 
 private def textVersion() { return "Version ${runningVersion()}"}
 
@@ -346,7 +347,7 @@ private def setupDomoticz() {
         title       : "Debug trace output in IDE log",
         defaultValue: true
     ]
-
+    
     def pageProperties = [
         name        : "setupDomoticz",
         title       : "Configure Domoticz Server",
@@ -512,7 +513,7 @@ private def initialize() {
     TRACE ("[Initialize] Subcribe to Location")
     unsubscribe()
     subscribe(location, null, onLocation, [filterEvents:true])
-
+    
     if (state.accessToken) {
         state.urlCustomActionHttp = getApiServerUrl() - ":443" + "/api/smartapps/installations/${app.id}/" + "EventDomoticz?access_token=" + state.accessToken + "&message=#MESSAGE"
 	}
@@ -558,6 +559,7 @@ private def initialize() {
   
 
 }
+
 /*-----------------------------------------------------------------------------------------*/
 /*		DeleteChilds command
 /*-----------------------------------------------------------------------------------------*/
@@ -946,6 +948,11 @@ private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, pa
         TRACE("[addSwitch] Updating child device ${addr}, ${passedFile}, ${passedName}, ${passedStatus}")
         
         if (!state.devices[addr].deviceId) state.devices[addr].deviceId = deviceId
+        def existingDev = getChildDevice(newdni)
+        if (passedName != existingDev.name) {
+        	existingDev.label = passedName
+            existingDev.name = passedName
+        }
         
         def attributeList = createAttributes(getChildDevice(newdni), passedDomoticzStatus, addr)
         if (passedType == "RFY") {attributeList.put('somfySupported', true)}
@@ -1022,9 +1029,12 @@ private def createAttributes(domoticzDevice, domoticzStatus, addr) {
             	if (domoticzDevice.hasAttribute("battery")) if (v == 255) attributeList.put('battery',100) else attributeList.put('battery',v)
             break;
             case "Level":
-				if (domoticzStatus?.LevelInt == 0 && domoticzDevice.hasAttribute("level")) {
-                	attributeList.put('level', v)
-                	}
+				//if (domoticzStatus?.LevelInt == 0 && domoticzDevice.hasAttribute("level")) {
+                //	attributeList.put('level', v)
+                //	}
+				if (domoticzStatus?.LevelInt > 0 && v == 0 && domoticzDevice.hasAttribute("level")) attributeList.put('level',domoticzStatus?.LevelInt)
+                else if (domoticzDevice.hasAttribute("level")) attributeList.put('level', v)
+                	
                 if (domoticzStatus?.LevelNames) {
                 	def ix = v / 10
                     def status = domoticzStatus?.LevelNames.tokenize('|')
@@ -1032,9 +1042,9 @@ private def createAttributes(domoticzDevice, domoticzStatus, addr) {
                 	attributeList.put('selectorState', status[ix.toInteger()])
                     }
             break;
-            case "LevelInt":
-				if (domoticzStatus?.LevelInt > 0 && domoticzDevice.hasAttribute("level")) attributeList.put('level', v)
-            break;
+            //case "LevelInt":
+			//	if (domoticzStatus?.LevelInt > 0 && domoticzDevice.hasAttribute("level")) attributeList.put('level', v)
+            //break;
             case "Temp":
             	double vd = v               
 				if (domoticzDevice.hasAttribute("temperature")) attributeList.put('temperature', vd.round(1))
@@ -1109,32 +1119,39 @@ private def addNefitEasy(addrNefitDevice) {
 private def updateDeviceList() {
     TRACE("[updateDeviceList]")
     def deletedDevices = new ArrayList()
+    
 	def temprspDevices = state.statusrsp
-    def temprspSensors = state.listSensors
+    pause 5
     def temprspGroups = state.statusGrpRsp
-    def tempDevices = state.devices
-    state?.statusSensorRsp = null
+    pause 5
+    def findrspDevice
+    def findrspGroup
+    def inStatusrsp
+    
+    def tempStateDevices = state.devices    
+    pause 5
     
     if(temprspDevices) log.trace temprspDevices?.size() + " Devices in response : " + temprspDevices?.collect {it.idx as int}.sort()
-    pause 5
-    //if (temprspSensors) log.trace temprspSensors?.size() + " Sensors in response : " + temprspSensors?.collect {it.idx as int}.sort()
-    //pause 5
     if (temprspGroups) log.trace temprspGroups?.size() + " Groups in response : " + temprspGroups?.collect {it.idx as int}.sort()
-    pause 5
-    log.trace tempDevices?.size() + " state Devices : " + tempDevices?.collect {it.value.idx as int}.sort()
-    pause 5
+    log.trace tempStateDevices?.size() + " state Devices : " + tempStateDevices?.collect {it.value.idx as int}.sort()
+    def allChildren = getAllChildDevices()
     
-    tempDevices.each { k,v ->
-        def inStatusrsp = false
-        temprspDevices.each {
-        	if (k == it.idx) inStatusrsp = true
-        }
-        temprspGroups.each {
-        	if (k == it.idx) inStatusrsp = true
-        }
-        temprspSensors.each { x, y ->
-        	if (k == y.idx) inStatusrsp = true
-        }
+    allChildren.each { child ->
+    	findrspDevice = temprspDevices.find {item -> item.idx == child.deviceNetworkId.split(":")[2] }
+    	findrspGroup = temprspGroups.find {item -> item.idx == child.deviceNetworkId.split(":")[2] }
+    	if (!findrspDevice && !findrspGroup) {
+        	TRACE("[updateDeviceList] NOT FOUND ${child.name} delete childDevice")
+            deleteChildDevice(child.deviceNetworkId)
+      	}
+    }
+    
+    tempStateDevices.each { k,v ->
+        inStatusrsp = false
+        
+        if (temprspDevices) findrspDevice = temprspDevices.find {dev ->	dev.idx == k }
+        if (tmprspGroups) findrspGroup = temprspGroups.find {group -> group.idx == k }
+
+        if (findrspDevice || findrspGroup) inStatusrsp = true
         
         if (v.hasProperty("deviceType")) {if (v.deviceType == "domoticzNefitEasy") inStatusrsp = true} // Nefit Easy Devices do not clean up yet.
         
@@ -1227,7 +1244,7 @@ def domoticz_sceneoff(nid) {
 
 def domoticz_on(nid) {
     TRACE("[domoticz on] (${nid})")
-    socketSend([request : "on", idx : nid, level : 16])
+    socketSend([request : "on", idx : nid])
 }
 
 def domoticz_sceneon(nid) {
@@ -1250,7 +1267,7 @@ def domoticz_setlevel(nid, xLevel) {
     		else 
             {
                	socketSend([request : "setlevel", idx : nid, level : xLevel])
-                socketSend([request : "on", idx : nid])
+                //socketSend([request : "on", idx : nid])
             }
 }
 
@@ -1276,7 +1293,7 @@ def domoticz_setcolorWhite(nid, xHex, xSat, xBri) {
 /*		Excecute The real request via the local HUB
 /*-----------------------------------------------------------------------------------------*/
 private def socketSend(passed) {
-    TRACE("[socketSend] => ${passed}")
+    //TRACE("[socketSend] => ${passed}")
     
 	def rooPath = ""
     def rooLog = ""
@@ -1356,15 +1373,15 @@ private def socketSend(passed) {
         	rooPath = "/json.htm?type=command&param=switchlight&idx=${passed.idx}&switchcmd=Set%20Level&level=${passed.level}"  // "SwitchLight"
             break;
         case "setcolor":
-        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20ColorHex%20${passed.level}%20for%20${passed.idx}"
+        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20ColorHex%20${passed.hex}%20for%20${passed.idx}%20brightness=${passed.brightness}%saturation=${passed.saturation}"
         	rooPath = "/json.htm?type=command&param=setcolbrightnessvalue&idx=${passed.idx}&hex=${passed.hex}&iswhite=false&brightness=${passed.brightness}&saturation=${passed.saturation}" // "SetColBrightnessValue"
             break;
         case "setcolorhue":
-        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20ColorHue%20${passed.level}%20for%20${passed.idx}%20brightness=${passed.brightness}"
+        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20ColorHue%20${passed.hue}%20for%20${passed.idx}%20brightness=${passed.brightness}%saturation=${passed.saturation}"
         	rooPath = "/json.htm?type=command&param=setcolbrightnessvalue&idx=${passed.idx}&hue=${passed.hue}&iswhite=false&brightness=${passed.brightness}&saturation=${passed.saturation}" // "SetColBrightnessValue"
             break;
          case "setcolorwhite":
-        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20ColorHue%20${passed.hex}%20for%20${passed.idx}%20brightness=${passed.brightness}"
+        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20ColorHue%20${passed.hex}%20for%20${passed.idx}%20brightness=${passed.brightness}%saturation=${passed.saturation}"
         	rooPath = "/json.htm?type=command&param=setcolbrightnessvalue&idx=${passed.idx}&hex=${passed.hex}&iswhite=true&brightness=${passed.brightness}&saturation=${passed.saturation}" // "SetColBrightnessValue"
             break;
         default:
@@ -1448,10 +1465,11 @@ void callbackNefit(evt) {
 }
 
 void callbackList(evt) {
+
 	TRACE("[callbackList]")
     def response = getResponse(evt)
-    state.statusrsp = response.result
-    onLocationEvtForDevices(response)
+    state.statusrsp = response.result  
+    onLocationEvtForDevices(response)    
     return
 }
 
