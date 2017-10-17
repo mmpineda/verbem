@@ -1,3 +1,6 @@
+Version 4.06
+    [updateDeviceList] remove obsolete childs, ones that are unused in Domoticz
+
 Version 4.05
     check for null on result in onLocationEvtForEveryThing
 
