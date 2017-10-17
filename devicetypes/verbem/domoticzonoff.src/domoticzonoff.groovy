@@ -22,7 +22,8 @@
  *
  *  Revision History
  *  ----------------
- *  2017-04-28 3.13 Color setting for White types
+ * 	2017-10-17 4.11 ColorTemperature added, added multi parent control for domoticz and hue sensor (connect) 
+ *	2017-04-28 3.13 Color setting for White types
  *  2017-04-14 3.12 Multistate support for DZ selector
  *  2017-01-25 3.09 Put in check for switch name in generateevent
  *	2017-01-18 3.08 get always an lowercase value for switch on/off in generateevent
