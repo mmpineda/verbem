@@ -1,3 +1,9 @@
+Version 1.15 
+  added the option of autodefine room type groups that exists on the bridges, device is domoticzOnOff. Added TRACE switch
+
+Version 1.14 
+  made code more efficient in the pollsensor for elevated polling and poll more evenly in a minute 
+
 Version 1.13 
   Move motion sensor inactive event to runIn 30 seconds handler, to have a more natural motion time
   
