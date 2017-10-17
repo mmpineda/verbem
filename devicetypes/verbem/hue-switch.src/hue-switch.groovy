@@ -86,7 +86,9 @@ def parse(String message) {
 
 def buttonEvent(button) {
 	int xButton = (button / 1000)
-	
+	log.info "[Dimmer Switch] source hue button ${button} translated into ${xButton} "
+   // runIn(1, elevatedDeviceCall)
+    
     switch (xButton) {
         case 1:
             sendEvent(name: "switch", value: "on", descriptionText: "$device.displayName On button $xButton was pushed", isStateChange: true)
@@ -123,6 +125,7 @@ def buttonEvent(button) {
             
             sendEvent(name: "button", value: "pushed", data: [buttonNumber: xButton], descriptionText: "$device.displayName button $xButton was pushed", isStateChange: true)
     		sendEvent(name: "button", value: "pushed", data: [buttonNumber: state.sceneCycle], descriptionText: "$device.displayName button $state.sceneCycle was pushed", isStateChange: true)
+                     
             state.sceneCycle = state.sceneCycle + 1
             
             if (state.sceneCycle > 14) state.sceneCycle = 10
@@ -132,8 +135,13 @@ def buttonEvent(button) {
             	if (xButton == 4) state.sceneCycle = 10
         		sendEvent(name: "button", value: "pushed", data: [buttonNumber: xButton], descriptionText: "$device.displayName button $xButton was pushed", isStateChange: true)
             }
-    
 }
+def elevatedDeviceCall() {
+
+	parent.elevatedDeviceCall(device.deviceNetworkId)
+}
+
+
 def resetCycle() {
 	state.sceneCycle = 10
 }

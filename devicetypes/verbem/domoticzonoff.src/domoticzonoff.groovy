@@ -33,7 +33,8 @@ metadata {
         capability "Actuator"
         capability "Sensor"
         capability "Color Control"
-        capability "Switch"
+		capability "Color Temperature"
+		capability "Switch"
         capability "Switch Level"
         capability "Refresh"
         capability "Polling"
@@ -43,8 +44,6 @@ metadata {
       
         // custom commands
         command "parse"     // (String "<attribute>:<value>[,<attribute>:<value>]")
-       	//command "setLevel"
-        //command "setColor"
         command "generateEvent"
         command "eodRunOnce"
     }
@@ -123,80 +122,84 @@ def poll() {
 
 // switch.poll() command handler
 def refresh() {
+    if (parent.name == "Domoticz Server") parent.domoticz_poll(getIDXAddress())
+    if (parent.name == "Hue Sensor (Connect)") parent.groupCommand(["command" : "poll", "dni": device.deviceNetworkId])
 
-    if (parent) {
-        parent.domoticz_poll(getIDXAddress())
-    }
 }
 
 // switch.on() command handler
 def on() {
-
-    if (parent) {
-        parent.domoticz_on(getIDXAddress())
-    }
+    if (parent.name == "Domoticz Server") parent.domoticz_on(getIDXAddress())
+    if (parent.name == "Hue Sensor (Connect)") parent.groupCommand(["command" : "on", "dni": device.deviceNetworkId])
 }
 
 // switch.off() command handler
 def off() {
-
-    if (parent) {
-        parent.domoticz_off(getIDXAddress())
-    }
+    if (parent.name == "Domoticz Server") parent.domoticz_off(getIDXAddress())
+    if (parent.name == "Hue Sensor (Connect)") parent.groupCommand(["command" : "off", "dni": device.deviceNetworkId])
 }
 
 // Custom setlevel() command handler
 def setLevel(level) {
     TRACE("setLevel Level " + level)
     state.setLevel = level
-    if (parent) {
-        parent.domoticz_setlevel(getIDXAddress(), level)
-    }
+
+    if (parent.name == "Domoticz Server") parent.domoticz_setlevel(getIDXAddress(), level)
+    if (parent.name == "Hue Sensor (Connect)") parent.groupCommand(["command" : "level", "dni": device.deviceNetworkId, "level": level])
+}
+
+def setColorTemperature(ct) {
+    //if (parent.name == "Domoticz Server") parent.domoticz_setlevel(getIDXAddress(), level)
+    if (parent.name == "Hue Sensor (Connect)") parent.groupCommand(["command" : "colorTemperature", "dni": device.deviceNetworkId, "ct": ct])
+
 }
 
 // Custom setcolor() command handler hue from ST is percentage of 360 which is max HUE
 def setColor(color) {
 
-def hexCode = null
+	def hexCode = null
 
-		if (!color?.hex) {
-			//hue:83, saturation:100, level:80
-            log.trace color
-            TRACE("SetColor HUE " + (color.hue*3.6) + " Sat " + Math.round(color.saturation) + " Level " + color.level)
-            if (parent) {
-                if (color.hue == 5 && color.saturation == 4) {
-                   hexCode = "FEFFFA"
-                   log.debug "Soft White - Default ${hexCode}"
-                   }
-                else if (color.hue == 63 && color.saturation == 28) {
-                   hexCode = "EFF9FF"
-                   log.debug "White - Concentrate ${hexCode}"
-                   }
-                else if (color.hue == 63 && color.saturation == 43) {
-                   hexCode = "FAFDFF"
-                   log.debug "Daylight - Energize ${hexCode}"
-                   }
-                else if (color.hue == 79 && color.saturation == 7) {
-                   hexCode = "FFFAEE"
-                   log.debug "Warm White - Relax ${hexCode}"
-                   }
-            	if (hexCode == null) {
-                	log.trace "normal"
-                	parent.domoticz_setcolorHue(getIDXAddress(), (color.hue*3.6), Math.round(color.saturation), color.level)
-                    }
-				else {
-                	log.trace "whitelevel"
-                    parent.domoticz_setcolorWhite(getIDXAddress(), hexCode, Math.round(color.saturation), color.level)
-                    }
-               }
-        	}
-        else {
-        	log.trace color
-            TRACE("SetColor HEX " + color.hex[-6..-1] + " Sat " + Math.round(color.saturation) + " Level " + state.setLevel)
-            if (parent) {
-                parent.domoticz_setcolor(getIDXAddress(), color.hex[-6..-1], Math.round(color.saturation), state.setLevel)
-                }
+    if (!color?.hex) {
+        //hue:83, saturation:100, level:80
+        log.trace color
+        TRACE("SetColor HUE " + (color.hue*3.6) + " Sat " + Math.round(color.saturation) + " Level " + color.level)
+        if (parent) {
+            if (color.hue == 5 && color.saturation == 4) {
+                hexCode = "FEFFFA"
+                log.debug "Soft White - Default ${hexCode}"
             }
+            else if (color.hue == 63 && color.saturation == 28) {
+                hexCode = "EFF9FF"
+                log.debug "White - Concentrate ${hexCode}"
+            }
+            else if (color.hue == 63 && color.saturation == 43) {
+                hexCode = "FAFDFF"
+                log.debug "Daylight - Energize ${hexCode}"
+            }
+            else if (color.hue == 79 && color.saturation == 7) {
+                hexCode = "FFFAEE"
+                log.debug "Warm White - Relax ${hexCode}"
+            }
+            if (hexCode == null) {
+                log.trace "normal"
+                if (parent.name == "Domoticz Server") parent.domoticz_setcolorHue(getIDXAddress(), (color.hue*3.6), Math.round(color.saturation), color.level)
+                if (parent.name == "Hue Sensor (Connect)") parent.groupCommand(["command" : "hue", "dni": device.deviceNetworkId, "level": color.level, "hue": color.hue, "sat": color.sat])                           
+            }
+            else {
+                log.trace "whitelevel"
+                if (parent.name == "Domoticz Server") parent.domoticz_setcolorWhite(getIDXAddress(), hexCode, Math.round(color.saturation), color.level)
+                if (parent.name == "Hue Sensor (Connect)") parent.groupCommand(["command" : "white", "dni": device.deviceNetworkId, "level": color.level, "hue": color.hue, "sat": Math.round(color.saturation)])                           
+            }
+        }
+    }
+    else {
+        log.trace color
+        TRACE("SetColor HEX " + color.hex[-6..-1] + " Sat " + Math.round(color.saturation) + " Level " + state.setLevel)
+        if (parent) {
+            if (parent.name == "Domoticz Server") parent.domoticz_setcolor(getIDXAddress(), color.hex[-6..-1], Math.round(color.saturation), state.setLevel)
+            if (parent.name == "Hue Sensor (Connect)") parent.groupCommand(["command" : "hue", "dni": device.deviceNetworkId, "level": state.setLevel, "hue": color.hue, "sat": color.saturation])                        
+        }
+    }
 }
 
 private def TRACE(message) {
@@ -218,8 +221,8 @@ private getIDXAddress() {
         if (parts.length == 3) {
             idx = parts[2]
         } else {
-            log.warn "Can't figure out idx for device: ${device.id} returning ${device.deviceNetworkId} for parent ${parent}"
-            return device.deviceNetworkId
+            log.warn "Can't figure out idx for device: ${device.name} returning ${device.deviceNetworkId}"
+            return device.deviceNetworkId.toString()
         }
     }
 
