@@ -512,7 +512,7 @@ def handleRooms(physicalgraph.device.HubResponse hubResponse) {
             //sendEvents...
             if (group?.state?.all_on || group?.state?.any_on) groupDev.sendEvent(name: "switch", value: "on")
             	else groupDev.sendEvent(name: "switch", value: "off")
-            if (group?.action?.hue) groupDev.sendEvent(name:"hue", value: Math.round(group.action.hue*100/65535)) 
+            if (group?.action?.hue) groupDev.sendEvent(name:"hue", value: group.action.hue*100/65535) 
             if (group?.action?.bri) groupDev.sendEvent(name:"level", value: Math.round(group.action.bri*100/254))
             if (group?.action?.sat) groupDev.sendEvent(name:"saturation", value: Math.round(group.action.sat*100/254))            
             if (group?.action?.ct) groupDev.sendEvent(name:"colorTemperature", value: Math.round(1000000/group.action.ct))            
