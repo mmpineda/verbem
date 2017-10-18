@@ -22,6 +22,7 @@
  *
  *  Revision History
  *  ----------------
+ *  2017-10-28 4.12 correct to saturation color in normal setColor mode
  * 	2017-10-17 4.11 ColorTemperature added, added multi parent control for domoticz and hue sensor (connect) 
  *	2017-04-28 3.13 Color setting for White types
  *  2017-04-14 3.12 Multistate support for DZ selector
@@ -34,7 +35,7 @@ metadata {
         capability "Actuator"
         capability "Sensor"
         capability "Color Control"
-		capability "Color Temperature"
+//		capability "Color Temperature"
 		capability "Switch"
         capability "Switch Level"
         capability "Refresh"
@@ -157,7 +158,7 @@ def setColorTemperature(ct) {
 
 // Custom setcolor() command handler hue from ST is percentage of 360 which is max HUE
 def setColor(color) {
-
+	log.trace "[setColor] " + color
 	def hexCode = null
 
     if (!color?.hex) {
@@ -184,7 +185,7 @@ def setColor(color) {
             if (hexCode == null) {
                 log.trace "normal"
                 if (parent.name == "Domoticz Server") parent.domoticz_setcolorHue(getIDXAddress(), (color.hue*3.6), Math.round(color.saturation), color.level)
-                if (parent.name == "Hue Sensor (Connect)") parent.groupCommand(["command" : "hue", "dni": device.deviceNetworkId, "level": color.level, "hue": color.hue, "sat": color.sat])                           
+                if (parent.name == "Hue Sensor (Connect)") parent.groupCommand(["command" : "hue", "dni": device.deviceNetworkId, "level": color.level, "hue": color.hue, "sat": color.saturation])                           
             }
             else {
                 log.trace "whitelevel"
@@ -201,6 +202,7 @@ def setColor(color) {
             if (parent.name == "Hue Sensor (Connect)") parent.groupCommand(["command" : "hue", "dni": device.deviceNetworkId, "level": state.setLevel, "hue": color.hue, "sat": color.saturation])                        
         }
     }
+
 }
 
 private def TRACE(message) {
