@@ -30,6 +30,7 @@
  *	1.13 move motion sensor inactive event to runIn 30 seconds handler, to have a more natural motion time
  *	1.14 made code more efficient in the pollsensor for elevated polling and poll more evenly in a minute 
  *	1.15 added the option of autodefine room type groups that exists on the bridges, device is domoticzOnOff. Added TRACE switch
+ *	1.16 hyperpoll a single sensor 5 times for 5 seconds to get subsequent pushes faster when an event is detected
  */
 
 
@@ -43,7 +44,7 @@ definition(
 		iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Partner/hue@2x.png",
 		singleInstance: true
 )
-private def runningVersion() 	{"1.15"}
+private def runningVersion() 	{"1.16"}
 
 preferences {
 	page(name:pageMain)
@@ -484,7 +485,7 @@ def handleChangeMode(evt) {
 }
 
 def handleRooms(physicalgraph.device.HubResponse hubResponse) {
-	TRACE("[handleRooms] entered")
+	//TRACE("[handleRooms] entered")
 	def parsedEvent = parseEventMessage(hubResponse.description)
     def mac = parsedEvent.mac.substring(6)
   
@@ -510,12 +511,22 @@ def handleRooms(physicalgraph.device.HubResponse hubResponse) {
                     }
                 }
             //sendEvents...
+            
             if (group?.state?.all_on || group?.state?.any_on) groupDev.sendEvent(name: "switch", value: "on")
             	else groupDev.sendEvent(name: "switch", value: "off")
-            if (group?.action?.hue) groupDev.sendEvent(name:"hue", value: group.action.hue*100/65535) 
-            if (group?.action?.bri) groupDev.sendEvent(name:"level", value: Math.round(group.action.bri*100/254))
-            if (group?.action?.sat) groupDev.sendEvent(name:"saturation", value: Math.round(group.action.sat*100/254))            
-            if (group?.action?.ct) groupDev.sendEvent(name:"colorTemperature", value: Math.round(1000000/group.action.ct))            
+                            
+            if (group?.action?.hue) {
+            	groupDev.sendEvent(name:"hue", value: group.action.hue*100/65535) 
+            }
+            if (group?.action?.bri) { 
+            	groupDev.sendEvent(name:"level", value: Math.round(group.action.bri*100/254))
+            }
+            if (group?.action?.sat) {
+            	groupDev.sendEvent(name:"saturation", value: Math.round(group.action.sat*100/254))
+            }
+            //if (group?.action?.ct) {
+            //	groupDev.sendEvent(name:"colorTemperature", value: Math.round(1000000/group.action.ct))           
+            //}
         }
    	}
 }
@@ -526,15 +537,15 @@ def handleRoomPut(physicalgraph.device.HubResponse hubResponse) {
     def parsedEvent = parseEventMessage(hubResponse.description)
     def mac = parsedEvent.mac.substring(6)
     
-	TRACE("[handleRoomPut] ${hubResponse.status} for mac ${mac}")
-	TRACE("[handleRoomPut] ${hubResponse.body}. ${hubResponse.json}")
+	TRACE("[handleRoomPut] mac ${mac} JSON ${hubResponse.json} ")
     hubResponse.json.each { key ->
     	key.success.each { item, value ->
         	def dni = mac + "/group/" + item.split("/")[2]
-            if (!dev) dev = getChildDevice(dni)
-            if (item.indexOf("/action/hue") != -1) dev.sendEvent(name:"hue", value: Math.round(value*100/65535))
-            if (item.indexOf("/action/sat") != -1) dev.sendEvent(name:"saturation", value: Math.round(value*100/254))
-            if (item.indexOf("/action/bri") != -1) dev.sendEvent(name:"level", value: Math.round(value*100/254))
+            if (!dev) {
+            	dev = getChildDevice(dni)
+				TRACE("[handleRoomPut] sendEvents to device ${dev}")
+            }
+
             if (item.indexOf("/action/on") != -1) {
                 if (value == true)	dev.sendEvent(name:"switch", value:"on")
                 if (value == false) dev.sendEvent(name:"switch", value:"off")
@@ -563,6 +574,14 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
     def mac = parsedEvent.mac.substring(6)
     def motionCount = 0
     def sensorList = [:]
+	def usernameAPI = settings."z_BridgesUsernameAPI_${mac}"
+    def hostIP
+    def i = 0 
+    
+    settings.z_Bridges.each { bridge ->
+    	if (bridge.currentValue("serialNumber").indexOf(mac) != -1) hostIP = bridge.currentValue("networkAddress")
+    }
+
 
     if (hubResponse?.json?.error) {
     	log.error "[handlePoll] Error in ${mac} ${hubResponse.json.error}"	
@@ -694,6 +713,9 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
                                 sensorDev.buttonEvent(sensor.state.buttonevent)
                                 break                    
                         }
+                        for (i = 1; i < 6; i= i + 1) {
+                            runIn(i, pollSensor, [data: [hostIP: hostIP, usernameAPI: usernameAPI, sensor: item], overwrite: false])
+                        }         
                     }
                 }
             }
@@ -735,8 +757,9 @@ def handlePollSensor(physicalgraph.device.HubResponse hubResponse) {
             else 						sensorDev.sendEvent(name: "motion", value: "inactive", descriptionText: "$sensorDev motion detected", isStateChange: true)
             break
         case "ZLLSwitch":
-            //sensorDev.buttonEvent(body.state.buttonevent)
-            break  
+            TRACE("[handlePoll] Dimmer Switch ${dni} ${body.state.buttonevent}")
+            sensorDev.buttonEvent(body.state.buttonevent)
+            break                    
         default:
         	break
         }
@@ -835,7 +858,15 @@ void groupCommand(attr) {
     def group = attr.dni.split("/")[2]
     def mac = attr.dni.split("/")[0]
     def usernameAPI = settings."z_BridgesUsernameAPI_${mac}"
-    
+ 
+ 	settings.z_Bridges.each { bridge ->
+        def match = bridge.currentValue("serialNumber").indexOf(mac)
+    	if (match != -1) {
+        	hostIP = bridge.currentValue("networkAddress") 
+            if(hostIP.indexOf(":") == -1) hostIP = hostIP + ":80" // Hue B
+    	}
+    }
+
 	switch(attr.command) {
     case "on":
     	apiGroupActionBody = ["on": true]
@@ -860,18 +891,13 @@ void groupCommand(attr) {
         apiGroupActionBody = ["on": true, "hue": hue, "bri": level, "sat": sat]
     	break
     case "poll":
+		pollRooms(hostIP, usernameAPI)    	
     	break
     default:
     	apiGroupActionBody = null
     }
      
-    settings.z_Bridges.each { bridge ->
-        def match = bridge.currentValue("serialNumber").indexOf(mac)
-    	if (match != -1) {
-        	hostIP = bridge.currentValue("networkAddress") 
-            if(hostIP.indexOf(":") == -1) hostIP = hostIP + ":80" // Hue B
-    	}
-    }
+
     
     if (apiGroupActionBody == null || apiGroupActionBody == "invalid" ) return
     if (usernameAPI == null) return
