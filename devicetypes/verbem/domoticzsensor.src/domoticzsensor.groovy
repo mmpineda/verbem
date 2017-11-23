@@ -26,6 +26,7 @@ metadata {
 		capability "Illuminance Measurement"
 		capability "Power Meter"
         capability "Motion Sensor"
+        capability "Thermostat"
         
         attribute "pressure", "number"
         }
