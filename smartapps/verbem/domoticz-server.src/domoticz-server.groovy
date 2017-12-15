@@ -15,12 +15,13 @@
  *	
 	V4.05	check for null on result in onLocationEvtForEveryThing
     V4.06	[updateDeviceList] remove obsolete childs, ones that are unused in Domoticz
+ 	V4.07	Adding linkage to power usage devices
  */
  
 import groovy.json.*
 import java.Math.*
 
-private def runningVersion() {"4.06"}
+private def runningVersion() {"4.07"}
 
 private def textVersion() { return "Version ${runningVersion()}"}
 
@@ -256,10 +257,20 @@ private def setupCompositeSensors() {
         install     : false,
         uninstall   : false
     ]
-
+    
+    def inputReportPower = [
+        name        : "domoticzReportPower",
+        type        : "bool",
+        title       : "create Power Report device(s)",
+        defaultValue: false
+    ]
+    
     return dynamicPage(pageProperties) {
-      section {	
-      	state.listSensors.each { key, item ->
+		section {
+        	input inputReportPower
+        }
+        section {	
+      		state.listSensors.each { key, item ->
         	if (item.type == "domoticzSensor" || item.type == "domoticzMotion" ) {
                 def iMap = item as Map
                 paragraph "Compose ${iMap.type}/${iMap.name} with IDX ${key}"
@@ -512,7 +523,6 @@ private def initialize() {
 	// Subscribe to location events with filter disabled
     TRACE ("[Initialize] Subcribe to Location")
     unsubscribe()
-    subscribe(location, null, onLocation, [filterEvents:true])
     
     if (state.accessToken) {
         state.urlCustomActionHttp = getApiServerUrl() - ":443" + "/api/smartapps/installations/${app.id}/" + "EventDomoticz?access_token=" + state.accessToken + "&message=#MESSAGE"
@@ -532,6 +542,8 @@ private def initialize() {
     state.alive = true
     state.aliveAgain = true
     state.devicesOffline = false
+	
+    addReportDevices()
     
     unschedule()
     
@@ -549,15 +561,12 @@ private def initialize() {
     state.optionsPower = [:]
 
     scheduledListSensorOptions()
-    runEvery5Minutes(scheduledListSensorOptions)
+    runEvery1Minute(scheduledListSensorOptions)
     
     if (domoticzTypes.contains("(Virtual) Sensors")) {
     	scheduledSensorRefresh()
         runEvery10Minutes(scheduledSensorRefresh)
     }
-    
-  
-
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -673,7 +682,8 @@ void refreshUtilityCounts() {
     	if (item?.idxTemperature != null ) {listIdx[item.idxTemperature] = [name: key]}
     }
     
-    listIdx.each {k, v -> socketSend([request : "utilityCount", idx : k])}
+    listIdx.each {k, v -> socketSend([request : "utilityCount", idx : k])} 
+
 }
 
 void scheduledListSensorOptions() {
@@ -685,6 +695,7 @@ void scheduledListSensorOptions() {
 
 void scheduledSensorRefresh() {
 	TRACE("[scheduledSensorRefresh]")
+    //sendHubCommand(new physicalgraph.device.HubAction("lan discovery ssdp:all", physicalgraph.device.Protocol.LAN))
 	  
 	if (domoticzTypes.contains("(Virtual) Sensors")) {
         socketSend([request : "listsensors"])
@@ -725,13 +736,24 @@ void onLocationEvtForUCount(evt) {
 			def stateDevice = state.devices.find {key, item -> 
 		    	item.deviceId == utility.ID
     		}
+            
+            if (!stateDevice) { //XIAOMI plugs?? plug ID is xxAABBCC, usage idx is AABBCCxx
+            	def ID = "${utility.ID.substring(6)}${utility.ID.substring(0,7)}"
+				TRACE("[onLocationEvtForUCount] Checking for if usage ${utility.Usage} for XIAOMI ${utility.ID}")
+                
+                stateDevice = state.devices.find {key, item -> 
+                    item.deviceId == ID
+                }
+            }
 
 			if (stateDevice) {
                 stateDevice = stateDevice.toString().split("=")[0]
                 def dni = state.devices[stateDevice].dni
                 TRACE("[onLocationEvtForUCount] Usage ${utility.Usage} for ${getChildDevice(dni).displayName}")
                 getChildDevice(dni).sendEvent(name:"power", value:"${utility.Usage}")
-
+            }
+            else {
+            	TRACE("[onLocationEvtForUCount] Not found kWh ${utility.ID} ${utility.idx}")
             }
         }
     	if (utility?.SubType == "Lux") {
@@ -761,7 +783,6 @@ void onLocationEvtForUCount(evt) {
                 if (utility.status.toUpperCase() == "ON") motion = "active"
                 TRACE("[onLocationEvtForUCount] Motion ${motion} for ${getChildDevice(dni).displayName}")
                 getChildDevice(dni).sendEvent(name:"motion", value:"${motion}")
-
             }
         }
     	if (utility?.Temp) {
@@ -781,6 +802,7 @@ void onLocationEvtForUCount(evt) {
             }
         }
 	}
+    
 }
 /*-----------------------------------------------------------------------------------------*/
 /*		Get Room Plans defined into Selectables for setupDomoticz
@@ -842,6 +864,7 @@ private def onLocationEvtForDevices(statusrsp) {
 	TRACE("[onLocationEvtForDevices]")
 
 	def compareTypeVal
+    def SubType
 	if (!state.listSensors) state.listSensors = [:]
 
 	statusrsp.result.each { 
@@ -854,7 +877,8 @@ private def onLocationEvtForDevices(statusrsp) {
 	            if (domoticzTypes.contains('Window Coverings')) addSwitch(it.idx, "domoticzBlinds", it.Name, it.Status, it.Type, it)
 	            break
             case [0, 7]:		// 	Lamps OnOff, Dimmers and RGB
-                if (domoticzTypes.contains('On/Off/Dimmers/RGB')) addSwitch(it.idx, "domoticzOnOff", it.Name, it.Status, it.Type, it)
+            	SubType = it?.SubType
+                if (domoticzTypes.contains('On/Off/Dimmers/RGB') && SubType != "kWh") addSwitch(it.idx, "domoticzOnOff", it.Name, it.Status, it.Type, it)
                 break
             case 2:				//	Contact 
                 if (domoticzTypes.contains('Contact Sensors')) addSwitch(it.idx, "domoticzContact", it.Name, it.Status, it.Type, it)
@@ -889,6 +913,8 @@ private def onLocationEvtForDevices(statusrsp) {
 def onLocationEvtForEveryThing(evt) {
 
     def response = getResponse(evt)
+    def kwh = 0f
+    def watt = 0f
     
 	if (response?.result == null) return
 
@@ -909,11 +935,36 @@ def onLocationEvtForEveryThing(evt) {
         	state.optionsCarbon1[it.idx] = "${it.idx} : ${it.Name}"
         	state.optionsCarbon2[it.idx] = "${it.idx} : ${it.Name}"
         }
-        if (it?.SubType == "kWh") {
+        if (it?.SubType == "kWh") {	
         	state.optionsPower[it.idx] = "${it.idx} : ${it.Name}" 
-        }
+            kwh = kwh + Float.parseFloat(it.Data.split(" ")[0])
+            watt = watt + Float.parseFloat(it.Usage.split(" ")[0])
+            //add idxPower to real device by matching the ID
+			def ID = it?.ID
+			def stateDevice = state.devices.find {key, item -> 
+		    	item.deviceId == ID
+    		}
+            def IDX = it.idx
+            if (stateDevice) {
+            	state.devices[stateDevice.key].idxPower = IDX
+            }
+		}
 
     }
+    if (kwh > 0) {
+        getChildDevice(state.devReportPower).sendEvent(name:"powerTotal", value:"${kwh.round(3)}")
+        TRACE("[kwh] ${kwh.round(3)}")
+        getChildDevice(state.devReportPower).sendEvent(name:"power", value:"${watt.round(2)}")
+        TRACE("[watt] ${watt.round()}")
+   	}
+}
+
+def onLocationForCounters(evt) {
+    def response = getResponse(evt)
+	TRACE("[onLocationForCounters]")
+	if (response.result == null) return
+    
+    TRACE("[onLocationForCounters] ${response.result}")
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -1027,7 +1078,7 @@ private def createAttributes(domoticzDevice, domoticzStatus, addr) {
         {
         	case "BatteryLevel":
             	if (domoticzDevice.hasAttribute("battery")) if (v == 255) attributeList.put('battery',100) else attributeList.put('battery',v)
-            break;
+            	break;
             case "Level":
 				//if (domoticzStatus?.LevelInt == 0 && domoticzDevice.hasAttribute("level")) {
                 //	attributeList.put('level', v)
@@ -1041,24 +1092,21 @@ private def createAttributes(domoticzDevice, domoticzStatus, addr) {
                     log.trace status + ix.toInteger() + status[ix.toInteger()]
                 	attributeList.put('selectorState', status[ix.toInteger()])
                     }
-            break;
-            //case "LevelInt":
-			//	if (domoticzStatus?.LevelInt > 0 && domoticzDevice.hasAttribute("level")) attributeList.put('level', v)
-            //break;
+            	break;
             case "Temp":
             	double vd = v               
 				if (domoticzDevice.hasAttribute("temperature")) attributeList.put('temperature', vd.round(1))
-            break;
+            	break;
             case "Barometer":
 				if (domoticzDevice.hasAttribute("pressure")) attributeList.put('pressure', v)
-            break;
+            	break;
             case "Humidity":
 				if (domoticzDevice.hasAttribute("humidity")) attributeList.put('humidity', v)
-            break;
+            	break;
 
             case "SignalLevel":
 				if (domoticzDevice.hasAttribute("rssi")) attributeList.put('rssi', v)
-            break;
+            	break;
             case "Status":
             	if (domoticzDevice.hasAttribute("motion")) attributeList.put('motion', v)
             	if (domoticzDevice.hasAttribute("contact")) attributeList.put('contact', v)
@@ -1067,15 +1115,42 @@ private def createAttributes(domoticzDevice, domoticzStatus, addr) {
                 	if (v.contains("Level")) attributeList.put('switch', 'On') 
                     else attributeList.put('switch', v)
                 }
-            break;
+            	break;
             case "Notifications":
 				attributeList.put('NotificationsDefinedInDomoticz', v)
-            break;
+            	break;
        }
     
     }
 	return attributeList
 }
+
+private def addReportDevices() {
+
+	if (settings.domoticzReportPower) {
+        TRACE("[addReportDevices]")
+
+        def passedName = "Power Reporting Device"
+        def newdni = app.id + ":Power Reporting Device:" + 10000
+		def dev = getChildDevice(newdni)
+        
+        if (!dev) {      
+            try {
+                    dev = addChildDevice("verbem", "domoticzPowerReport", newdni, getHubID(), [name:passedName, label:passedName, completedSetup:!state.domoticzRefresh])
+                    pause 5
+            } 
+            catch (e) 
+                {
+                    log.error "[addReportDevices] Cannot create child device. ${newdni} Error: ${e}"
+                    return 
+           	}
+        }
+        state.devReportPower = newdni
+
+    }
+
+}
+
 
 private def addNefitEasy(addrNefitDevice) {
 /*-----------------------------------------------------------------------------------------*/
@@ -1135,13 +1210,18 @@ private def updateDeviceList() {
     if (temprspGroups) log.trace temprspGroups?.size() + " Groups in response : " + temprspGroups?.collect {it.idx as int}.sort()
     log.trace tempStateDevices?.size() + " state Devices : " + tempStateDevices?.collect {it.value.idx as int}.sort()
     def allChildren = getAllChildDevices()
+    def idx10k
     
     allChildren.each { child ->
     	findrspDevice = temprspDevices.find {item -> item.idx == child.deviceNetworkId.split(":")[2] }
     	findrspGroup = temprspGroups.find {item -> item.idx == child.deviceNetworkId.split(":")[2] }
-    	if (!findrspDevice && !findrspGroup) {
-        	TRACE("[updateDeviceList] NOT FOUND ${child.name} delete childDevice")
-            deleteChildDevice(child.deviceNetworkId)
+        idx10k = child.deviceNetworkId.split(":")[2]
+
+        if (idx10k != "10000") {   // special devices that should not be deleted automatically have idx = 10000
+            if (!findrspDevice && !findrspGroup) {
+                TRACE("[updateDeviceList] NOT FOUND ${child.name} delete childDevice")
+                deleteChildDevice(child.deviceNetworkId)
+            }
       	}
     }
     
@@ -1289,6 +1369,11 @@ def domoticz_setcolorWhite(nid, xHex, xSat, xBri) {
     socketSend([request : "on", idx : nid])
 }
 
+def domoticz_counters(nid, range) {
+	TRACE("[domoticz counters] ${nid} Range ${range}")
+	socketSend([request : "counters", idx : nid, range : range])
+}
+
 /*-----------------------------------------------------------------------------------------*/
 /*		Excecute The real request via the local HUB
 /*-----------------------------------------------------------------------------------------*/
@@ -1383,6 +1468,10 @@ private def socketSend(passed) {
          case "setcolorwhite":
         	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20ColorHue%20${passed.hex}%20for%20${passed.idx}%20brightness=${passed.brightness}%saturation=${passed.saturation}"
         	rooPath = "/json.htm?type=command&param=setcolbrightnessvalue&idx=${passed.idx}&hex=${passed.hex}&iswhite=true&brightness=${passed.brightness}&saturation=${passed.saturation}" // "SetColBrightnessValue"
+            break;
+         case "counters":
+         	rooPath = "/json.htm?type=graph&sensor=counter&idx=${passed.idx}&range=${passed.range}&method=2"
+			hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${settings.domoticzIpAddress}:${settings.domoticzTcpPort}"], null, [callback: onLocationForCounters] )
             break;
         default:
         	return
