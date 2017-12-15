@@ -265,20 +265,14 @@ def handlerEod(data) {
 
 def setLevel(level) {
 	log.debug "setLevel() level ${level}"
-   
+	state.level = level   
     if (parent) {
     	if (device.currentValue("blindClosingTime")) {
         	if (device.currentValue("blindClosingTime") > 0 && device.currentValue("blindClosingTime") < 100000) {
         		parent.domoticz_off(getIDXAddress())
-
 				def Sec = Math.round(device.currentValue("blindClosingTime").toInteger()/1000)
-                def Sec2 = Sec + Math.round(Sec*level/100)
-				log.debug "setLevel() OFF runIn ${Sec} s"
-				log.debug "setLevel() Stop runIn ${Sec2} s"
-
 				runIn(Sec, setLevelCloseAgain)           
-                runIn(Sec2, setLevelStopAgain)
-         		
+				log.debug "setLevel() ON in ${Sec} s"         		
             }
         }
         else {
@@ -290,7 +284,10 @@ def setLevel(level) {
 
 def setLevelCloseAgain() {
     parent.domoticz_on(getIDXAddress())
-    log.debug "setLevel() ON "
+    def Sec = Math.round(device.currentValue("blindClosingTime").toInteger()/1000)
+	Sec = Math.round(Sec*state.level.toInteger()/100) - 1
+    log.debug "setLevel() Stop in ${Sec} s"
+    runIn(Sec, setLevelStopAgain)
 }
 
 def setLevelStopAgain() {

@@ -22,6 +22,8 @@
  *
  *  Revision History
  *  ----------------
+ *
+ *	2017-12-15 5.00 implemented image graphs for power usage if available
  *  2017-10-28 4.12 correct to saturation color in normal setColor mode
  * 	2017-10-17 4.11 ColorTemperature added, added multi parent control for domoticz and hue sensor (connect) 
  *	2017-04-28 3.13 Color setting for White types
@@ -29,13 +31,14 @@
  *  2017-01-25 3.09 Put in check for switch name in generateevent
  *	2017-01-18 3.08 get always an lowercase value for switch on/off in generateevent
  */
+import Calendar.*
 
 metadata {
     definition (name:"domoticzOnOff", namespace:"verbem", author:"Martin Verbeek") {
         capability "Actuator"
         capability "Sensor"
         capability "Color Control"
-//		capability "Color Temperature"
+		capability "Color Temperature"
 		capability "Switch"
         capability "Switch Level"
         capability "Refresh"
@@ -43,11 +46,11 @@ metadata {
         capability "Signal Strength"
 		capability "Health Check"
         capability "Power Meter"
+        capability "Image Capture"
       
         // custom commands
-        command "parse"     // (String "<attribute>:<value>[,<attribute>:<value>]")
+        command "parse"     
         command "generateEvent"
-        command "eodRunOnce"
     }
 
     tiles(scale:2) {
@@ -77,6 +80,8 @@ metadata {
         		attributeState "color", action:"setColor"
             }
         }
+        
+        carouselTile("graph", "device.image", width: 6, height: 4)
      
 		standardTile("rssi", "device.rssi", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
 			state "rssi", label:'Signal ${currentValue}', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzsensor.src/network-signal.png"
@@ -88,7 +93,7 @@ metadata {
 
         main(["richDomoticzOnOff"])
         
-        details(["richDomoticzOnOff", "rssi", "debug"])
+        details(["richDomoticzOnOff", "graph", "rssi", "debug"])
     }
 }
 
@@ -122,11 +127,37 @@ def poll() {
     }
 }
 
-// switch.poll() command handler
+// switch.refresh() command handler
 def refresh() {
-    if (parent.name == "Domoticz Server") parent.domoticz_poll(getIDXAddress())
-    if (parent.name == "Hue Sensor (Connect)") parent.groupCommand(["command" : "poll", "dni": device.deviceNetworkId])
-
+    if (parent.name == "Domoticz Server") {
+    	parent.domoticz_poll(getIDXAddress())
+        
+        def request
+        if (!state.chtt) state.chtt = "Daily+Overview"
+        
+        switch (state.chtt) {
+        case "Daily+Overview":
+        	request = "day"
+        	break;
+        case "Hourly+Usage":
+        	request = "day"
+        	break;
+        case "Weekly+Overview":
+        	request = "week"
+        	break;
+        case "Monthly+Overview":
+        	request = "month"
+        	break;
+        case "Annual+Overview":
+        	request = "year"
+        	break;
+        }
+                
+        sendHubRequest(request)
+    }
+    
+    if (parent.name == "Hue Sensor (Connect)") parent.groupCommand(["command" : "poll", "dni": device.deviceNetworkId]) 
+     
 }
 
 // switch.on() command handler
@@ -259,6 +290,141 @@ def getWhite(value) {
 	return level
 }
 
+def handlerCounter(evt) {
+    def response = getResponse(evt)
+	if (response.result == null) return
+    
+	state.chd = "t:"
+    state.chxl = "0:%7C"
+    
+    switch (response.title.split()[2]) {
+        case "day":
+	        createDaily(response.result)
+	        break;
+        case "week":
+            createWeekly(response.result)
+            break;
+        case "month":
+            createMonthly(response.result)
+            break;
+        case "year":
+        	createYearly(response.result)
+        	break;
+    }
+	// this will also make a series of 1 valid for image-charts
+    state.chd = state.chd + 0
+    state.chxl = state.chxl + "%7C"
+
+	state.chco = "0000FF"
+	take()
+}
+
+def createDaily(result) {
+    
+	result.each { value ->
+        state.chd = state.chd + value.v + "," 
+        state.chxl = state.chxl + value.d.split()[1] + "%7C"
+    }
+}
+
+def createWeekly(result) {
+    
+	result.each { value ->
+        state.chd = state.chd + value.v + "," 
+        state.chxl = state.chxl + value.d + "%7C"
+    }
+}
+
+def createMonthly(result) {
+    
+	result.each { value ->
+	    state.chd = state.chd + value.v + "," 
+    	state.chxl = state.chxl + value.d + "%7C"
+    }
+    
+}
+
+def createYearly(result) {
+	
+    def weeks = [:]
+    def weekno
+	def date 
+    
+	result.each { value ->
+        date = new Date().parse('yyyy-MM-dd', "${value.d}")
+        weekno = "${date.getAt(Calendar.YEAR)}-${date.getAt(Calendar.WEEK_OF_YEAR)}"
+        if (weeks[weekno]) weeks[weekno] = weeks[weekno] + value.v.toFloat()
+        else weeks[weekno] = value.v.toFloat()
+    }
+      
+    weeks.each { key, item ->
+        state.chd = state.chd + item.round(3) + "," 
+        state.chxl = state.chxl + key + "%7C"
+    }
+}
+
+def sendHubRequest(range) {
+	def idx = parent.state.devices[getIDXAddress()].idxPower
+    if (!idx) return
+  
+    def rooPath = "/json.htm?type=graph&sensor=counter&idx=${idx}&range=${range}"
+	def hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${parent.settings.domoticzIpAddress}:${parent.settings.domoticzTcpPort}"], null, [callback: handlerCounter] )
+    sendHubCommand(hubAction)
+}
+
+def take() {
+	log.debug "Take()"
+	def imageCharts = "https://image-charts.com/chart?"
+    def googleCharts = "https://chart.googleapis.com/chart?"
+	def params = [uri: "${imageCharts}chs=720x480&chd=${state.chd}&cht=bvg&chds=a&chxt=x,y&chxl=${state.chxl}&chts=0000FF,20&chco=${state.chco}&chtt=${state.chtt}"]
+    
+    if (state.imgCount == null) state.imgCount = 0
+ 
+    try {
+        httpGet(params) { response ->
+        	
+            if (response.status == 200 && response.headers.'Content-Type'.contains("image/png")) {
+                def imageBytes = response.data
+                if (imageBytes) {
+                    state.imgCount = state.imgCount + 1
+                    def name = "PowerUsage$state.imgCount"
+
+                    // the response data is already a ByteArrayInputStream, no need to convert
+                    try {
+                        storeImage(name, imageBytes, "image/png")
+                    } catch (e) {
+                        log.error "error storing image: $e"
+                    }
+                }
+            }
+        else log.error "wrong format of content"
+        }
+    } catch (err) {
+        log.error ("Error making request: $err")
+    }
+    
+        switch (state.chtt) {
+        case "Daily+Overview":
+        	state.chtt  = "Weekly+Overview"
+        	break;
+        case "Weekly+Overview":
+        	state.chtt  = "Monthly+Overview"
+        	break;
+        case "Monthly+Overview":
+        	state.chtt  = "Annual+Overview"
+        	break;
+        case "Annual+Overview":
+        	state.chtt  = "Daily+Overview"
+        	break;
+		}
+}
+
+private def getResponse(evt) {
+
+    if (evt instanceof physicalgraph.device.HubResponse) {
+        return evt.json
+    }
+}
 
 def installed() {
 	initialize()
