@@ -488,6 +488,47 @@ private def setupRefreshToken() {
     }
 }
 
+/*-----------------------------------------------------------------------------------------*/
+/*		List the child devices in the SMARTAPP
+/*-----------------------------------------------------------------------------------------*/
+private def setupListDevices() {
+    TRACE("[setupListDevices]")
+	refreshDevicesFromDomoticz()
+    def textNoDevices =
+        "You have not configured any Domoticz devices yet. Tap Next to continue."
+
+    def pageProperties = [
+        name        : "setupListDevices",
+        title       : "Connected Devices idx - name",
+        nextPage    : "setupMenu",
+        install     : false,
+        uninstall   : false
+    ]
+
+    if (state.devices.size() == 0) {
+        return dynamicPage(pageProperties) {
+            section {
+                paragraph textNoDevices
+            }
+        }
+    }
+
+    def switches = getDeviceListAsText('switch')
+    def sensors = getDeviceListAsText('sensor')
+    def thermostats = getDeviceListAsText('thermostat')
+    
+    return dynamicPage(pageProperties) {
+        section("Switch types") {paragraph switches}
+        
+        section("Sensors") {paragraph sensors}
+        
+        if (settings.nefitEasy == true) {
+        	section("Nefit Easy") {paragraph thermostats}
+        }
+    }
+}
+
+
 def installed() {
     TRACE("[installed]")
 
@@ -587,46 +628,6 @@ private def deleteChilds() {
     }
 }
 /*-----------------------------------------------------------------------------------------*/
-/*		List the child devices in the SMARTAPP
-/*-----------------------------------------------------------------------------------------*/
-private def setupListDevices() {
-    TRACE("[setupListDevices]")
-	refreshDevicesFromDomoticz()
-    def textNoDevices =
-        "You have not configured any Domoticz devices yet. Tap Next to continue."
-
-    def pageProperties = [
-        name        : "setupListDevices",
-        title       : "Connected Devices idx - name",
-        nextPage    : "setupMenu",
-        install     : false,
-        uninstall   : false
-    ]
-
-    if (state.devices.size() == 0) {
-        return dynamicPage(pageProperties) {
-            section {
-                paragraph textNoDevices
-            }
-        }
-    }
-
-    def switches = getDeviceListAsText('switch')
-    def sensors = getDeviceListAsText('sensor')
-    def thermostats = getDeviceListAsText('thermostat')
-    
-    return dynamicPage(pageProperties) {
-        section("Switch types") {paragraph switches}
-        
-        section("Sensors") {paragraph sensors}
-        
-        if (settings.nefitEasy == true) {
-        	section("Nefit Easy") {paragraph thermostats}
-        }
-    }
-}
-
-/*-----------------------------------------------------------------------------------------*/
 /*		Handle the location events that are being triggered from sendHubCommand response
 /*		Most of the sendHubCommands have specific callback handlers
 /*-----------------------------------------------------------------------------------------*/
@@ -704,6 +705,84 @@ void scheduledSensorRefresh() {
 }
 
 /*-----------------------------------------------------------------------------------------*/
+/*		Update the usage info on composite DZ devices that report on a utility
+/*		kWh, Lux etc...
+/*-----------------------------------------------------------------------------------------*/
+void onLocationEvtForUCount(evt) {
+    def response = getResponse(evt)
+
+	response.result.each { utility ->
+    	if (utility?.SubType == "kWh") {
+
+			def stateDevice = state.devices.find {key, item -> 
+		    	item.deviceId == utility.ID
+    		}
+            
+            if (!stateDevice) { //XIAOMI plugs?? plug ID is xxAABBCC, usage idx is AABBCCxx
+            	def ID = "${utility.ID.substring(6)}${utility.ID.substring(0,7)}"                
+                stateDevice = state.devices.find {key, item -> 
+                    item.deviceId == ID
+                }
+            }
+
+			if (stateDevice) {
+                stateDevice = stateDevice.toString().split("=")[0]
+                def dni = state.devices[stateDevice].dni
+                getChildDevice(dni).sendEvent(name:"power", value:"${utility.Usage}")
+            }
+            else {
+            	TRACE("[onLocationEvtForUCount] Not found kWh ${utility.ID} ${utility.idx}")
+            }
+        }
+        
+    	if (utility?.SubType == "Lux") {
+
+			def stateDevice = state.devices.find {key, item -> 
+		    	item.idxIlluminance == utility.idx
+    		}
+
+			if (stateDevice) {
+                stateDevice = stateDevice.toString().split("=")[0]
+                def dni = state.devices[stateDevice].dni
+                getChildDevice(dni).sendEvent(name:"illuminance", value:"${utility.Data.split()[0]}")
+
+            }
+        }
+        
+    	if (utility?.SwitchTypeVal == 8) {
+
+			def stateDevice = state.devices.find {key, item -> 
+		    	item.idxMotion == utility.idx
+    		}
+
+			if (stateDevice) {
+                stateDevice = stateDevice.toString().split("=")[0]
+                def dni = state.devices[stateDevice].dni
+                def motion = "inactive"
+                if (utility.status.toUpperCase() == "ON") motion = "active"
+                getChildDevice(dni).sendEvent(name:"motion", value:"${motion}")
+            }
+        }
+        
+    	if (utility?.Temp) {
+
+			def stateDevice = state.devices.find {key, item -> 
+		    	item.idxTemperature == utility.idx
+    		}
+
+			if (stateDevice) {
+                stateDevice = stateDevice.toString().split("=")[0]
+                def dni = state.devices[stateDevice].dni
+                float t = utility.Temp
+                t = t.round(1)
+                getChildDevice(dni).sendEvent(name:"temperature", value:"${t}")
+            }
+        }
+	}
+    
+}
+
+/*-----------------------------------------------------------------------------------------*/
 /*		Build the idx list for Devices that are part of the selected room plans
 /*-----------------------------------------------------------------------------------------*/
 void onLocationEvtForRoom(evt) {
@@ -726,87 +805,6 @@ void onLocationEvtForRoom(evt) {
     }
 }
 
-/*-----------------------------------------------------------------------------------------*/
-/*		Update the usage info on composite DZ devices that report on a utility
-/*		kWh, Lux etc...
-/*-----------------------------------------------------------------------------------------*/
-void onLocationEvtForUCount(evt) {
-    def response = getResponse(evt)
-
-	response.result.each { utility ->
-    	if (utility?.SubType == "kWh") {
-
-			def stateDevice = state.devices.find {key, item -> 
-		    	item.deviceId == utility.ID
-    		}
-            
-            if (!stateDevice) { //XIAOMI plugs?? plug ID is xxAABBCC, usage idx is AABBCCxx
-            	def ID = "${utility.ID.substring(6)}${utility.ID.substring(0,7)}"
-				TRACE("[onLocationEvtForUCount] Checking for if usage ${utility.Usage} for XIAOMI ${utility.ID}")
-                
-                stateDevice = state.devices.find {key, item -> 
-                    item.deviceId == ID
-                }
-            }
-
-			if (stateDevice) {
-                stateDevice = stateDevice.toString().split("=")[0]
-                def dni = state.devices[stateDevice].dni
-                TRACE("[onLocationEvtForUCount] Usage ${utility.Usage} for ${getChildDevice(dni).displayName}")
-                getChildDevice(dni).sendEvent(name:"power", value:"${utility.Usage}")
-            }
-            else {
-            	TRACE("[onLocationEvtForUCount] Not found kWh ${utility.ID} ${utility.idx}")
-            }
-        }
-    	if (utility?.SubType == "Lux") {
-
-			def stateDevice = state.devices.find {key, item -> 
-		    	item.idxIlluminance == utility.idx
-    		}
-
-			if (stateDevice) {
-                stateDevice = stateDevice.toString().split("=")[0]
-                def dni = state.devices[stateDevice].dni
-                TRACE("[onLocationEvtForUCount] Illuminance ${utility.Data.split()[0]} for ${getChildDevice(dni).displayName}")
-                getChildDevice(dni).sendEvent(name:"illuminance", value:"${utility.Data.split()[0]}")
-
-            }
-        }   
-    	if (utility?.SwitchTypeVal == 8) {
-
-			def stateDevice = state.devices.find {key, item -> 
-		    	item.idxMotion == utility.idx
-    		}
-
-			if (stateDevice) {
-                stateDevice = stateDevice.toString().split("=")[0]
-                def dni = state.devices[stateDevice].dni
-                def motion = "inactive"
-                if (utility.status.toUpperCase() == "ON") motion = "active"
-                TRACE("[onLocationEvtForUCount] Motion ${motion} for ${getChildDevice(dni).displayName}")
-                getChildDevice(dni).sendEvent(name:"motion", value:"${motion}")
-            }
-        }
-    	if (utility?.Temp) {
-
-			def stateDevice = state.devices.find {key, item -> 
-		    	item.idxTemperature == utility.idx
-    		}
-
-			if (stateDevice) {
-                stateDevice = stateDevice.toString().split("=")[0]
-                def dni = state.devices[stateDevice].dni
-                double t = utility.Temp
-                t = t.round(1)
-                TRACE("[onLocationEvtForUCount] Temperature ${t} for ${getChildDevice(dni).displayName}")
-                getChildDevice(dni).sendEvent(name:"temperature", value:"${t}")
-
-            }
-        }
-	}
-    
-}
 /*-----------------------------------------------------------------------------------------*/
 /*		Get Room Plans defined into Selectables for setupDomoticz
 /*-----------------------------------------------------------------------------------------*/
@@ -921,7 +919,7 @@ def onLocationEvtForEveryThing(evt) {
     
 	if (response?.result == null) return
 
-	TRACE("[onLocationEvtForEveryThing] Domoticz response with Title : ${response.title} number of items returned ${response.result.size()}")
+	TRACE("[onLocationEvtForEveryThing] Domoticz response with Title : ${response.title}, number of items returned ${response.result.size()}")
 
     response.result.each {
     	
@@ -947,6 +945,14 @@ def onLocationEvtForEveryThing(evt) {
 			def stateDevice = state.devices.find {key, item -> 
 		    	item.deviceId == ID
     		}
+            
+            if (!stateDevice) { // XIAOMI try
+            	ID = "${it?.ID.substring(6)}${it?.ID.substring(0,7)}"                
+                stateDevice = state.devices.find {key, item -> 
+                    item.deviceId == ID
+                }
+            }
+            
             def IDX = it.idx
             if (stateDevice) {
             	state.devices[stateDevice.key].idxPower = IDX
@@ -956,9 +962,7 @@ def onLocationEvtForEveryThing(evt) {
     }
     if (kwh > 0) {
         getChildDevice(state.devReportPower).sendEvent(name:"powerTotal", value:"${kwh.round(3)}")
-        TRACE("[kwh] ${kwh.round(3)}")
         getChildDevice(state.devReportPower).sendEvent(name:"power", value:"${watt.round(2)}")
-        TRACE("[watt] ${watt.round()}")
    	}
 }
 
@@ -1010,7 +1014,7 @@ private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, pa
         
         def attributeList = createAttributes(getChildDevice(newdni), passedDomoticzStatus, addr)
         if (passedType == "RFY") {attributeList.put('somfySupported', true)}
-        //getChildDevice(newdni).generateEvent(attributeList)
+
         generateEvent(getChildDevice(newdni), attributeList)
     }
     else if ((state.listOfRoomPlanDevices?.contains(addr) && settings.domoticzRoomPlans == true) || settings.domoticzRoomPlans == false) {
@@ -1022,7 +1026,6 @@ private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, pa
             def attributeList = createAttributes(dev, passedDomoticzStatus, addr)
             if (passedType == "RFY") {attributeList.put('somfySupported', true)}
             
-            //dev.generateEvent(attributeList)
             generateEvent(dev, attributeList)
             state.devices[addr] = [
                 'dni'   : newdni,
@@ -1197,24 +1200,25 @@ private def addNefitEasy(addrNefitDevice) {
 private def updateDeviceList() {
     TRACE("[updateDeviceList]")
     def deletedDevices = new ArrayList()
+    def findrspDevice
+    def findrspGroup
+    def inStatusrsp
+    def idx10k
+    def allChildren = getAllChildDevices()
     
 	def temprspDevices = state.statusrsp
     pause 5
     def temprspGroups = state.statusGrpRsp
     pause 5
-    def findrspDevice
-    def findrspGroup
-    def inStatusrsp
-    
     def tempStateDevices = state.devices    
     pause 5
     
     if(temprspDevices) log.trace temprspDevices?.size() + " Devices in response : " + temprspDevices?.collect {it.idx as int}.sort()
-    if (temprspGroups) log.trace temprspGroups?.size() + " Groups in response : " + temprspGroups?.collect {it.idx as int}.sort()
-    log.trace tempStateDevices?.size() + " state Devices : " + tempStateDevices?.collect {it.value.idx as int}.sort()
-    def allChildren = getAllChildDevices()
-    def idx10k
     
+    if (temprspGroups) log.trace temprspGroups?.size() + " Groups in response : " + temprspGroups?.collect {it.idx as int}.sort()
+    
+    TRACE("${tempStateDevices?.size()} ${state Devices} : ${tempStateDevices?.collect {it.value.idx as int}.sort()}")
+       
     allChildren.each { child ->
     	findrspDevice = temprspDevices.find {item -> item.idx == child.deviceNetworkId.split(":")[2] }
     	findrspGroup = temprspGroups.find {item -> item.idx == child.deviceNetworkId.split(":")[2] }
@@ -1256,31 +1260,20 @@ private def updateDeviceList() {
     }
 }
 
-private def getDeviceMap() {
-    def devices = [:]
-    state.devices.each { k,v ->
-        if (!devices.containsKey(v.type)) {
-            devices[v.type] = []
-        }
-        devices[v.type] << k
-    }
-
-    return devices
-}
-
 private def getDeviceListAsText(type) {
     String s = ""
     
     state.devices.sort().each { k,v ->
         if (v.type == type) {
         	def dev = getChildDevice(v.dni)
-            if (!dev) TRACE("[getDeviceListAsText] ${v.dni} NOT FOUND ")
+            
+            if (!dev) TRACE("[getDeviceListAsText] ${v.dni} NOT FOUND")
+            
             if (type == "thermostat") {
             	TRACE("[getDeviceListAsText] ${dev?.displayName} thermostat found ")
             	s += "${dev?.displayName}\n"
                 }
-            else {s += "${k.padLeft(4)} - ${dev?.displayName} - ${v.deviceType}\n"}
-           	
+            else {s += "${k.padLeft(4)} - ${dev?.displayName} - ${v.deviceType}\n"}          	
         }    
     }
 
@@ -1302,22 +1295,18 @@ private def STATE() {
 /*		REGULAR DOMOTICZ COMMAND HANDLERS
 /*-----------------------------------------------------------------------------------------*/
 def domoticz_poll(nid) {
-	TRACE("[domoticz poll/status] (${nid})")
     socketSend([request : "status", idx : nid])
 }
 
 def domoticz_scenepoll(nid) {
-	TRACE("[domoticz scenepoll/status] (${nid})")
 	socketSend([request : "scenes", idx : nid])
 }
 
 def domoticz_off(nid) {
-    TRACE("[domoticz off] (${nid})")
 	socketSend([request : "off", idx : nid])
 }
 
 def domoticz_sceneoff(nid) {
-	TRACE("[domoticz scene off] (${nid})")
     // find out if it is a scene or a group, scenes do only ON commands
     if (state.devices[nid].subType == "Scene") 
 		socketSend([request : "sceneon", idx : nid])
@@ -1326,22 +1315,18 @@ def domoticz_sceneoff(nid) {
 }
 
 def domoticz_on(nid) {
-    TRACE("[domoticz on] (${nid})")
     socketSend([request : "on", idx : nid])
 }
 
 def domoticz_sceneon(nid) {
-	TRACE("[domoticz scene on] (${nid})")
     socketSend([request : "sceneon", idx : nid])
 }
 
 def domoticz_stop(nid) {
-	TRACE("[domoticz stop] (${nid})")
     socketSend([request : "stop", idx : nid])
 }
 
 def domoticz_setlevel(nid, xLevel) {
-	TRACE("[domoticz setlevel] ( ${xLevel} for ${nid})")
     if (xLevel.toInteger() == 0) {socketSend([request : "off", idx : nid])}
     else	if (state.devices[nid].subType == "RFY") 
     		{
@@ -1355,25 +1340,21 @@ def domoticz_setlevel(nid, xLevel) {
 }
 
 def domoticz_setcolor(nid, xHex, xSat, xBri) {
-	TRACE("[domoticz setcolor] (${nid} Hex ${xHex} Sat ${xSat} Bri ${xBri})")
     socketSend([request : "setcolor", idx : nid, hex : xHex, saturation : xSat, brightness : xBri])
     socketSend([request : "on", idx : nid])
 }
 
 def domoticz_setcolorHue(nid, xHex, xSat, xBri) {
-	TRACE("[domoticz setcolorHue] (${nid} Hue ${xHex} Sat ${xSat} Bri ${xBri})")
     socketSend([request : "setcolorhue", idx : nid, hue : xHex, saturation : xSat, brightness : xBri])
     socketSend([request : "on", idx : nid])
 }
 
 def domoticz_setcolorWhite(nid, xHex, xSat, xBri) {
-	TRACE("[domoticz setcolorWhite] (${nid} Hex ${xHex} Sat ${xSat} Bri ${xBri})")
     socketSend([request : "setcolorwhite", idx : nid, hex : xHex, saturation : xSat, brightness : xBri])
     socketSend([request : "on", idx : nid])
 }
 
 def domoticz_counters(nid, range) {
-	TRACE("[domoticz counters] ${nid} Range ${range}")
 	socketSend([request : "counters", idx : nid, range : range])
 }
 
@@ -1566,7 +1547,7 @@ void callbackList(evt) {
 }
 
 void callbackLog(evt) {
-// dummy handler for addlogmessages, it prevents these responses to go into "normal" response processing
+	// dummy handler for addlogmessages, it prevents these responses from going into "normal" response processing
 	return
 }
 
@@ -1654,7 +1635,7 @@ def nefitEasy_setMode(action, deviceId) {
 }
 
 /*-----------------------------------------------------------------------------------------*/
-/*		Excecute The real NEfitrequest via the local HUB
+/*		Excecute The real Nefitrequest via the local HUB
 /*-----------------------------------------------------------------------------------------*/
 private def nefitEasySend(message, addrNefitEasy) {
     TRACE("[nefitEasySend] ${message} to ${addrNefitEasy}") 
