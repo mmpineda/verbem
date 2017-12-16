@@ -16,12 +16,13 @@
 	V4.05	check for null on result in onLocationEvtForEveryThing
     V4.06	[updateDeviceList] remove obsolete childs, ones that are unused in Domoticz
  	V4.07	Adding linkage to power usage devices
+    V4.08	checking for usage types returned fromDZ that should n0t be added
  */
  
 import groovy.json.*
 import java.Math.*
 
-private def runningVersion() {"4.07"}
+private def runningVersion() {"4.08"}
 
 private def textVersion() { return "Version ${runningVersion()}"}
 
@@ -717,9 +718,11 @@ void onLocationEvtForRoom(evt) {
     TRACE("[onLocationEvtForRoom] Domoticz response with Title : ${response.title} number of items returned ${response.result.size()}") 
 
     response.result.each {
-        TRACE("[onLocationEvtForRoom] Device ${it.Name} with idx ${it.devidx}")
-        state.listOfRoomPlanDevices.add(it.devidx)
-        pause 5
+		if (it?.SubType != "kWh") {
+            TRACE("[onLocationEvtForRoom] Device ${it.Name} with idx ${it.devidx}")
+            state.listOfRoomPlanDevices.add(it.devidx)
+            pause 5
+        }
     }
 }
 
