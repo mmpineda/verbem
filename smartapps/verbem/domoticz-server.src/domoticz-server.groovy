@@ -717,7 +717,7 @@ void onLocationEvtForUCount(evt) {
     		}
             
             if (!stateDevice) { //XIAOMI plugs?? plug ID is xxAABBCC, usage idx is AABBCCxx
-            	def ID = "${utility.ID.substring(6)}${utility.ID.substring(0,7)}"                
+            	def ID = "${utility.ID.substring(6)}${utility.ID.substring(0,6)}"  
                 stateDevice = state.devices.find {key, item -> 
                     item.deviceId == ID
                 }
@@ -945,7 +945,7 @@ def onLocationEvtForEveryThing(evt) {
     		}
             
             if (!stateDevice) { // XIAOMI try
-            	ID = "${it?.ID.substring(6)}${it?.ID.substring(0,7)}"                
+            	ID = "${it?.ID.substring(6)}${it?.ID.substring(0,6)}"                
                 stateDevice = state.devices.find {key, item -> 
                     item.deviceId == ID
                 }
