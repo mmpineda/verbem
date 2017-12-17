@@ -62,8 +62,6 @@ mappings {
     }
 }
 
-
-
 /*-----------------------------------------------------------------------------------------*/
 /*		SET Up INIT
 /*-----------------------------------------------------------------------------------------*/
@@ -1217,7 +1215,7 @@ private def updateDeviceList() {
     
     if (temprspGroups) log.trace temprspGroups?.size() + " Groups in response : " + temprspGroups?.collect {it.idx as int}.sort()
     
-    TRACE("${tempStateDevices?.size()} ${state Devices} : ${tempStateDevices?.collect {it.value.idx as int}.sort()}")
+    TRACE("${tempStateDevices?.size()} state Devices : ${tempStateDevices?.collect {it.value.idx as int}.sort()}")
        
     allChildren.each { child ->
     	findrspDevice = temprspDevices.find {item -> item.idx == child.deviceNetworkId.split(":")[2] }
