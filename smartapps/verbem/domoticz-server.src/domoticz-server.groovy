@@ -721,6 +721,7 @@ void onLocationEvtForUCount(evt) {
                 stateDevice = state.devices.find {key, item -> 
                     item.deviceId == ID
                 }
+                if (stateDevice) TRACE("[onLocationEvtForUCount] XIAOMI state device found ${ID} for usage device ${utility.ID}") 
             }
 
 			if (stateDevice) {
@@ -949,15 +950,17 @@ def onLocationEvtForEveryThing(evt) {
                 stateDevice = state.devices.find {key, item -> 
                     item.deviceId == ID
                 }
+				if (stateDevice) TRACE("[onLocationEvtForEveryThing] XIAOMI state device found ${ID} for usage device ${it.ID}")            
             }
             
             def IDX = it.idx
             if (stateDevice) {
             	state.devices[stateDevice.key].idxPower = IDX
+                TRACE("[onLocationEvtForEveryThing] stateDevice idxPower${IDX} added to ${stateDevice.key}")
             }
 		}
-
     }
+    
     if (kwh > 0) {
         getChildDevice(state.devReportPower).sendEvent(name:"powerTotal", value:"${kwh.round(3)}")
         getChildDevice(state.devReportPower).sendEvent(name:"power", value:"${watt.round(2)}")
