@@ -728,6 +728,7 @@ void onLocationEvtForUCount(evt) {
                 stateDevice = stateDevice.toString().split("=")[0]
                 def dni = state.devices[stateDevice].dni
                 getChildDevice(dni).sendEvent(name:"power", value:"${utility.Usage}")
+                TRACE("[onLocationEvtForUCount] sendEvent Power ${dni} ${utility.Usage}")
             }
             else {
             	TRACE("[onLocationEvtForUCount] Not found kWh ${utility.ID} ${utility.idx}")
