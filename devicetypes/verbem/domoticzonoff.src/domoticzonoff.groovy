@@ -129,6 +129,7 @@ def poll() {
 
 // switch.refresh() command handler
 def refresh() {
+	
     if (parent.name == "Domoticz Server") {
     	parent.domoticz_poll(getIDXAddress())
         
