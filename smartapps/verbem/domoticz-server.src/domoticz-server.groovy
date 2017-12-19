@@ -926,16 +926,20 @@ def onLocationEvtForEveryThing(evt) {
         if (it?.SubType == "Lux") {
         	state.optionsLux[it.idx] = "${it.idx} : ${it.Name}"
         }
+        
         if (it?.SwitchTypeVal == 8) {
         	state.optionsMotion[it.idx] = "${it.idx} : ${it.Name}"
         }	
+        
         if (it?.Temp) {
         	state.optionsTemperature[it.idx] = "${it.idx} : ${it.Name}"
         }
+        
         if (it?.SwitchTypeVal == 5) {
         	state.optionsCarbon1[it.idx] = "${it.idx} : ${it.Name}"
         	state.optionsCarbon2[it.idx] = "${it.idx} : ${it.Name}"
         }
+        
         if (it?.SubType == "kWh") {	
         	state.optionsPower[it.idx] = "${it.idx} : ${it.Name}" 
             kwh = kwh + Float.parseFloat(it.Data.split(" ")[0])
@@ -951,20 +955,23 @@ def onLocationEvtForEveryThing(evt) {
                 stateDevice = state.devices.find {key, item -> 
                     item.deviceId == ID
                 }
-				if (stateDevice) TRACE("[onLocationEvtForEveryThing] XIAOMI state device found ${ID} for usage device ${it.ID}")            
             }
             
             def IDX = it.idx
             if (stateDevice) {
             	state.devices[stateDevice.key].idxPower = IDX
-                TRACE("[onLocationEvtForEveryThing] stateDevice idxPower${IDX} added to ${stateDevice.key}")
+                pause 2
             }
 		}
     }
     
-    if (kwh > 0) {
-        getChildDevice(state.devReportPower).sendEvent(name:"powerTotal", value:"${kwh.round(3)}")
-        getChildDevice(state.devReportPower).sendEvent(name:"power", value:"${watt.round(2)}")
+	// report to Device that report Power totals   
+    if (kwh > 0 && state.devReportPower != null) {
+    	def devReportPower = getChildDevice(state.devReportPower)
+        if (devReportPower) {
+            devReportPower.sendEvent(name:"powerTotal", value:"${kwh.round(3)}")
+            devReportPower.sendEvent(name:"power", value:"${watt.round(2)}")
+        }
    	}
 }
 
