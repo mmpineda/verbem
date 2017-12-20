@@ -17,12 +17,13 @@
     V4.06	[updateDeviceList] remove obsolete childs, ones that are unused in Domoticz
  	V4.07	Adding linkage to power usage devices
     V4.08	checking for usage types returned fromDZ that should n0t be added
+    V5.00	Added power reporting device and collecting of usage
  */
  
 import groovy.json.*
 import java.Math.*
 
-private def runningVersion() {"4.08"}
+private def runningVersion() {"5.00"}
 
 private def textVersion() { return "Version ${runningVersion()}"}
 
@@ -582,10 +583,10 @@ private def initialize() {
     state.alive = true
     state.aliveAgain = true
     state.devicesOffline = false
-	
-    addReportDevices()
-    
+	   
     unschedule()
+
+	addReportDevices()
     
     runEvery1Hour(refreshDevicesFromDomoticz)
     
@@ -695,11 +696,34 @@ void scheduledListSensorOptions() {
 
 void scheduledSensorRefresh() {
 	TRACE("[scheduledSensorRefresh]")
-    //sendHubCommand(new physicalgraph.device.HubAction("lan discovery ssdp:all", physicalgraph.device.Protocol.LAN))
 	  
 	if (domoticzTypes.contains("(Virtual) Sensors")) {
         socketSend([request : "listsensors"])
     }
+}
+
+void scheduledPowerReport() {
+	TRACE("[scheduledPowerReport]")
+    
+	state.reportPowerDay = [:]		// last 24 hours graph
+    pause 3
+    state.reportPowerMonth = [:]	// last 31 days graph
+    pause 3
+    state.reportPowerYear = [:]		// last 52 weeks graph
+    pause 3
+
+	state.devices.each { key, item ->
+    	if (item?.idxPower != null) { 
+            socketSend([request : "counters", idx : item.idxPower, range : "day"])
+            socketSend([request : "counters", idx : item.idxPower, range : "month"])
+            socketSend([request : "counters", idx : item.idxPower, range : "year"])
+        }
+		//if (item?.idxMotion != null) { listIdx[item.idxMotion] = [name: key]}
+    	//if (item?.idxIlluminance != null) {listIdx[item.idxIlluminance] = [name: key]}
+    	//if (item?.idxTemperature != null ) {listIdx[item.idxTemperature] = [name: key]}
+    }
+
+
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -721,14 +745,12 @@ void onLocationEvtForUCount(evt) {
                 stateDevice = state.devices.find {key, item -> 
                     item.deviceId == ID
                 }
-                if (stateDevice) TRACE("[onLocationEvtForUCount] XIAOMI state device found ${ID} for usage device ${utility.ID}") 
             }
 
 			if (stateDevice) {
                 stateDevice = stateDevice.toString().split("=")[0]
                 def dni = state.devices[stateDevice].dni
                 getChildDevice(dni).sendEvent(name:"power", value:"${utility.Usage}")
-                TRACE("[onLocationEvtForUCount] sendEvent Power ${dni} ${utility.Usage}")
             }
             else {
             	TRACE("[onLocationEvtForUCount] Not found kWh ${utility.ID} ${utility.idx}")
@@ -835,7 +857,9 @@ void onLocationEvtForPlans(evt) {
 /*-----------------------------------------------------------------------------------------*/
 void onLocationEvtForScenes(evt) {
     def response = getResponse(evt)
-    state.statusGrpRsp = response.result
+    def groupIdx = response.result.collect {it.idx}.sort()
+    state.statusGrpRsp = groupIdx
+    pause 5
 
 	if (response.result == null) return
 
@@ -919,7 +943,7 @@ def onLocationEvtForEveryThing(evt) {
     
 	if (response?.result == null) return
 
-	TRACE("[onLocationEvtForEveryThing] Domoticz response with Title : ${response.title}, number of items returned ${response.result.size()}")
+	TRACE("[onLocationEvtForEveryThing] Domoticz response with Title : ${response.title}, number of items returned ${response.result.size()}, state occupancy is ${state.toString().length()}")
 
     response.result.each {
     	
@@ -959,8 +983,10 @@ def onLocationEvtForEveryThing(evt) {
             
             def IDX = it.idx
             if (stateDevice) {
-            	state.devices[stateDevice.key].idxPower = IDX
-                pause 2
+            	if (state.devices[stateDevice.key]?.idxPower != IDX) {
+            		state.devices[stateDevice.key].idxPower = IDX
+                	pause 2
+                }
             }
 		}
     }
@@ -977,10 +1003,51 @@ def onLocationEvtForEveryThing(evt) {
 
 def onLocationForCounters(evt) {
     def response = getResponse(evt)
-	TRACE("[onLocationForCounters]")
+
 	if (response.result == null) return
     
-    TRACE("[onLocationForCounters] ${response.result}")
+	TRACE("[onLocationForCounters]")
+    def hour
+    def day
+    def week
+    def date
+
+    switch (response.title.split()[2]) {
+        case "day":
+			def dayList = state.reportPowerDay
+            
+            response.result.each { p ->
+            	hour = p.d
+                if (dayList[hour]) dayList[hour] = dayList[hour] + p.v.toFloat() else dayList[hour] = p.v.toFloat()
+            }
+            state.reportPowerDay = dayList
+            pause 5
+	        break;
+            
+        case "month":
+			def monthList = state.reportPowerMonth
+            response.result.each { p ->
+            	day = p.d
+                if (monthList[day]) monthList[day] = monthList[day] + p.v.toFloat() else monthList[day] = p.v.toFloat()
+                monthList[day] = monthList[day].round(3)
+            }
+            state.reportPowerMonth = monthList
+            pause 5
+            break;
+            
+        case "year":
+			def yearList = state.reportPowerYear
+            response.result.each { p ->
+                date = new Date().parse('yyyy-MM-dd', "${p.d}")
+                week = "${date.getAt(Calendar.YEAR)}-${date.getAt(Calendar.WEEK_OF_YEAR)}"
+                if (yearList[week]) yearList[week] = yearList[week] + p.v.toFloat() else yearList[week] = p.v.toFloat()
+                yearList[week] = yearList[week].round(3)
+            }
+			state.reportPowerYear = yearList
+            pause 5
+            break;
+    }    
+
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -1160,12 +1227,10 @@ private def addReportDevices() {
                     return 
            	}
         }
-        state.devReportPower = newdni
-
+        state.devReportPower = newdni       
+        runEvery10Minutes(scheduledPowerReport)
     }
-
 }
-
 
 private def addNefitEasy(addrNefitDevice) {
 /*-----------------------------------------------------------------------------------------*/
@@ -1222,15 +1287,16 @@ private def updateDeviceList() {
     def tempStateDevices = state.devices    
     pause 5
     
-    if(temprspDevices) log.trace temprspDevices?.size() + " Devices in response : " + temprspDevices?.collect {it.idx as int}.sort()
+    if(temprspDevices) log.trace temprspDevices.size() + " Devices in response : " + temprspDevices
     
-    if (temprspGroups) log.trace temprspGroups?.size() + " Groups in response : " + temprspGroups?.collect {it.idx as int}.sort()
+    if (temprspGroups) log.trace temprspGroups?.size() + " Groups in response : " + temprspGroups
     
     TRACE("${tempStateDevices?.size()} state Devices : ${tempStateDevices?.collect {it.value.idx as int}.sort()}")
        
     allChildren.each { child ->
-    	findrspDevice = temprspDevices.find {item -> item.idx == child.deviceNetworkId.split(":")[2] }
-    	findrspGroup = temprspGroups.find {item -> item.idx == child.deviceNetworkId.split(":")[2] }
+    	
+    	findrspDevice = temprspDevices.find {it == child.deviceNetworkId.split(":")[2] }
+    	findrspGroup = temprspGroups.find {it == child.deviceNetworkId.split(":")[2] }
         idx10k = child.deviceNetworkId.split(":")[2]
 
         if (idx10k != "10000") {   // special devices that should not be deleted automatically have idx = 10000
@@ -1240,12 +1306,13 @@ private def updateDeviceList() {
             }
       	}
     }
+
     
     tempStateDevices.each { k,v ->
         inStatusrsp = false
         
-        if (temprspDevices) findrspDevice = temprspDevices.find {dev ->	dev.idx == k }
-        if (tmprspGroups) findrspGroup = temprspGroups.find {group -> group.idx == k }
+        if (temprspDevices) findrspDevice = temprspDevices.find {it == k }
+        if (tmprspGroups) findrspGroup = temprspGroups.find {it == k }
 
         if (findrspDevice || findrspGroup) inStatusrsp = true
         
@@ -1463,7 +1530,7 @@ private def socketSend(passed) {
         	rooPath = "/json.htm?type=command&param=setcolbrightnessvalue&idx=${passed.idx}&hex=${passed.hex}&iswhite=true&brightness=${passed.brightness}&saturation=${passed.saturation}" // "SetColBrightnessValue"
             break;
          case "counters":
-         	rooPath = "/json.htm?type=graph&sensor=counter&idx=${passed.idx}&range=${passed.range}&method=2"
+         	rooPath = "/json.htm?type=graph&sensor=counter&idx=${passed.idx}&range=${passed.range}"
 			hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${settings.domoticzIpAddress}:${settings.domoticzTcpPort}"], null, [callback: onLocationForCounters] )
             break;
         default:
@@ -1550,7 +1617,9 @@ void callbackList(evt) {
 
 	TRACE("[callbackList]")
     def response = getResponse(evt)
-    state.statusrsp = response.result  
+    def listIdx = response.result.collect {it.idx}.sort() 
+    state.statusrsp = listIdx
+    pause 5
     onLocationEvtForDevices(response)    
     return
 }
@@ -1699,11 +1768,10 @@ void refreshDevicesFromDomoticz() {
             pause 2
         	}
     	}
-
-	updateDeviceList()
-      
 	socketList()
     pause 10
+	updateDeviceList()
+    
     socketSend([request : "scenes"])
 	pause 10
     state.domoticzRefresh = false
