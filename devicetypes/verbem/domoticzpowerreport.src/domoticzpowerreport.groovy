@@ -22,6 +22,10 @@ metadata {
         capability "Image Capture"
         
         attribute "powerTotal", "number"
+        
+        command takeDay
+        command takeMonth
+        command takeYear
         }
         
 	tiles(scale: 2) {       
@@ -29,38 +33,37 @@ metadata {
             tileAttribute("device.power", key: "PRIMARY_CONTROL") {
                 attributeState "level", label:'${currentValue}', defaultState: true, action: "take", backgroundColors:[                   
                     [value: 0, color: "#66ff33"],      	//green
-                    [value: 100, color: "#ffff00"],    	//yellow
-                    [value: 250, color: "#ffcc00"],		//dark yellow	
-                    [value: 500, color: "#ff9900"],		//light orange
-                    [value: 1000, color: "#cc6600"],	//dark orange
-                    [value: 2000, color: "#ff0000"]		//red
+                    [value: 500, color: "#ffff00"],    	//yellow
+                    [value: 1000, color: "#ffcc00"],	//dark yellow	
+                    [value: 2200, color: "#ff9900"],	//light orange
+                    [value: 3300, color: "#cc6600"],	//dark orange
+                    [value: 5000, color: "#ff0000"]		//red
                 ]
             }
             tileAttribute("device.powerTotal", key: "SECONDARY_CONTROL") {
-                attributeState "powerTotal", label:'${currentValue} kWh'
+                attributeState "powerTotal", label:'${currentValue} kWh', action: "take"
 
             }
         }
-        
+        standardTile("day", "day", inactiveLabel: false, decoration: "flat", width:2, height:2) {
+            state "default", label:'24 hours', action:"takeDay"
+        }		
+        standardTile("month", "month", inactiveLabel: false, decoration: "flat", width:2, height:2) {
+            state "default", label:'Month', action:"takeMonth"
+        }		
+        standardTile("year", "year", inactiveLabel: false, decoration: "flat", width:2, height:2) {
+            state "default", label:'Year', action:"takeYear"
+        }		
         carouselTile("graph", "device.image", width: 6, height: 4)
 	}
 
 	main "powerReport"
-    details(["powerReport", "graph"])
+    details(["powerReport", "day", "month", "year", "graph"])
 }
 
 // parse events into attributes
 def parse(String description) {
 	log.error "Parsing '${description}'"
-}
-
-def createChild(idx) {
-}
-
-def totalKWH() {
-}
-
-def totalNow() {
 }
 
 def installed() {
@@ -82,41 +85,76 @@ def initialize() {
     }
 }
 
-def handleMeasurements(values)
-{
-	if(values instanceof Collection)
-    {
-    	// For some reason they show up out of order
-    	values.sort{a,b -> a.t <=> b.t}
-		state.values = values;
-    }
-    else
-    {
-    	sendEvent(name: "power", value: Math.round(values))
-    }
+def takeDay() {
+	state.chd = "t:"
+    state.chxl = "0:%7C"
+	state.chtt = "24%20hours"
+    state.chco = "0000FF"
+    state.chdl = "Watt"
+    if (!parent.state.reportPowerDay) return
+    if (parent.state.reportPowerDay.size() == 0) return
 
-    //log.debug("State now contains ${state.toString().length()}/100000 bytes")
+	def copyState = parent.state.reportPowerDay
+    
+    copyState.sort().each { key, item ->
+        state.chd = state.chd + item + "," 
+        state.chxl = state.chxl + key.split()[0] + "%20" + key.split()[1] + "%7C"
+    }
+    
+    state.chd = state.chd + 0
+    state.chxl = state.chxl + "%7C"
+    take()
 }
 
-String getDataString()
-{
-	def dataString = "['Time', 'Power', {role: 'style'}] , ['00:00', 10, '#66ff33'], ['01:00', 0, '#66ff33'], ['02:00', 0, '#66ff33'], ['03:00', 0, '#66ff33'], ['04:00', 0, '#66ff33'], ['05:00', 0, '#66ff33'], ['06:00', 0, '#66ff33'], ['07:00', 20, '#66ff33'], ['08:00', 50, '#66ff33'], ['09:00', 20, '#66ff33'], ['10:00', 120, '#66ff33'], ['11:00', 1220, '#ff0000'], ['12:00', 1020, '#ff0000'], ['13:00', 920, '#ff0000'], ['14:00', 1720, '#66ff33'], ['15:00', 1020, '#66ff33'], ['16:00', 0, '#66ff33'], ['16:00', 0, '#66ff33'], ['17:00', 210, '#66ff33'], ['18:00', 230, '#66ff33']"
-	return dataString
+def takeMonth() {
+	state.chd = "t:"
+    state.chxl = "0:%7C"
+	state.chtt = "Month"
+    state.chco = "0000FF"
+    state.chdl = "kWh"
+    if (!parent.state.reportPowerMonth) return
+    if (parent.state.reportPowerMonth.size() == 0) return
     
+    def copyState = parent.state.reportPowerMonth
+    
+    copyState.sort().each { key, item ->
+        state.chd = state.chd + item + "," 
+        state.chxl = state.chxl + key + "%7C"
+    }
+    
+    state.chd = state.chd + 0
+    state.chxl = state.chxl + "%7C"
+    take()
+}
+
+def takeYear() {
+	state.chd = "t:"
+    state.chxl = "0:%7C"
+	state.chtt = "Year"
+    state.chco = "0000FF"
+    state.chdl = "kWh"
+    if (!parent.state.reportPowerYear) return
+    if (parent.state.reportPowerYear.size() == 0) return
+    
+    def copyState = parent.state.reportPowerYear
+    
+    copyState.sort().each { key, item ->
+        state.chd = state.chd + item + "," 
+        state.chxl = state.chxl + key + "%7C"
+    }
+    
+    state.chd = state.chd + 0
+    state.chxl = state.chxl + "%7C"
+    take()
 }
 
 def take() {
-	log.debug "Take()"
 
-    parent.domoticz_counters(device.deviceNetworkId.tokenize(':')[2].toString(),"day")
-
-
-	def chd = "t:60,40,20.10,5,35,100,12,40,45,13,200"
-    //String result = stringList.join(",")
-    def chco = "0000FF"
-	def params = [uri: "https://image-charts.com/chart?chs=900x600&chd=${chd}&cht=bvs&chds=a&chxt=x,y&chts=0000FF,20&chco=${chco}"]
-    if (state.imgCount == null) state.imgCount = 0
+	def imageCharts = "https://image-charts.com/chart?"
+	def params = [uri: "${imageCharts}chs=720x480&chd=${state.chd}&cht=bvg&chds=a&chxt=x,y&chxl=${state.chxl}&chts=0000FF,20&chco=${state.chco}&chtt=${state.chtt}&chdl=${state.chdl}"]
     
+    if (state.imgCount == null) state.imgCount = 0
+ 
     try {
         httpGet(params) { response ->
         	
@@ -139,5 +177,4 @@ def take() {
     } catch (err) {
         log.error ("Error making request: $err")
     }
-
 }
