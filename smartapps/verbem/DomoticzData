@@ -1,3 +1,7 @@
+Version 5.00
+    Added power reporting device and collecting of usage
+    Linkage of Xiaomi power plugs usage etc
+
 Version 4.06
     [updateDeviceList] remove obsolete childs, ones that are unused in Domoticz
 
