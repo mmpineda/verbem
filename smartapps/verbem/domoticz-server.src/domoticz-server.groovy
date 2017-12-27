@@ -1173,6 +1173,7 @@ private def createAttributes(domoticzDevice, domoticzStatus, addr) {
                     def status = domoticzStatus?.LevelNames.tokenize('|')
                     log.trace status + ix.toInteger() + status[ix.toInteger()]
                 	attributeList.put('selectorState', status[ix.toInteger()])
+                    attributeList.put('selector', domoticzStatus?.LevelNames) 
                     }
             	break;
             case "Temp":
