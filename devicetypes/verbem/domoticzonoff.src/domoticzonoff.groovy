@@ -32,6 +32,7 @@
  *	2017-01-18 3.08 get always an lowercase value for switch on/off in generateevent
  */
 import Calendar.*
+import groovy.time.*
 
 metadata {
     definition (name:"domoticzOnOff", namespace:"verbem", author:"Martin Verbeek") {
@@ -129,7 +130,11 @@ def poll() {
 
 // switch.refresh() command handler
 def refresh() {
-	
+
+	//Date date = new Date()
+    //log.info date.getAt(Calendar.DATE)
+    //log.info date.getAt(Calendar.HOUR)
+
     if (parent.name == "Domoticz Server") {
     	parent.domoticz_poll(getIDXAddress())
         
@@ -163,6 +168,7 @@ def refresh() {
 
 // switch.on() command handler
 def on() {
+	log.info "On for ${parent.name}"
     if (parent.name == "Domoticz Server") parent.domoticz_on(getIDXAddress())
     if (parent.name == "Hue Sensor (Connect)") parent.groupCommand(["command" : "on", "dni": device.deviceNetworkId])
 }

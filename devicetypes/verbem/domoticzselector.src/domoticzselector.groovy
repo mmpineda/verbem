@@ -38,12 +38,11 @@ metadata {
         capability "Signal Strength"
 		capability "Health Check"
         
-        attribute "selector", "enum", [true, false]
+        attribute "selector", "string"
         
         // custom commands
         command "parse"     // (String "<attribute>:<value>[,<attribute>:<value>]")
        	command "setLevel"
-        command "generateEvent"
         command "stateNext"
         command "statePrev"
     }
@@ -80,9 +79,12 @@ metadata {
             state "default", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
         }
 
+		//childDeviceTile("stateButton", "stateButton", width: 6, height: 2, childTileName: "stateButton")
+		childDeviceTiles("stateButton", decoration: "flat", icon: "st.Electronics.electronics13")
+        
         main(["richDomoticzSelector"])
         
-        details(["richDomoticzSelector", "tilePrev", "tileNext", "rssi", "debug"])
+        details(["richDomoticzSelector", "tilePrev", "tileNext", "rssi", "debug", "stateButton"])
     }
 }
 
@@ -155,6 +157,29 @@ def setLevel(level) {
     }
 }
 
+private def addStateButton(stateButton) {
+
+	def children = getChildDevices()
+    def childExists = false
+
+	children.each { child ->
+        if (!childExists) childExists = child.deviceNetworkId.contains(stateButton.toString())   	
+    }
+    
+	if (childExists) {
+    	log.info "child exists returning"
+    	return
+    }
+    
+	try {
+		addChildDevice("domoticzSelectorState", "${device.displayName}-${stateButton}", null, [completedSetup: true, label: "${device.displayName}-${stateButton}",
+                             isComponent: true, componentName: "${stateButton}", componentLabel: "${stateButton}"])
+    }
+    catch (e) {
+            log.error "[addStateButton] Cannot add device ${device.deviceNetworkId}-${stateButton}. Error: ${e}"
+    }
+}
+
 private def TRACE(message) {
     log.debug message
 }
@@ -182,22 +207,14 @@ private getIDXAddress() {
     return idx
 }
 
-/*----------------------------------------------------*/
-/*			execute event can be called from the service manager!!!
-/*----------------------------------------------------*/
-def generateEvent (Map results) {
-    results.each { name, value ->
-    	def v = value
-    	if (name == "switch") {
-        	if (v instanceof String) {
-                if (v.toUpperCase() == "OFF" ) v = "off"
-                if (v.toUpperCase() == "ON") v = "on"
-                }
-            }
-        log.info "generateEvent " + name + " " + v
-        sendEvent(name:"${name}", value:"${v}")
+def updateChildren() {
+	if (!state.selector == null || state?.selector != device.currentValue("selector")) {
+    	def levels = device.currentValue("selector").tokenize("|")
+        levels.each { level ->
+            addStateButton(level)
         }
-        return null
+		state.selector = device.currentValue("selector")
+    }
 }
 
 def installed() {
@@ -210,8 +227,11 @@ def updated() {
 
 def initialize() {
 
+
 	if (parent) {
         sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson([protocol: "LAN", scheme:"untracked"]), displayed: false)
+        updateChildren()
+        runEvery5Minutes(updateChildren)
     }
     else {
     	log.error "You cannot use this DTH without the related SmartAPP Domoticz Server, the device needs to be a child of this App"
