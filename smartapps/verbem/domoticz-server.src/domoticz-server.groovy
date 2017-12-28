@@ -1404,16 +1404,18 @@ def domoticz_stop(nid) {
 }
 
 def domoticz_setlevel(nid, xLevel) {
-    if (xLevel.toInteger() == 0) {socketSend([request : "off", idx : nid])}
-    else	if (state.devices[nid].subType == "RFY") 
-    		{
-            	socketSend([request : "stop", idx : nid])
-            } 
-    		else 
-            {
-               	socketSend([request : "setlevel", idx : nid, level : xLevel])
-                //socketSend([request : "on", idx : nid])
-            }
+    if (xLevel.toInteger() == 0) {
+        socketSend([request : "setlevel", idx : nid, level : xLevel])
+    	socketSend([request : "off", idx : nid])
+    }    
+    else {
+        if (state.devices[nid].subType == "RFY") {
+            socketSend([request : "stop", idx : nid])
+        } 
+        else {
+            socketSend([request : "setlevel", idx : nid, level : xLevel])
+        }
+	}
 }
 
 def domoticz_setcolor(nid, xHex, xSat, xBri) {
