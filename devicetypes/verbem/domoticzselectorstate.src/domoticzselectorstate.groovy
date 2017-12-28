@@ -20,12 +20,13 @@ metadata {
 		capability "Sensor"
         
         command "buttonPress"
+        attribute "labelButton", "string"
 	}
 
 	tiles
     {
-		standardTile("stateButton", "device.button", decoration: "flat", width: 1, height: 1) {
-			state "default", label: 'Select', action: "buttonPress", icon: "st.Electronics.electronics13"
+		valueTile("stateButton", "labelButton", decoration: "flat", width: 2, height: 2) {
+			state "labelButton", label: '${currentValue}', action: "buttonPress"
 			state "Error", label: "Install Error", backgroundColor: "#bc2323"
 		}        
 		main (["stateButton"])
@@ -65,6 +66,9 @@ def initialize() {
 	// Arrival sensors only goes OFFLINE when Hub is off
     if (parent) {
         sendEvent(name: "numberOfButtons", value: 1)
+        def stateLevels = device.displayName.tokenize("-")
+    	def stateLevel = stateLevels[stateLevels.size()-1]
+        sendEvent(name: "labelButton", value: stateLevel)
     }
     else {
     	log.error "You cannot use this DTH without the related DTH domoticzSelector, the device needs to be a child of this DTH"

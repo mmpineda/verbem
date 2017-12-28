@@ -43,8 +43,6 @@ metadata {
         // custom commands
         command "parse"     // (String "<attribute>:<value>[,<attribute>:<value>]")
        	command "setLevel"
-        command "stateNext"
-        command "statePrev"
     }
 
     tiles(scale:2) {
@@ -63,14 +61,6 @@ metadata {
             }
 		}
      
-		standardTile("tileNext", "device.tileNext", inactiveLabel: false, width: 3, height: 2, decoration:"flat") {
-			state "default", label:'Next State', action: "stateNext"
-		}
-     
-		standardTile("tilePrev", "device.tilePrev", inactiveLabel: false, width: 3, height: 2, decoration:"flat") {
-			state "default", label:'Prev State', action: "statePrev"
-		}
-
 		standardTile("rssi", "device.rssi", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
 			state "rssi", label:'Signal ${currentValue}', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzsensor.src/network-signal.png"
 		}
@@ -79,12 +69,11 @@ metadata {
             state "default", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
         }
 
-		//childDeviceTile("stateButton", "stateButton", width: 6, height: 2, childTileName: "stateButton")
-		childDeviceTiles("stateButton", decoration: "flat", icon: "st.Electronics.electronics13")
+		childDeviceTiles("stateButton", decoration: "flat", width: 2, height: 2) //, icon: "st.Electronics.electronics13")
         
         main(["richDomoticzSelector"])
         
-        details(["richDomoticzSelector", "tilePrev", "tileNext", "rssi", "debug", "stateButton"])
+        details(["richDomoticzSelector", "rssi", "debug", "stateButton"])
     }
 }
 
@@ -124,15 +113,6 @@ def refresh() {
     if (parent) {
         parent.domoticz_poll(getIDXAddress())
     }
-}
-
-def statePrev() {
-	setLevel(device.currentValue("level")-10)
-}
-
-
-def stateNext() {
-	setLevel(device.currentValue("level")+10)
 }
 
 def on() {
@@ -232,6 +212,12 @@ def initialize() {
         sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson([protocol: "LAN", scheme:"untracked"]), displayed: false)
         updateChildren()
         runEvery5Minutes(updateChildren)
+        def children = getChildDevices()
+
+        children.each { child ->
+            child.initialize()   	
+        }
+
     }
     else {
     	log.error "You cannot use this DTH without the related SmartAPP Domoticz Server, the device needs to be a child of this App"
