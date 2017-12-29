@@ -131,9 +131,6 @@ def poll() {
 // switch.refresh() command handler
 def refresh() {
 
-	//Date date = new Date()
-    //log.info date.getAt(Calendar.DATE)
-    //log.info date.getAt(Calendar.HOUR)
 
     if (parent.name == "Domoticz Server") {
     	parent.domoticz_poll(getIDXAddress())

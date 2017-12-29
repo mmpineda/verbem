@@ -189,11 +189,32 @@ private getIDXAddress() {
 
 def updateChildren() {
 	if (!state.selector == null || state?.selector != device.currentValue("selector")) {
-    	def levels = device.currentValue("selector").tokenize("|")
-        levels.each { level ->
+    	
+    	def newLevels = device.currentValue("selector").tokenize("|")
+        def oldLevels = state.selector.tokenize("|")
+        def copyL = state.selector.tokenize("|")
+        //first add all new ones
+        newLevels.each { level ->
             addStateButton(level)
+            copyL.each { oldLevel ->
+            	if (oldLevel == level) {
+                	oldLevels.remove(oldLevel)
+            	}
+            }
         }
-		state.selector = device.currentValue("selector")
+        //second delete all that are not used anymore
+        def oldDni
+        def noError = true
+        oldLevels.each { oldLevel ->
+            oldDni = "${device.displayName}-${oldLevel}"
+        	log.info "deleting ${oldDni}"
+            try { deleteChildDevice(oldDni) }
+            catch (e) {
+            	sendEvent(name: "selectorState", value: "Error", descriptionText: "Error deleting $oldLevel $e", isStateChange: true)
+                noError = true
+            }
+        }
+		if (noError) state.selector = device.currentValue("selector")
     }
 }
 

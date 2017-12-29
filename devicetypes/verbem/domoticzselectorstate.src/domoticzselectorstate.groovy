@@ -18,6 +18,7 @@ metadata {
 		capability "Button"
 		capability "Actuator"
 		capability "Sensor"
+        capability "Switch"
         
         command "buttonPress"
         attribute "labelButton", "string"
@@ -32,6 +33,10 @@ metadata {
 		main (["stateButton"])
 		details(["stateButton"])
 	}
+}
+
+def on() {
+	buttonPress()
 }
 
 def buttonPress() {
