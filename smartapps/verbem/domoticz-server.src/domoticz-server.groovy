@@ -23,6 +23,8 @@
  
 import groovy.json.*
 import java.Math.*
+import java.util.TimeZone
+import java.text.DateFormat
 
 private def runningVersion() {"5.00"}
 
@@ -220,14 +222,14 @@ private def setupCompositeSensors() {
         	input inputReportPower
         }
         section {	
-      		state.listSensors.each { key, item ->
+      		state.listSensors.sort().each { key, item ->
         	if (item.type == "domoticzSensor" || item.type == "domoticzMotion" || item.type == "domoticzThermostat" ) {
                 def iMap = item as Map
-                paragraph "Compose ${iMap.type}/${iMap.name} with IDX ${key}"
+                paragraph "Extend ${iMap.type.toUpperCase()}\n${iMap.name}"
                 if (state.optionsPower) {input "idxPower[${key}]", "enum", title:"Add power usage?", options: state.optionsPower, required: false}
-                if (state.optionsLux) {input "idxIlluminance[${key}]", "enum", title:"Add Lux measurement?", options: state.optionsLux, required: false}
+                if (state.optionsLux && iMap.type != "domoticzThermostat") {input "idxIlluminance[${key}]", "enum", title:"Add Lux measurement?", options: state.optionsLux, required: false}
                 if (state.optionsTemperature && iMap.type != "domoticzSensor") input "idxTemperature[${key}]", "enum", title:"Add Temperature measurement?",options: state.optionsTemperature , required: false
-                if (state.optionsMotion && iMap.type != "domoticzMotion") input "idxMotion[${key}]", "enum", title:"Add motion detection?", options: state.optionsMotion, required: false
+                if (state.optionsMotion && (iMap.type != "domoticzMotion" || iMap.type != "domoticzThermostat")) input "idxMotion[${key}]", "enum", title:"Add motion detection?", options: state.optionsMotion, required: false
         	}
         }
       }
@@ -864,7 +866,7 @@ private def onLocationEvtForDevices(statusrsp) {
                 state.listSensors[it.idx] = [name: it.Name, idx: it.idx, type: "domoticzSensor"]
                 break
             default:
-                log.error "[onLocationEvtForDevices] non handled SwitchTypeVal ${compareTypeVal} ${it}"
+                TRACE("[onLocationEvtForDevices] non handled SwitchTypeVal ${compareTypeVal} ${it}")
             break
         }	
     }            
@@ -1008,15 +1010,14 @@ private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, pa
         	switchTypeVal = passedDomoticzStatus.SwitchTypeVal
             deviceType = "switch"
         }
-        else 	if (passedFile == "domoticzSensor") {
-                	deviceType = "sensor"
-        		}
+        else deviceType = "sensor"
     }
 
     if (getChildDevice(newdni)) {      
-        TRACE("[addSwitch] Updating child device ${addr}, ${passedFile}, ${passedName}, ${passedStatus}")
+        TRACE("[addSwitch] Updating child device ${addr}, ${passedFile}, ${passedName}, ${passedStatus}, ${deviceId}")
         
-        if (!state.devices[addr].deviceId) state.devices[addr].deviceId = deviceId
+        if (state.devices[addr]?.deviceId == null) state.devices[addr]?.deviceId = deviceId
+        
         def existingDev = getChildDevice(newdni)
         if (passedName != existingDev.name) {
         	existingDev.label = passedName
@@ -1668,6 +1669,13 @@ private def initRestApi() {
 private def getResponse(evt) {
 
     if (evt instanceof physicalgraph.device.HubResponse) {
+    	/*try {
+        	
+       		def tz = location.timeZone as TimeZone
+            def date = new Date().format("yyyy-MM-dd HH:mm", TimeZone.getTimeZone(tz.ID))
+            log.info date
+        }
+        catch (e) {log.info e} */
         return evt.json
     }
 }
