@@ -18,6 +18,7 @@
  	V4.07	Adding linkage to power usage devices
     V4.08	checking for usage types returned fromDZ that should n0t be added
     V5.00	Added power reporting device and collecting of usage
+    V5.01	Remove NefitEasy specific support and add General Thermostat
  */
  
 import groovy.json.*
@@ -46,7 +47,6 @@ preferences {
     page name:"setupInit"
     page name:"setupMenu"
     page name:"setupDomoticz"
-    page name:"setupNefitEasy"
     page name:"setupListDevices"
     page name:"setupDeviceRequest"
     page name:"setupAddDevices"
@@ -195,56 +195,6 @@ private def setupMenu() {
 }
 
 /*-----------------------------------------------------------------------------------------*/
-/*		SET Up Configure NefitEasy PAGE
-/*-----------------------------------------------------------------------------------------*/
-private def setupNefitEasy() {
-    TRACE("[setupNefitEasy]")
-    def textPara1 =
-        "Enter IP address and TCP port of your Nefit Easy Server, then tap " +
-        "Next to continue."
-
-    def inputNE = [
-        name        : "nefitEasy",
-        submitOnChange : true,
-        type        : "bool",
-        title       : "Support for Nefit Easy Thermostat?",
-        defaultValue: false
-    ]
-    
-    def inputNEAddress = [
-        name        : "nefitEasyIpAddress",
-        type        : "string",
-        title       : "Local Nefit Easy Server Address",
-        defaultValue: settings.domoticzIpAddress
-    ]
-
-    def inputNEPort = [
-        name        : "nefitEasyTcpPort",
-        type        : "number",
-        title       : "Local Nefit Easy Server Port",
-        defaultValue: "3000"
-    ]
-    
-    def pageProperties = [
-        name        : "setupNefitEasy",
-        title       : "Configure Nefit Easy Server",
-        nextPage    : "setupDomoticz",
-        install     : false,
-        uninstall   : false
-    ]
-
-    return dynamicPage(pageProperties) {
-      section {
-      		input inputNE
-            if(nefitEasy) {
-            	input inputNEAddress
-            	input inputNEPort
-                }
-        	}
-    }
-}
-
-/*-----------------------------------------------------------------------------------------*/
 /*		SET Up Configure Composite Sensors PAGE
 /*-----------------------------------------------------------------------------------------*/
 private def setupCompositeSensors() {
@@ -271,7 +221,7 @@ private def setupCompositeSensors() {
         }
         section {	
       		state.listSensors.each { key, item ->
-        	if (item.type == "domoticzSensor" || item.type == "domoticzMotion" ) {
+        	if (item.type == "domoticzSensor" || item.type == "domoticzMotion" || item.type == "domoticzThermostat" ) {
                 def iMap = item as Map
                 paragraph "Compose ${iMap.type}/${iMap.name} with IDX ${key}"
                 if (state.optionsPower) {input "idxPower[${key}]", "enum", title:"Add power usage?", options: state.optionsPower, required: false}
@@ -318,7 +268,7 @@ private def setupDomoticz() {
         name        : "domoticzTypes",
         type        : "enum",
         title       : "Devicetypes you want to add",
-        options	    : ["Window Coverings", "On/Off/Dimmers/RGB", "Smoke Detectors", "Contact Sensors", "Dusk Sensors", "Motion Sensors", "(Virtual) Sensors"],
+        options	    : ["Contact Sensors", "Dusk Sensors", "Motion Sensors", "On/Off/Dimmers/RGB", "Smoke Detectors", "Thermostats", "(Virtual) Sensors", "Window Coverings"],
         multiple	: true
     ]
     
@@ -376,7 +326,6 @@ private def setupDomoticz() {
             if (domoticzRoomPlans && settings.containsKey('domoticzIpAddress')) input inputPlans
             input inputGroup
             input inputScene
-            href "setupNefitEasy", title:"Configure Nefit Easy Thermostat", description:"Tap to open"
             input inputTrace
         	}
     }
@@ -517,13 +466,8 @@ private def setupListDevices() {
     def thermostats = getDeviceListAsText('thermostat')
     
     return dynamicPage(pageProperties) {
-        section("Switch types") {paragraph switches}
-        
+        section("Switch types") {paragraph switches}     
         section("Sensors") {paragraph sensors}
-        
-        if (settings.nefitEasy == true) {
-        	section("Nefit Easy") {paragraph thermostats}
-        }
     }
 }
 
@@ -572,13 +516,7 @@ private def initialize() {
 	state.setStatusrsp = false
     state.setup.installed = true
     state.networkId = settings.domoticzIpAddress + ":" + settings.domoticzTcpPort
-    state.nefitNetworkId = settings.nefitEasyIpAddress + ":" + settings.nefitEasyTcpPort
     updateDeviceList()
-    
-    if (settings.nefitEasy == true) {
-    	TRACE("[initialize] Nefit Easy Send Serialnumber")
-    	nefitEasySend("serialnumber",0)	
-    	}
         
     state.alive = true
     state.aliveAgain = true
@@ -588,10 +526,8 @@ private def initialize() {
 
 	addReportDevices()
     
-    runEvery1Hour(refreshDevicesFromDomoticz)
-    
-    runEvery1Minute(aliveChecker)
-    
+    runEvery1Hour(refreshDevicesFromDomoticz)    
+    runEvery1Minute(aliveChecker)    
     runEvery1Minute(refreshUtilityCounts)
 
 	state.optionsLux = [:]
@@ -626,6 +562,7 @@ private def deleteChilds() {
         }
     }
 }
+
 /*-----------------------------------------------------------------------------------------*/
 /*		Handle the location events that are being triggered from sendHubCommand response
 /*		Most of the sendHubCommands have specific callback handlers
@@ -718,12 +655,7 @@ void scheduledPowerReport() {
             socketSend([request : "counters", idx : item.idxPower, range : "month"])
             socketSend([request : "counters", idx : item.idxPower, range : "year"])
         }
-		//if (item?.idxMotion != null) { listIdx[item.idxMotion] = [name: key]}
-    	//if (item?.idxIlluminance != null) {listIdx[item.idxIlluminance] = [name: key]}
-    	//if (item?.idxTemperature != null ) {listIdx[item.idxTemperature] = [name: key]}
     }
-
-
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -772,7 +704,6 @@ void onLocationEvtForUCount(evt) {
         }
         
     	if (utility?.SwitchTypeVal == 8) {
-
 			def stateDevice = state.devices.find {key, item -> 
 		    	item.idxMotion == utility.idx
     		}
@@ -787,7 +718,6 @@ void onLocationEvtForUCount(evt) {
         }
         
     	if (utility?.Temp) {
-
 			def stateDevice = state.devices.find {key, item -> 
 		    	item.idxTemperature == utility.idx
     		}
@@ -808,7 +738,6 @@ void onLocationEvtForUCount(evt) {
 /*		Build the idx list for Devices that are part of the selected room plans
 /*-----------------------------------------------------------------------------------------*/
 void onLocationEvtForRoom(evt) {
-
 	def response = getResponse(evt)
 
 	if (response.result == null) {
@@ -831,7 +760,6 @@ void onLocationEvtForRoom(evt) {
 /*		Get Room Plans defined into Selectables for setupDomoticz
 /*-----------------------------------------------------------------------------------------*/
 void onLocationEvtForPlans(evt) {
-
 	def response = getResponse(evt)
     state.statusPlansRsp = response.result
 
@@ -894,8 +822,11 @@ private def onLocationEvtForDevices(statusrsp) {
 
 	statusrsp.result.each { 
         compareTypeVal = it?.SwitchTypeVal
-        //if (it?.SwitchTypeVal?.value) compareTypeVal = it.SwitchTypeVal
-        if (it?.Temp) compareTypeVal = 99 
+        
+       	// handle SwitchTypeVal Exceptions
+        if (it?.Temp) compareTypeVal = 99
+        if (it?.SetPoint) compareTypeVal = 98
+        
         switch (compareTypeVal) 
         {
             case [3, 13, 6, 16]:		//	Window Coverings, 6 & 16 are inverted
@@ -923,6 +854,10 @@ private def onLocationEvtForDevices(statusrsp) {
                 break
             case 18:			//	Selector Switch
                 if (domoticzTypes.contains("On/Off/Dimmers/RGB")) addSwitch(it.idx, "domoticzSelector", it.Name, it.Status, it.SwitchType, it)
+                break
+            case 98:			//	Thermostats
+                if (domoticzTypes.contains("Thermostats")) addSwitch(it.idx, "domoticzThermostat", it.Name, it.SetPoint, it.Type, it)
+                state.listSensors[it.idx] = [name: it.Name, idx: it.idx, type: "domoticzThermostat"]
                 break
             case 99:			//	Sensors
                 if (domoticzTypes.contains("(Virtual) Sensors")) addSwitch(it.idx, "domoticzSensor", it.Name, "Active", it.Type, it)
@@ -1233,42 +1168,6 @@ private def addReportDevices() {
     }
 }
 
-private def addNefitEasy(addrNefitDevice) {
-/*-----------------------------------------------------------------------------------------*/
-/*		Execute the real add or status update of the Nefit Easy device
-/*-----------------------------------------------------------------------------------------*/
-    TRACE("[addNefitEasy]")
-
-    def passedName = "Nefit Easy " + addrNefitDevice
-    def passedDomoticzStatus = [:]    
-    def newdni = app.id + ":${addrNefitDevice}:" + 10000
-    
-    if (!getChildDevice(newdni)) {      
-        try {
-                TRACE("[addSwitch] Creating child device ${params}")
-                def dev = addChildDevice("verbem", "domoticzNefitEasy", newdni, getHubID(), [name:passedName, label:passedName, completedSetup:!state.domoticzRefresh])
-                pause 5
-            } 
-        catch (e) 
-            {
-                log.error "[addSwitch] Cannot create child device. ${newdni} Error: ${e}"
-                return 
-            }
-        }
-
-    state.devices[addrNefitDevice] = [
-        'dni'   : newdni,
-        'ip' : settings.nefitEasyIpAddress,
-        'port' : settings.nefitEasyTcpPort,
-        'idx' : 10000,
-        'type'  : "thermostat",
-        'deviceType' : "domoticzNefitEasy",
-        'subType' : "switch",
-        'switchTypeVal' : 999
-    ]
-	pause 1
-}
-
 /*-----------------------------------------------------------------------------------------*/
 /*		Purge devices that were removed from Domoticz
 /*-----------------------------------------------------------------------------------------*/
@@ -1307,7 +1206,6 @@ private def updateDeviceList() {
             }
       	}
     }
-
     
     tempStateDevices.each { k,v ->
         inStatusrsp = false
@@ -1316,8 +1214,6 @@ private def updateDeviceList() {
         if (tmprspGroups) findrspGroup = temprspGroups.find {it == k }
 
         if (findrspDevice || findrspGroup) inStatusrsp = true
-        
-        if (v.hasProperty("deviceType")) {if (v.deviceType == "domoticzNefitEasy") inStatusrsp = true} // Nefit Easy Devices do not clean up yet.
         
         if (inStatusrsp == false ) {
             deletedDevices.add(k)
@@ -1437,6 +1333,11 @@ def domoticz_counters(nid, range) {
 	socketSend([request : "counters", idx : nid, range : range])
 }
 
+def domoticz_setpoint(nid, setpoint) {
+	log.info "SETPOINT $nid $setpoint"
+	socketSend([request : "SetPoint", idx : nid, setpoint : setpoint])
+}
+
 /*-----------------------------------------------------------------------------------------*/
 /*		Excecute The real request via the local HUB
 /*-----------------------------------------------------------------------------------------*/
@@ -1536,7 +1437,12 @@ private def socketSend(passed) {
          	rooPath = "/json.htm?type=graph&sensor=counter&idx=${passed.idx}&range=${passed.range}"
 			hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${settings.domoticzIpAddress}:${settings.domoticzTcpPort}"], null, [callback: onLocationForCounters] )
             break;
-        default:
+         case "SetPoint":  
+        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20SetPoint%20${passed.setpoint}%20for%20${passed.idx}"
+         	rooPath = "/json.htm?type=setused&idx=${passed.idx}&setpoint=${passed.setpoint}&mode=ManualOverride&until=&used=true"
+			hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${settings.domoticzIpAddress}:${settings.domoticzTcpPort}"], null, [callback: callbackLog] )
+            break;
+       default:
         	return
             break;
            
@@ -1574,46 +1480,6 @@ private def socketList() {
         [callback: callbackList] )
 
     sendHubCommand(hubAction)
-}
-
-/*-----------------------------------------------------------------------------------------*/
-/*	CALLBACK HANDLERS
-/*-----------------------------------------------------------------------------------------*/
-void callbackNefit(evt) {
-	def response = getResponse(evt)
-    TRACE("[onLocation] Nefit Server response")  
-
-    if (response.type == "refEnum") {
-        response.references.each { 
-            nefitEasySend("dumpReferences", it.id)
-        }
-    }
-    else {        	
-        switch (response.id) 
-        {
-            case "/system/appliance/serialnumber":
-                addNefitEasy(response.value)
-                break;
-            case null : // response from API/STATUS, that response does not contain an response.ID!!
-                def nefit = getChildDevices()?.find {it.typeName == "domoticzNefitEasy"}
-                def event = [:]
-                log.debug response["in house temp"]
-                event << ["temperature": response["in house temp"]]
-                log.debug response["user mode"]
-                log.debug response["clock program"]
-                nefit.switchMode()
-                
-                log.debug response["hot water active"]
-                log.debug response["holiday mode"]
-                nefit.generateEvent(event)
-                
-                break;
-            default:
-                log.debug response
-            	break;
-        }
-    }
-    return
 }
 
 void callbackList(evt) {
@@ -1687,65 +1553,6 @@ void devicesOffline() {
     state.devicesOffline = true
     pause 2
 
-}
-/*-----------------------------------------------------------------------------------------*/
-/*	NEFIT COMMAND HANDLERS
-/*-----------------------------------------------------------------------------------------*/
-
-def nefitEasy_poll() {
-	TRACE("[nefitEasy Poll]")
-    nefitEasySend("status", 0)
-}
-
-def nefitEasy_setHold(heatingValue, deviceId, sendHoldType) {
-	TRACE("[nefitEasy setHold]")
-}
-
-def nefitEasy_resumeProgram(deviceId) {
-	TRACE("[nefitEasy resumeProgram]")
-}
-
-def nefitEasy_availableModes(modes) {
-	TRACE("[nefitEasy availableModes]")
-	return ["auto", "eco", "holiday", "manual"]
-}
-
-def nefitEasy_setMode(action, deviceId) {
-	TRACE("[nefitEasy setMode] ${action}")
-	return true
-}
-
-/*-----------------------------------------------------------------------------------------*/
-/*		Excecute The real Nefitrequest via the local HUB
-/*-----------------------------------------------------------------------------------------*/
-private def nefitEasySend(message, addrNefitEasy) {
-    TRACE("[nefitEasySend] ${message} to ${addrNefitEasy}") 
-	def path = ""
-    
-    switch (message) {
-		case "serialnumber":
-        	path = "/bridge/system/appliance/serialnumber"   
- 			break;
-        case "bridge":
-        	path = "/bridge"
-            break;
-        case "dumpReferences":
-        	path = "/bridge${addrNefitEasy}"
-            break;
-		case "status":
-        	path = "/api/status"   
- 			break;
-        }
-            
-    def hubAction = new physicalgraph.device.HubAction(
-        method: "GET",
-        path: path,
-        headers: [HOST: "${settings.nefitEasyIpAddress}:${settings.nefitEasyTcpPort}"],
-        null,
-        [callback: callbackNefit])
-	  
-    sendHubCommand(hubAction)
-    return null
 }
 
 /*-----------------------------------------------------------------------------------------*/
