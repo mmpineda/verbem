@@ -27,7 +27,6 @@ metadata {
 		capability "Refresh"
 		capability "Health Check"
 
-		command "generateEvent"
 		command "raiseSetpoint"
 		command "lowerSetpoint"
 		command "resumeProgram"
@@ -86,15 +85,9 @@ multiAttributeTile(name:"thermostatFull", type:"thermostat", width:6, height:4) 
 		valueTile("currentStatus", "device.thermostatStatus", height: 1, width: 2, decoration: "flat") {
 			state "thermostatStatus", label:'${currentValue}', backgroundColor:"#ffffff"
 		}
-		standardTile("refresh", "device.thermostatMode", inactiveLabel: false, decoration: "flat") {
-			state "default", action:"refresh.refresh", icon:"st.secondary.refresh"
-		}
-		standardTile("resumeProgram", "device.resumeProgram", inactiveLabel: false, decoration: "flat") {
-			state "resume", action:"resumeProgram", nextState: "updating", label:'Resume', icon:"st.samsung.da.oven_ic_send"
-			state "updating", label:"Working", icon: "st.secondary.secondary"
-		}
+        
 		main "thermostatFull"
-		details(["thermostatFull", "resumeProgram", "currentStatus", "refresh"])
+		details(["thermostatFull", "currentStatus"])
 	
 
 	preferences {
@@ -127,45 +120,11 @@ def refresh() {
 }
 
 void poll() {
-	parent.nefitEasy_poll()
+	
 }
 
-def generateEvent(Map results) {
-	log.debug "parsing data $results"
-	if(results) {
-		results.each { name, value ->
+void switchMode() {
 
-			def linkText = getLinkText(device)
-			def isChange = false
-			def isDisplayed = true
-			def event = [name: name, linkText: linkText, descriptionText: getThermostatDescriptionText(name, value, linkText),
-						 handlerName: name]
-
-			if (name=="temperature" || name=="heatingSetpoint" ) {
-				def sendValue =  value.toInteger()
-				isChange = isStateChange(device, name, value.toString())
-				isDisplayed = isChange
-				event << [value: sendValue, unit: temperatureScale, isStateChange: isChange, displayed: isDisplayed]
-			}  	else if (name=="maxHeatingSetpoint" || name=="minHeatingSetpoint") {
-                    def sendValue =  value.toInteger()
-                    event << [value: sendValue, unit: temperatureScale, displayed: false]
-			}  	else if (name=="manual" || name=="auto" ){
-                    isChange = isStateChange(device, name, value.toString())
-                    event << [value: value.toString(), isStateChange: isChange, displayed: false]
-			} 	else if (name == "deviceAlive") {
-                    isChange = isStateChange(device, name, value.toString())
-                    event['isStateChange'] = isChange
-                    event['displayed'] = false
-			} 	else {
-                    isChange = isStateChange(device, name, value.toString())
-                    isDisplayed = isChange
-                    event << [value: value.toString(), isStateChange: isChange, displayed: isDisplayed]
-			}
-			sendEvent(event)
-		}
-		generateSetpointEvent ()
-		generateStatusEvent ()
-	}
 }
 
 //return descriptionText to be shown on mobile activity feed
@@ -210,315 +169,24 @@ void setHeatingSetpoint(setpoint) {
     sendEvent(name: "thermostatOperatingState", value: "heating")
     
     return 
-    
-	def heatingSetpoint = setpoint
-	def deviceId = device.deviceNetworkId
-	def maxHeatingSetpoint = device.currentValue("maxHeatingSetpoint")
-	def minHeatingSetpoint = device.currentValue("minHeatingSetpoint")
-
-	//enforce limits of heatingSetpoint
-	if (heatingSetpoint > maxHeatingSetpoint) {
-		heatingSetpoint = maxHeatingSetpoint
-	} else if (heatingSetpoint < minHeatingSetpoint) {
-		heatingSetpoint = minHeatingSetpoint
-	}
-
-
-	log.debug "Sending setHeatingSetpoint> heatingSetpoint: ${heatingSetpoint}"
-
-	def heatingValue = location.temperatureScale == "C"? convertCtoF(heatingSetpoint) : heatingSetpoint
-
-	def sendHoldType = holdType ? (holdType=="Temporary")? "nextTransition" : (holdType=="Permanent")? "indefinite" : "indefinite" : "indefinite"
-	if (parent.nefitEasy_setHold(heatingValue, deviceId, sendHoldType)) {
-		sendEvent("name":"heatingSetpoint", "value":heatingSetpoint, "unit":location.temperatureScale)
-		log.debug "Done setHeatingSetpoint> coolingSetpoint: ${coolingSetpoint}, heatingSetpoint: ${heatingSetpoint}"
-		generateSetpointEvent()
-		generateStatusEvent()
-	} else {
-		log.error "Error setHeatingSetpoint(setpoint)"
-	}
 }
 
 void resumeProgram() {
 	log.debug "resumeProgram() is called"
-	sendEvent("name":"thermostatStatus", "value":"resuming schedule", "description":statusText, displayed: false)
-	def deviceId = device.deviceNetworkId
-	if (parent.nefitEasy_resumeProgram(deviceId)) {
-		sendEvent("name":"thermostatStatus", "value":"setpoint is updating", "description":statusText, displayed: false)
-		runIn(5, "poll")
-		log.debug "resumeProgram() is done"
-		sendEvent("name":"resumeProgram", "value":"resume", descriptionText: "resumeProgram is done", displayed: false, isStateChange: true)
-	} else {
-		sendEvent("name":"thermostatStatus", "value":"failed resume click refresh", "description":statusText, displayed: false)
-		log.error "Error resumeProgram() check parent.resumeProgram(deviceId)"
-	}
-
 }
-
-def modes() {
-	if (state.modes) {
-		log.debug "Modes = ${state.modes}"
-		return state.modes
-	}
-	else {
-		state.modes = parent.nefitEasy_availableModes(this)
-		log.debug "Modes = ${state.modes}"
-		return state.modes
-	}
-}
-
-def switchMode() {
-	log.debug "in switchMode"
-	def currentMode = device.currentState("thermostatMode")?.value
-	def lastTriedMode = state.lastTriedMode ?: currentMode ?: "off"
-	def modeOrder = modes()
-	def next = { modeOrder[modeOrder.indexOf(it) + 1] ?: modeOrder[0] }
-	def nextMode = next(lastTriedMode)
-	switchToMode(nextMode)
-}
-
-def switchToMode(nextMode) {
-	log.debug "In switchToMode = ${nextMode}"
-	if (nextMode in modes()) {
-		state.lastTriedMode = nextMode
-		"$nextMode"()
-	} else {
-		log.debug("no mode method '$nextMode'")
-	}
-}
-
 
 def getDataByName(String name) {
 	state[name] ?: device.getDataValue(name)
 }
 
-def setThermostatMode(String mode) {
-	log.debug "setThermostatMode($mode)"
-	mode = mode.toLowerCase()
-	switchToMode(mode)
-}
-
-def generateModeEvent(mode) {
-	sendEvent(name: "thermostatMode", value: mode, descriptionText: "$device.displayName is in ${mode} mode", displayed: true)
-}
-
-def generateOperatingStateEvent(operatingState) {
-	sendEvent(name: "thermostatOperatingState", value: operatingState, descriptionText: "$device.displayName is ${operatingState}", displayed: true)
-}
-
-def eco() {
-	log.debug "eco"
-	def deviceId = device.deviceNetworkId
-	if (parent.nefitEasy_setMode("eco", deviceId))
-		generateModeEvent("eco")
-	else {
-		log.debug "Error setting new mode."
-		def currentMode = device.currentState("thermostatMode")?.value
-		generateModeEvent(currentMode) // reset the tile back
-	}
-	generateSetpointEvent()
-	generateStatusEvent()
-}
-
-def manual() {
-	log.debug "manual"
-	def deviceId = device.deviceNetworkId
-	if (parent.nefitEasy_setMode("manual", deviceId))
-		generateModeEvent("manual")
-	else {
-		log.debug "Error setting new mode."
-		def currentMode = device.currentState("thermostatMode")?.value
-		generateModeEvent(currentMode) // reset the tile back
-	}
-	generateSetpointEvent()
-	generateStatusEvent()
-}
-
-
-def holiday() {
-	log.debug "holiday"
-	def deviceId = device.deviceNetworkId
-	if (parent.nefitEasy_setMode("holiday", deviceId))
-		generateModeEvent("holiday")
-	else {
-		log.debug "Error setting new mode."
-		def currentMode = device.currentState("thermostatMode")?.value
-		generateModeEvent(currentMode) // reset the tile back
-	}
-	generateSetpointEvent()
-	generateStatusEvent()
-}
-
-def emergencyHeat() {
-	auxHeatOnly()
-}
-
-def auto() {
-	log.debug "auto"
-	def deviceId = device.deviceNetworkId
-	if (parent.nefitEasy_setMode("auto", deviceId))
-		generateModeEvent("auto")
-	else {
-		log.debug "Error setting new mode."
-		def currentMode = device.currentState("thermostatMode")?.value
-		generateModeEvent(currentMode) // reset the tile back
-	}
-	generateSetpointEvent()
-	generateStatusEvent()
-}
-
-def generateSetpointEvent() {
-	log.debug "Generate SetPoint Event"
-
-	def mode = device.currentValue("thermostatMode")
-
-	def heatingSetpoint = device.currentValue("heatingSetpoint")
-	def maxHeatingSetpoint = device.currentValue("maxHeatingSetpoint")
-	def minHeatingSetpoint = device.currentValue("minHeatingSetpoint")
-
-	log.debug "Current Mode = ${mode}"
-	log.debug "Heating Setpoint = ${heatingSetpoint}"
-
-	sendEvent("name":"maxHeatingSetpoint", "value":maxHeatingSetpoint, "unit":location.temperatureScale)
-	sendEvent("name":"minHeatingSetpoint", "value":minHeatingSetpoint, "unit":location.temperatureScale)
-	sendEvent("name":"heatingSetpoint", "value":heatingSetpoint, "unit":location.temperatureScale)
-
-	if (mode == "manual") {
-		sendEvent("name":"thermostatSetpoint", "value":heatingSetpoint, "unit":location.temperatureScale)
-	} 	
-    else if (mode == "auto") {
-        sendEvent("name":"thermostatSetpoint", "value":"Auto")
-    } 	
-    else if (mode == "holiday") {
-        sendEvent("name":"thermostatSetpoint", "value":"Holiday")
-    }
-    else if (mode == "eco") {
-        sendEvent("name":"thermostatSetpoint", "value":"Eco")
-    } 
-}
 
 void raiseSetpoint() {
-	def mode = device.currentValue("thermostatMode")
-	def targetvalue
-	def maxHeatingSetpoint = device.currentValue("maxHeatingSetpoint")
 
-	if (mode != "manual") {
-		log.warn "this mode: $mode does not allow raiseSetpoint"
-	} else {
-		log.trace device.currentValue("heatingSetpoint") + device.currentValue("thermostatSetpoint")
-		def heatingSetpoint = device.currentValue("heatingSetpoint")
-		def thermostatSetpoint = device.currentValue("thermostatSetpoint")
-
-		if (location.temperatureScale == "C") {
-			maxHeatingSetpoint = maxHeatingSetpoint > 40 ? convertFtoC(maxHeatingSetpoint) : maxHeatingSetpoint
-			heatingSetpoint = heatingSetpoint > 40 ? convertFtoC(heatingSetpoint) : heatingSetpoint
-			thermostatSetpoint = thermostatSetpoint > 40 ? convertFtoC(thermostatSetpoint) : thermostatSetpoint
-		}
-
-		log.debug "raiseSetpoint() mode = ${mode}, heatingSetpoint: ${heatingSetpoint}, thermostatSetpoint:${thermostatSetpoint}"
-
-		targetvalue = thermostatSetpoint ? thermostatSetpoint : 0
-		targetvalue = location.temperatureScale == "F"? targetvalue + 1 : targetvalue + 0.5
-
-		if ((mode == "manual") && targetvalue > maxHeatingSetpoint) {
-			targetvalue = maxHeatingSetpoint
-		} 
-
-		sendEvent("name":"thermostatSetpoint", "value":targetvalue, "unit":location.temperatureScale, displayed: false)
-		log.info "In mode $mode raiseSetpoint() to $targetvalue"
-
-		runIn(3, "alterSetpoint", [data: [value:targetvalue], overwrite: true]) //when user click button this runIn will be overwrite
-	}
 }
 
 //called by tile when user hit raise temperature button on UI
 void lowerSetpoint() {
-	def mode = device.currentValue("thermostatMode")
-	def targetvalue
-	def minHeatingSetpoint = device.currentValue("minHeatingSetpoint")
 
-	if (mode != "manual") {
-		log.warn "this mode: $mode does not allow lowerSetpoint"
-	} else {
-		def heatingSetpoint = device.currentValue("heatingSetpoint")
-		def thermostatSetpoint = device.currentValue("thermostatSetpoint")
-
-		if (location.temperatureScale == "C") {
-			minHeatingSetpoint = minHeatingSetpoint > 40 ? convertFtoC(minHeatingSetpoint) : minHeatingSetpoint
-			heatingSetpoint = heatingSetpoint > 40 ? convertFtoC(heatingSetpoint) : heatingSetpoint
-			thermostatSetpoint = thermostatSetpoint > 40 ? convertFtoC(thermostatSetpoint) : thermostatSetpoint
-		} 
-		log.debug "lowerSetpoint() mode = ${mode}, heatingSetpoint: ${heatingSetpoint}, thermostatSetpoint:${thermostatSetpoint}"
-
-		targetvalue = thermostatSetpoint ? thermostatSetpoint : 0
-		targetvalue = location.temperatureScale == "F"? targetvalue - 1 : targetvalue - 0.5
-
-		if ((mode == "manual") && targetvalue < minHeatingSetpoint) {
-			targetvalue = minHeatingSetpoint
-		}
-
-		sendEvent("name":"thermostatSetpoint", "value":targetvalue, "unit":location.temperatureScale, displayed: false)
-		log.info "In mode $mode lowerSetpoint() to $targetvalue"
-
-		runIn(3, "alterSetpoint", [data: [value:targetvalue], overwrite: true]) //when user click button this runIn will be overwrite
-	}
-}
-
-//called by raiseSetpoint() and lowerSetpoint()
-void alterSetpoint(temp) {
-	def mode = device.currentValue("thermostatMode")
-
-	if (mode == "off" || mode == "auto") {
-		log.warn "this mode: $mode does not allow alterSetpoint"
-	} else {
-		def heatingSetpoint = device.currentValue("heatingSetpoint")
-		def deviceId = device.deviceNetworkId.split(/\./).last()
-
-		def targetHeatingSetpoint
-
-		def temperatureScaleHasChanged = false
-
-		if (location.temperatureScale == "C") {
-			if ( heatingSetpoint > 40.0 ) {
-				temperatureScaleHasChanged = true
-			}
-		} else {
-			if ( heatingSetpoint < 40.0) {
-				temperatureScaleHasChanged = true
-			}
-		}
-
-		//step1: check thermostatMode, enforce limits before sending request to cloud
-		if (mode == "manual"){
-			if (temp.value > coolingSetpoint){
-				targetHeatingSetpoint = temp.value
-			} else {
-				targetHeatingSetpoint = temp.value
-			}
-		}
-
-		log.debug "alterSetpoint >> in mode ${mode} trying to change heatingSetpoint to $targetHeatingSetpoint " +
-				"coolingSetpoint to $targetCoolingSetpoint with holdType : ${holdType}"
-
-		def sendHoldType = holdType ? (holdType=="Temporary")? "nextTransition" : (holdType=="Permanent")? "indefinite" : "indefinite" : "indefinite"
-
-		def heatingValue = location.temperatureScale == "C"? convertCtoF(targetHeatingSetpoint) : targetHeatingSetpoint
-
-		if (parent.nefitEasy_setHold(heatingValue, deviceId, sendHoldType)) {
-			sendEvent("name": "thermostatSetpoint", "value": temp.value, displayed: false)
-			sendEvent("name": "heatingSetpoint", "value": targetHeatingSetpoint, "unit": location.temperatureScale)
-			log.debug "alterSetpoint in mode $mode succeed change setpoint to= ${temp.value}"
-		} else {
-			log.error "Error alterSetpoint()"
-			if (mode == "manual"){
-				sendEvent("name": "thermostatSetpoint", "value": heatingSetpoint.toString(), displayed: false)
-			} 
-		}
-
-		if ( temperatureScaleHasChanged )
-			generateSetpointEvent()
-		generateStatusEvent()
-	}
 }
 
 def generateStatusEvent() {
