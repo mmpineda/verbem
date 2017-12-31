@@ -22,7 +22,7 @@
  *
  *  Revision History
  *  ----------------
- *
+ *	2017-12-31 5.02	Added power today and total to powerToday event, changed tile to display
  *	2017-12-15 5.00 implemented image graphs for power usage if available
  *  2017-10-28 4.12 correct to saturation color in normal setColor mode
  * 	2017-10-17 4.11 ColorTemperature added, added multi parent control for domoticz and hue sensor (connect) 
@@ -48,7 +48,9 @@ metadata {
 		capability "Health Check"
         capability "Power Meter"
         capability "Image Capture"
-      
+
+		attribute "powerToday", "Number"
+
         // custom commands
         command "parse"     
         command "generateEvent"
@@ -70,10 +72,12 @@ metadata {
 				attributeState "Error", label:'Install Error', backgroundColor: "#bc2323"
                 
             }
-            tileAttribute ("device.power", key: "SECONDARY_CONTROL") {
-                attributeState "power", label:'Power level: ${currentValue}', icon: "st.Appliances.appliances17"
-            }
-            
+            /*tileAttribute ("device.power", key: "SECONDARY_CONTROL") {
+                attributeState "power", label:'${currentValue}W', icon: "st.Appliances.appliances17"
+            }*/
+            tileAttribute ("device.powerToday", key: "SECONDARY_CONTROL") {
+                attributeState "powerToday", label:'${currentValue}', icon: "st.Appliances.appliances17"
+            }            
             tileAttribute("device.level", key: "SLIDER_CONTROL") {
             	attributeState "level", label:'Dim Level: ${currentValue}', action:"setLevel" 
             }
@@ -160,7 +164,9 @@ def refresh() {
     }
     
     if (parent.name == "Hue Sensor (Connect)") parent.groupCommand(["command" : "poll", "dni": device.deviceNetworkId]) 
-     
+
+//initUsageMap()
+
 }
 
 // switch.on() command handler
@@ -421,6 +427,26 @@ def take() {
         	state.chtt  = "Daily+Overview"
         	break;
 		}
+}
+
+private def initUsageMap() {
+	// init a map with the previous 48 hours
+    
+    def tz = location.timeZone as TimeZone
+    def date = new Date().format("yyyy-MM-dd hh:mm:ss", TimeZone.getTimeZone(tz.ID))
+    def start = new Date().parse('yyyy-MM-dd hh', "${date}")
+    state.usageMap = [:]
+      
+    use (TimeCategory) {
+    	def i
+    	for (i=1 ; i<49 ; i++) {
+            start = start-1.hour
+            state.usageMap[i] = [startHour: start, Off: 3600, On: 0]
+        }
+    } 
+    def pwr = device.currentValue("power")
+    //log.info "${pwr}"
+    log.info state.usageMap
 }
 
 private def getResponse(evt) {
