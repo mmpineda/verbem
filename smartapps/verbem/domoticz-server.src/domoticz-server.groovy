@@ -19,12 +19,14 @@
     V4.08	checking for usage types returned fromDZ that should n0t be added
     V5.00	Added power reporting device and collecting of usage
     V5.01	Remove NefitEasy specific support and add General Thermostat
+    V5.02	Added power today and total to powerToday event -> domoticzOnOff
  */
- 
+
 import groovy.json.*
+import groovy.time.*
 import java.Math.*
-import java.util.TimeZone
-import java.text.DateFormat
+//import java.util.TimeZone
+//import java.text.DateFormat
 
 private def runningVersion() {"5.00"}
 
@@ -684,7 +686,8 @@ void onLocationEvtForUCount(evt) {
 			if (stateDevice) {
                 stateDevice = stateDevice.toString().split("=")[0]
                 def dni = state.devices[stateDevice].dni
-                getChildDevice(dni).sendEvent(name:"power", value:"${utility.Usage}")
+                getChildDevice(dni).sendEvent(name:"power", value: Float.parseFloat(utility.Usage.split(" ")[0]).round(1))
+                getChildDevice(dni).sendEvent(name:"powerToday", value: "Now:${utility.Usage}\nToday:${utility.CounterToday} Total:${utility.Data}")
             }
             else {
             	TRACE("[onLocationEvtForUCount] Not found kWh ${utility.ID} ${utility.idx}")
@@ -932,8 +935,8 @@ def onLocationEvtForEveryThing(evt) {
     if (kwh > 0 && state.devReportPower != null) {
     	def devReportPower = getChildDevice(state.devReportPower)
         if (devReportPower) {
-            devReportPower.sendEvent(name:"powerTotal", value:"${kwh.round(3)}")
-            devReportPower.sendEvent(name:"power", value:"${watt.round(2)}")
+            devReportPower.sendEvent(name:"powerTotal", value: kwh.round(3))
+            devReportPower.sendEvent(name:"power", value: watt.round())
         }
    	}
 }
@@ -1669,13 +1672,23 @@ private def initRestApi() {
 private def getResponse(evt) {
 
     if (evt instanceof physicalgraph.device.HubResponse) {
-    	/*try {
-        	
-       		def tz = location.timeZone as TimeZone
-            def date = new Date().format("yyyy-MM-dd HH:mm", TimeZone.getTimeZone(tz.ID))
-            log.info date
+    	/* try {
+        	def stop
+            def start
+			use (TimeCategory) {
+				stop = new Date().parse('yyyy-MM-dd hh:mm:ss', "2017-12-28 10:20:21")
+            	start = stop-60.minutes
+                start = start+13.seconds
+            }    
+			long startTime = start.getTime()
+            long stopTime = stop.getTime()
+            long timeDiff = Math.abs(stopTime-startTime)/1000  // seconds      
+            log.info timeDiff
+			//def tz = location.timeZone as TimeZone
+            //def date = new Date().format("yyyy-MM-dd HH:mm", TimeZone.getTimeZone(tz.ID))
+            //log.info start
         }
-        catch (e) {log.info e} */
+        catch (e) {log.error e} */
         return evt.json
     }
 }
