@@ -25,6 +25,8 @@ metadata {
 		capability "Health Check"
         capability "Illuminance Measurement"
         capability "Power"
+        
+        attribute "powerToday", "string"
         }
 
 	tiles(scale: 2) {
@@ -58,8 +60,8 @@ metadata {
 			state "illuminance", label:'${currentValue} Lux', unit:"", icon:""
 		}
 
-		standardTile("power", "device.power", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
-			state "power", label:'${currentValue} W', unit:"", icon:""
+		standardTile("power", "device.powerToday", decoration: "flat", inactiveLabel: false, width: 4, height: 2) {
+			state "powerToday", label:'${currentValue}', unit:"", icon:""
 		}
 
 		standardTile("rssi", "device.rssi", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {

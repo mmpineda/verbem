@@ -29,6 +29,7 @@ metadata {
         capability "Thermostat"
         
         attribute "pressure", "number"
+        attribute "powerToday", "string"
         }
 
 	tiles(scale: 2) {
@@ -68,8 +69,8 @@ metadata {
 			state "motion", label:'${currentValue}', unit:"", icon:""
 		}
         
- 		standardTile("power", "device.power",  inactiveLabel: false, width: 2, height: 2) {
-			state "power", label:'${currentValue}', unit:"", icon:""
+ 		standardTile("power", "device.powerToday",  inactiveLabel: false, width: 4, height: 2) {
+			state "powerToday", label:'${currentValue}', unit:"", icon:""
 		}
         
  		standardTile("illuminance", "device.illuminance",  inactiveLabel: false, width: 2, height: 2) {
