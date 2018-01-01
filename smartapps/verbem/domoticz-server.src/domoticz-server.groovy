@@ -687,10 +687,21 @@ void onLocationEvtForUCount(evt) {
                 stateDevice = stateDevice.toString().split("=")[0]
                 def dni = state.devices[stateDevice].dni
                 getChildDevice(dni).sendEvent(name:"power", value: Float.parseFloat(utility.Usage.split(" ")[0]).round(1))
-                getChildDevice(dni).sendEvent(name:"powerToday", value: "Now:${utility.Usage}\nToday:${utility.CounterToday} Total:${utility.Data}")
+                getChildDevice(dni).sendEvent(name:"powerToday", value: "Now: ${utility.Usage}\nToday: ${utility.CounterToday} Total: ${utility.Data}")
             }
             else {
             	TRACE("[onLocationEvtForUCount] Not found kWh ${utility.ID} ${utility.idx}")
+            }
+            
+			stateDevice = state.devices.find {key, item -> 
+		    	item.idxPower == utility.idx
+    		}
+            
+			if (stateDevice) {
+                stateDevice = stateDevice.toString().split("=")[0]
+                def dni = state.devices[stateDevice].dni
+                getChildDevice(dni).sendEvent(name:"power", value: Float.parseFloat(utility.Usage.split(" ")[0]).round(1))
+                getChildDevice(dni).sendEvent(name:"powerToday", value: "Now:${utility.Usage}\nToday:${utility.CounterToday}\nTotal:${utility.Data}")
             }
         }
         
