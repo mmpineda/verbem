@@ -1,3 +1,6 @@
+Version 5.03
+    Add autodefinition of event notifications on the source device in comoticz
+
 Version 5.00
     Added power reporting device and collecting of usage
     Linkage of Xiaomi power plugs usage etc
