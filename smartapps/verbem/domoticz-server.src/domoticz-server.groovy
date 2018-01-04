@@ -20,15 +20,14 @@
     V5.00	Added power reporting device and collecting of usage
     V5.01	Remove NefitEasy specific support and add General Thermostat
     V5.02	Added power today and total to powerToday event -> domoticzOnOff
+    V5.03	Automatic settings of notifications for HTTP on/off
  */
 
 import groovy.json.*
 import groovy.time.*
 import java.Math.*
-//import java.util.TimeZone
-//import java.text.DateFormat
 
-private def runningVersion() {"5.00"}
+private def runningVersion() {"5.03"}
 
 private def textVersion() { return "Version ${runningVersion()}"}
 
@@ -160,11 +159,11 @@ private def setupMenu() {
     TRACE("[setupMenu]")
     if (state.accessToken) {
 		state.urlCustomActionHttp = getApiServerUrl() - ":443" + "/api/smartapps/installations/${app.id}/" + "EventDomoticz?access_token=" + state.accessToken + "&message=#MESSAGE"
-        }
+    }
 
     if (!settings.containsKey('domoticzIpAddress')) {
         return setupDomoticz()
-        }
+    }
 
     def pageProperties = [
         name        : "setupMenu",
@@ -192,6 +191,9 @@ private def setupMenu() {
         section([title:"Options", mobileOnly:true]) {
             label title:"Assign a name", required:false
         	}
+        section("HTTP Custom Action URL for Domoticz") {
+            paragraph "${state.urlCustomActionHttp}"
+        	}        
         section("About") {
             paragraph "${app.name}. ${textVersion()}\n${textCopyright()}"
         	}
@@ -660,6 +662,8 @@ void scheduledPowerReport() {
             socketSend([request : "counters", idx : item.idxPower, range : "year"])
         }
     }
+    
+    socketSend([request : "Settings"])
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -670,6 +674,7 @@ void onLocationEvtForUCount(evt) {
     def response = getResponse(evt)
 
 	response.result.each { utility ->
+    
     	if (utility?.SubType == "kWh") {
 
 			def stateDevice = state.devices.find {key, item -> 
@@ -687,21 +692,22 @@ void onLocationEvtForUCount(evt) {
                 stateDevice = stateDevice.toString().split("=")[0]
                 def dni = state.devices[stateDevice].dni
                 getChildDevice(dni).sendEvent(name:"power", value: Float.parseFloat(utility.Usage.split(" ")[0]).round(1))
-                getChildDevice(dni).sendEvent(name:"powerToday", value: "Now: ${utility.Usage}\nToday: ${utility.CounterToday} Total: ${utility.Data}")
+                getChildDevice(dni).sendEvent(name:"powerToday", value: "Now  :${utility.Usage}\nToday:${utility.CounterToday} Total:${utility.Data}")
             }
-            else {
-            	TRACE("[onLocationEvtForUCount] Not found kWh ${utility.ID} ${utility.idx}")
-            }
-            
-			stateDevice = state.devices.find {key, item -> 
-		    	item.idxPower == utility.idx
-    		}
-            
-			if (stateDevice) {
-                stateDevice = stateDevice.toString().split("=")[0]
-                def dni = state.devices[stateDevice].dni
-                getChildDevice(dni).sendEvent(name:"power", value: Float.parseFloat(utility.Usage.split(" ")[0]).round(1))
-                getChildDevice(dni).sendEvent(name:"powerToday", value: "Now:${utility.Usage}\nToday:${utility.CounterToday}\nTotal:${utility.Data}")
+			else {
+                stateDevice = state.devices.find {key, item -> 
+                    item.idxPower == utility.idx
+                }
+                
+                if (stateDevice) {
+                    stateDevice = stateDevice.toString().split("=")[0]
+                    def dni = state.devices[stateDevice].dni
+                    getChildDevice(dni).sendEvent(name:"power", value: Float.parseFloat(utility.Usage.split(" ")[0]).round(1))
+                    getChildDevice(dni).sendEvent(name:"powerToday", value: "Now  :${utility.Usage}\nToday:${utility.CounterToday} Total:${utility.Data}")
+                }
+                else {
+                    TRACE("[onLocationEvtForUCount] Not found kWh ${utility.ID} ${utility.idx}")
+            	}            
             }
         }
         
@@ -746,8 +752,7 @@ void onLocationEvtForUCount(evt) {
                 getChildDevice(dni).sendEvent(name:"temperature", value:"${t}")
             }
         }
-	}
-    
+	}    
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -972,7 +977,6 @@ def onLocationForCounters(evt) {
                 if (dayList[hour]) dayList[hour] = dayList[hour] + p.v.toFloat() else dayList[hour] = p.v.toFloat()
             }
             state.reportPowerDay = dayList
-            pause 5
 	        break;
             
         case "month":
@@ -983,7 +987,6 @@ def onLocationForCounters(evt) {
                 monthList[day] = monthList[day].round(3)
             }
             state.reportPowerMonth = monthList
-            pause 5
             break;
             
         case "year":
@@ -995,10 +998,19 @@ def onLocationForCounters(evt) {
                 yearList[week] = yearList[week].round(3)
             }
 			state.reportPowerYear = yearList
-            pause 5
             break;
     }    
+	pause 3
+}
 
+def onLocationSettings(evt) {
+
+    def response = getResponse(evt)
+	if (response.HTTPURL == null) return
+
+    def decoded = response.HTTPURL.decodeBase64()
+    def httpURL = new String(decoded)
+    TRACE("[onLocationSettings] ${httpURL}")
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -1042,6 +1054,11 @@ private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, pa
         if (passedType == "RFY") {attributeList.put('somfySupported', true)}
 
         generateEvent(getChildDevice(newdni), attributeList)
+        
+        if (passedDomoticzStatus?.Notifications == false && deviceType == "switch") {
+            socketSend([request : "Notification", idx : addr, type : 7])
+            socketSend([request : "Notification", idx : addr, type : 16])
+        }
     }
     else if ((state.listOfRoomPlanDevices?.contains(addr) && settings.domoticzRoomPlans == true) || settings.domoticzRoomPlans == false) {
         
@@ -1065,6 +1082,10 @@ private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, pa
                 'switchTypeVal' : switchTypeVal
             	]
 			pause 5
+            if (deviceType == "switch" && passedDomoticzStatus?.Notifications == false) {
+            	socketSend([request : "Notification", idx : addr, type : 7])
+            	socketSend([request : "Notification", idx : addr, type : 16])
+        	}
         } 
         catch (e) { 
             log.error "[addSwitch] Cannot create child device. ${devParam} Error: ${e}" 
@@ -1457,7 +1478,17 @@ private def socketSend(passed) {
          	rooPath = "/json.htm?type=setused&idx=${passed.idx}&setpoint=${passed.setpoint}&mode=ManualOverride&until=&used=true"
 			hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${settings.domoticzIpAddress}:${settings.domoticzTcpPort}"], null, [callback: callbackLog] )
             break;
-       default:
+         case "Notification":  
+        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20HTTPNotification%20Type%20${passed.type}%20For%20${passed.idx}"		// type7 is ON , 16 is OFF
+            rooPath = "/json.htm?type=command&param=addnotification&idx=${passed.idx}&ttype=${passed.type}&twhen=0&tvalue=0&tmsg=&tsystems=http&tpriority=0&tsendalways=false&trecovery=false"
+			hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${settings.domoticzIpAddress}:${settings.domoticzTcpPort}"], null, [callback: callbackLog] )
+            break;
+         case "Settings":  
+        	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20Settings"
+            rooPath = "/json.htm?type=settings"
+			hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${settings.domoticzIpAddress}:${settings.domoticzTcpPort}"], null, [callback: onLocationSettings] )
+            break;
+        default:
         	return
             break;
            
