@@ -42,29 +42,28 @@ metadata {
 				attributeState "OFF", label:'no motion', icon:"st.motion.motion.inactive", backgroundColor:"#ffffff"
 				attributeState "Error", label:"Install Error", backgroundColor: "#bc2323"
 			}
+            tileAttribute("device.powerToday", key: "SECONDARY_CONTROL") {
+        		attributeState "powerToday",label:'${currentValue}', icon:"st.switches.switch.on", defaultState: true
+            }
 		}
 
 		standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
 			state "default", action:"refresh.refresh", icon:"st.secondary.refresh"
-		}
+		} 
         
-		standardTile("battery", "device.battery", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
+		valueTile("battery", "device.battery", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
 			state "battery", label:'${currentValue}% battery', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzsensor.src/battery.png"
-		}
-        
-		standardTile("temperature", "device.temperature", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
+		}        
+		valueTile("temperature", "device.temperature", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
 			state "temparature", label:'${currentValue}', unit:"", icon:"st.Weather.weather2"
 		}
-
-		standardTile("illuminance", "device.illuminance", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
+		valueTile("illuminance", "device.illuminance", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
 			state "illuminance", label:'${currentValue} Lux', unit:"", icon:""
 		}
-
-		standardTile("power", "device.powerToday", decoration: "flat", inactiveLabel: false, width: 4, height: 2) {
-			state "powerToday", label:'${currentValue}', unit:"", icon:""
-		}
-
-		standardTile("rssi", "device.rssi", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
+		//valueTile("power", "device.powerToday", decoration: "flat", inactiveLabel: false, width: 4, height: 2) {
+		//	state "powerToday", label:'${currentValue}', unit:"", icon:""
+		//}
+		valueTile("rssi", "device.rssi", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
             state "rssi", label:'Signal ${currentValue}', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzsensor.src/network-signal.png"
         }
 
@@ -85,10 +84,9 @@ def refresh() {
 
     if (parent) {
         parent.domoticz_poll(getIDXAddress())
+        if (device.currentValue("powerToday") == null) sendEvent(name:"powerToday", value:"Power not reported")
     }
-
 }
-
 
 // gets the IDX address of the device
 private getIDXAddress() {
@@ -135,6 +133,7 @@ def initialize() {
 
 	if (parent) {
         sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson([protocol: "LAN", scheme:"untracked"]), displayed: false)
+        if (device.currentValue("powerToday") == null) sendEvent(name:"powerToday", value:"Power not reported")
     }
     else {
     	log.error "You cannot use this DTH without the related SmartAPP Domoticz Server, the device needs to be a child of this App"

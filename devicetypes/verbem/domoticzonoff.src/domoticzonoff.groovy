@@ -54,10 +54,21 @@ metadata {
         // custom commands
         command "parse"     
         command "generateEvent"
+        command "hourLog"
+        command	"day"
+        command "week"
+        command "month"
+        command "year"
+        
+        attribute "hour", "string"
+        attribute "day", "string"
+        attribute "week", "string"
+        attribute "month", "string"
+        attribute "year", "string"
     }
 
     tiles(scale:2) {
-    	multiAttributeTile(name:"richDomoticzOnOff", type:"lighting",  width:6, height:4, canChangeIcon: true, canChangeBackground: true) {
+    	multiAttributeTile(name: "richDomoticzOnOff", type: "lighting",  width:6, height:4, canChangeIcon: true, canChangeBackground: true) {
         	tileAttribute("device.switch", key: "PRIMARY_CONTROL") {
                 attributeState "off", label:'Off', icon:"st.lights.philips.hue-single", backgroundColor:"#ffffff", action:"on", nextState:"Turning On"
                 attributeState "Off", label:'Off', icon:"st.lights.philips.hue-single", backgroundColor:"#ffffff", action:"on", nextState:"Turning On"
@@ -72,9 +83,7 @@ metadata {
 				attributeState "Error", label:'Install Error', backgroundColor: "#bc2323"
                 
             }
-            /*tileAttribute ("device.power", key: "SECONDARY_CONTROL") {
-                attributeState "power", label:'${currentValue}W', icon: "st.Appliances.appliances17"
-            }*/
+
             tileAttribute ("device.powerToday", key: "SECONDARY_CONTROL") {
                 attributeState "powerToday", label:'${currentValue}', icon: "st.Appliances.appliances17"
             }            
@@ -87,18 +96,43 @@ metadata {
         }
         
         carouselTile("graph", "device.image", width: 6, height: 4)
+        
+        valueTile("HourLog", "device.hour", decoration: "flat", inactiveLabel: false, width: 1, height: 1) {
+        	state "Graph", label:'48 Hour Log', backgroundColor:"#00a0dc", action: "hourLog", defaultState: true
+        	state "noGraph", label:'No Graph', action: "hourLog"
+        }
      
-		standardTile("rssi", "device.rssi", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
+        standardTile("day", "device.day", decoration: "flat", inactiveLabel: false, width: 1, height: 1) {
+        	state "Graph", label:'Day Usage', backgroundColor:"#EFEFEF", action: "day", defaultState: true
+        	state "noGraph", label:'No Graph', action: "day"
+        }
+     
+        standardTile("week", "device.week", decoration: "flat", inactiveLabel: false, width: 1, height: 1) {
+        	state "Graph", label:'Week Usage', backgroundColor:"#EFEFEF", action: "week", defaultState: true
+        	state "noGraph", label:'No Graph', action: "week"
+        }
+     
+        standardTile("month", "device.month", decoration: "flat", inactiveLabel: false, width: 1, height: 1) {
+        	state "Graph", label:'Month Usage', backgroundColor:"#EFEFEF", action: "month", defaultState: true
+        	state "noGraph", label:'No Graph', action: "month"
+        }
+     
+        standardTile("year", "device.year", decoration: "flat", inactiveLabel: false, width: 1, height: 1) {
+        	state "Graph", label:'Year Usage', backgroundColor:"#EFEFEF", action: "year", defaultState: true
+        	state "noGraph", label:'No Graph', action: "year"
+        }
+     
+		standardTile("rssi", "device.rssi", decoration: "flat", inactiveLabel: false, width: 1, height: 1) {
 			state "rssi", label:'Signal ${currentValue}', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzsensor.src/network-signal.png"
 		}
         
-        standardTile("debug", "device.motion", inactiveLabel: false, decoration: "flat", width:2, height:2) {
+        standardTile("debug", "device.motion", inactiveLabel: false, decoration: "flat", width:1, height:1) {
             state "default", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
         }
 
         main(["richDomoticzOnOff"])
         
-        details(["richDomoticzOnOff", "graph", "rssi", "debug"])
+        details(["richDomoticzOnOff", "graph", "HourLog", "day", "week", "month", "year", "rssi", "debug"])
     }
 }
 
@@ -138,46 +172,25 @@ def refresh() {
 
     if (parent.name == "Domoticz Server") {
     	parent.domoticz_poll(getIDXAddress())
-        
-        def request
-        if (!state.chtt) state.chtt = "Daily+Overview"
-        
-        switch (state.chtt) {
-        case "Daily+Overview":
-        	request = "day"
-        	break;
-        case "Hourly+Usage":
-        	request = "day"
-        	break;
-        case "Weekly+Overview":
-        	request = "week"
-        	break;
-        case "Monthly+Overview":
-        	request = "month"
-        	break;
-        case "Annual+Overview":
-        	request = "year"
-        	break;
-        }
-                
-        sendHubRequest(request)
+        sendPowerChartRequest()
     }
     
     if (parent.name == "Hue Sensor (Connect)") parent.groupCommand(["command" : "poll", "dni": device.deviceNetworkId]) 
-
-//initUsageMap()
 
 }
 
 // switch.on() command handler
 def on() {
-	log.info "On for ${parent.name}"
+	if (device.currentValue("switch").toUpperCase() == "ON") return
+    
     if (parent.name == "Domoticz Server") parent.domoticz_on(getIDXAddress())
     if (parent.name == "Hue Sensor (Connect)") parent.groupCommand(["command" : "on", "dni": device.deviceNetworkId])
 }
 
 // switch.off() command handler
 def off() {
+	if (device.currentValue("switch").toUpperCase() == "OFF") return
+    
     if (parent.name == "Domoticz Server") parent.domoticz_off(getIDXAddress())
     if (parent.name == "Hue Sensor (Connect)") parent.groupCommand(["command" : "off", "dni": device.deviceNetworkId])
 }
@@ -300,36 +313,53 @@ def getWhite(value) {
 	return level
 }
 
-def handlerCounter(evt) {
-    def response = getResponse(evt)
-	if (response.result == null) return
-    
-	state.chd = "t:"
-    state.chxl = "0:%7C"
-    
-    switch (response.title.split()[2]) {
-        case "day":
-	        createDaily(response.result)
-	        break;
-        case "week":
-            createWeekly(response.result)
-            break;
-        case "month":
-            createMonthly(response.result)
-            break;
-        case "year":
-        	createYearly(response.result)
-        	break;
-    }
-	// this will also make a series of 1 valid for image-charts
-    state.chd = state.chd + 0
-    state.chxl = state.chxl + "%7C"
+// Graph related commands
 
-	state.chco = "0000FF"
-	take()
+def hourLog() {
+    if (parent.name == "Domoticz Server") {
+    	sendEvent(name:"hour", value:"Graph")
+    	sendLightlogRequest()    	
+    }
+    else sendEvent(name:"hour", value:"noGraph")
 }
 
-def createDaily(result) {
+def day() {
+	def power = device.currentValue("power")
+    if (parent.name == "Domoticz Server" && power) {
+    	sendEvent(name:"day", value:"Graph")
+    	sendPowerChartRequest("day")	
+    }
+    else sendEvent(name:"day", value:"noGraph")
+}
+
+def week() {
+	def power = device.currentValue("power")
+    if (parent.name == "Domoticz Server" && power) {
+    	sendEvent(name:"week", value:"Graph")
+    	sendPowerChartRequest("week")	
+    }
+    else sendEvent(name:"week", value:"noGraph")
+}
+
+def month() {
+	def power = device.currentValue("power")
+    if (parent.name == "Domoticz Server" && power) {
+    	sendEvent(name:"month", value:"Graph")
+    	sendPowerChartRequest("month")	
+    }
+    else sendEvent(name:"month", value:"noGraph")
+}
+
+def year() {
+	def power = device.currentValue("power")
+    if (parent.name == "Domoticz Server" && power) {
+    	sendEvent(name:"year", value:"Graph")
+    	sendPowerChartRequest("year")	
+    }
+    else sendEvent(name:"year", value:"noGraph")
+}
+
+private def createDaily(result) {
     
 	result.each { value ->
         state.chd = state.chd + value.v + "," 
@@ -337,7 +367,7 @@ def createDaily(result) {
     }
 }
 
-def createWeekly(result) {
+private def createMonthkyOrWeekly(result) {
     
 	result.each { value ->
         state.chd = state.chd + value.v + "," 
@@ -345,16 +375,7 @@ def createWeekly(result) {
     }
 }
 
-def createMonthly(result) {
-    
-	result.each { value ->
-	    state.chd = state.chd + value.v + "," 
-    	state.chxl = state.chxl + value.d + "%7C"
-    }
-    
-}
-
-def createYearly(result) {
+private def createYearly(result) {
 	
     def weeks = [:]
     def weekno
@@ -373,19 +394,184 @@ def createYearly(result) {
     }
 }
 
-def sendHubRequest(range) {
+private def sendPowerChartRequest(range) {
+	log.info range
 	def idx = parent.state.devices[getIDXAddress()].idxPower
     if (!idx) return
-  
+
+    
     def rooPath = "/json.htm?type=graph&sensor=counter&idx=${idx}&range=${range}"
-	def hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${parent.settings.domoticzIpAddress}:${parent.settings.domoticzTcpPort}"], null, [callback: handlerCounter] )
+	def hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${parent.settings.domoticzIpAddress}:${parent.settings.domoticzTcpPort}"], null, [callback: handlerPowerChartRequest] )
     sendHubCommand(hubAction)
+}
+
+def handlerPowerChartRequest(evt) {
+    def response = getResponse(evt)
+	if (response?.result == null) return
+    
+    sendEvent(name:"${response.title.split()[2]}", value:"Graph")
+    state.chd = "t:"
+    state.chxl = "0:%7C"
+    state.chtt  = "${response.title.split()[2]}+Overview"
+    
+    switch (response.title.split()[2]) {
+        case "day":
+	        createDaily(response.result)
+	        break;
+        case "week":
+            createMonthkyOrWeekly(response.result)
+            break;
+        case "month":
+            createMonthkyOrWeekly(response.result)
+            break;
+        case "year":
+        	createYearly(response.result)
+        	break;
+    }
+	// this will also make a series of 1 valid for image-charts
+    state.chd = state.chd + 0
+    state.chxl = state.chxl + "%7C"
+
+	state.chco = "0000FF"
+	take()
+}
+
+private def sendLightlogRequest() {
+	def idx = getIDXAddress()
+    if (!idx) return
+    sendEvent(name:"hour", value:"Graph")
+    def rooPath = "/json.htm?type=lightlog&idx=${idx}"
+	def hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${parent.settings.domoticzIpAddress}:${parent.settings.domoticzTcpPort}"], null, [callback: handlerLightlogRequest] )
+    sendHubCommand(hubAction)
+}
+
+def handlerLightlogRequest(evt) {
+    def response = getResponse(evt)
+	if (response?.result == null) return
+    
+    initUsageMap()
+    
+// find the index in events that is the first with a lower date than the last entry in usageMap
+    def dateItem
+    def date48 = state.usageMap[48].startHour
+    def breakEach = false
+    def lastIndex
+    
+    response.result.eachWithIndex { item, index ->
+		dateItem = new Date().parse('yyyy-MM-dd hh:mm:ss', "${item.Date}")
+        if (dateItem < date48 && breakEach == false) {
+        	breakEach = true
+            lastIndex = item.idx
+        }
+    }
+// eventmap with needed entries in reverse!
+	def eventMap = response.result.findAll {it.idx >= lastIndex}
+    eventMap = eventMap.reverse()
+    def nextIndex = 0 
+    def removeList = []
+    
+    eventMap.eachWithIndex { item, index ->
+    	nextIndex++
+    	if (nextIndex < eventMap.size() ) {       	
+        	if (item.Status == eventMap[nextIndex].Status) {
+                removeList = removeList << nextIndex
+            }
+        }
+    }
+    removeList.reverseEach {
+    	eventMap.remove(it)
+    }
+    
+// Create the usage Map, only ON is needed, the remainder is OFF
+    def tz = location.timeZone as TimeZone
+    def date = new Date().format("yyyy-MM-dd HH:mm:ss", TimeZone.getTimeZone(tz.ID))
+    def nowDate = new Date().parse('yyyy-MM-dd HH', "${date}")
+
+	nextIndex = 0
+    long secondsDuration = 0
+    long secondsInitial = 0
+    long secondsRemaining = 0
+    long secondsLeftInHour = 3600
+    long startTime
+    long stopTime
+    def startDate
+    def stopDate
+    def eventHour = 48
+
+    eventMap.eachWithIndex { item, index ->
+    	nextIndex++
+		secondsRemaining = 0
+        
+    	if (nextIndex < eventMap.size() ) {
+        
+        	if (index == 0) startDate = state.usageMap[48].startHour
+            else startDate = new Date().parse('yyyy-MM-dd HH:mm:ss', "${item.Date}")
+            
+            startTime = startDate.getTime()            
+        	stopDate = new Date().parse('yyyy-MM-dd HH:mm:ss', "${eventMap[nextIndex].Date}")
+            stopTime = stopDate.getTime()
+			secondsDuration = Math.abs(stopTime-startTime)/1000  // seconds                        
+            log.info "${index} : ${item.Status} for ${secondsDuration} seconds, start ${startDate}, stop ${stopDate}, initial ${secondsInitial}"
+        }
+        else {
+			startDate = new Date().parse('yyyy-MM-dd hh:mm:ss', "${item.Date}")
+            startTime = startDate.getTime()
+            stopTime = nowDate.getTime()
+			secondsDuration = Math.abs(stopTime-startTime)/1000  // seconds                        
+            log.info "${index} : ${item.Status} for ${secondsDuration} seconds, start ${startDate}, stop ${nowDate}, initial ${secondsInitial}"
+        }
+		
+        if (secondsInitial > 0 && secondsInitial <= secondsLeftInHour) {
+        	eventHour = eventHour-1
+            if (item.Status == "Off") state.usageMap[eventHour].On = secondsInitial // this is remainder of ON status, but current status is off
+            secondsLeftInHour = secondsLeftInHour - secondsInitial 
+        }
+        
+        if (secondsDuration <= secondsLeftInHour) {
+        	if (item.Status == "On") state.usageMap[eventHour].On = state.usageMap[eventHour].On + secondsDuration
+            secondsLeftInHour = secondsLeftInHour - secondsDuration 
+        }
+        else {
+        	if (item.Status == "On") state.usageMap[eventHour].On = state.usageMap[eventHour].On + secondsLeftInHour
+            secondsLeftInHour = 3600
+            secondsRemaining = secondsDuration - secondsLeftInHour
+
+            for (secondsRemaining; secondsRemaining >= 3600; secondsRemaining=secondsRemaining-3600) {
+                eventHour = eventHour-1 
+                try {
+                    if (item.Status == "On" && secondsRemaining > 3600) state.usageMap[eventHour].On = 3600
+                }
+                catch (e) {
+                    log.error eventHour
+                }
+            }
+            
+            secondsInitial = secondsRemaining
+            secondsLeftInHour = 3600 - secondsRemaining
+        }     
+    }   
+    
+    state.chd = ""
+    def seriesOn = ""
+    def labels = "0:%7C"
+    float On 
+    float Off
+    
+    state.usageMap.each { key, item ->
+		On = item.On / 60
+ 		seriesOn = seriesOn + "${On.toInteger()},"
+        labels = labels + "${item.hourLabel}%7C"
+    }
+    seriesOn = seriesOn.substring(0, seriesOn.length() - 1)
+    labels = labels.substring(0, labels.length() - 3)
+    state.chd = seriesOn
+    state.chxl = labels
+    takeLightLog()
 }
 
 def take() {
 	log.debug "Take()"
 	def imageCharts = "https://image-charts.com/chart?"
-    def googleCharts = "https://chart.googleapis.com/chart?"
 	def params = [uri: "${imageCharts}chs=720x480&chd=${state.chd}&cht=bvg&chds=a&chxt=x,y&chxl=${state.chxl}&chts=0000FF,20&chco=${state.chco}&chtt=${state.chtt}"]
     
     if (state.imgCount == null) state.imgCount = 0
@@ -412,41 +598,59 @@ def take() {
     } catch (err) {
         log.error ("Error making request: $err")
     }
+}
+
+def takeLightLog() {
+	log.debug "TakeLightLog()"
+	def imageCharts = "https://image-charts.com/chart?"
+//	def params = [uri: "${imageCharts}chs=900x480&chd=t:${state.chd}&cht=lc&chls=5&chds=a&chxt=x,y&chf=c,s,EFEFEF&chxr=0,1,48,4&chts=0000FF,20&chco=00a0dc&chtt=48+hours+of+LightLog"]
+	def params = [uri: "${imageCharts}chs=900x480&chd=t:${state.chd}&chxl=${state.chxl}&cht=bvg&chls=5&chds=a&chxt=x,y&chts=0000FF,20&chco=00a0dc&chtt=48+hours+of+LightLog"]
     
-        switch (state.chtt) {
-        case "Daily+Overview":
-        	state.chtt  = "Weekly+Overview"
-        	break;
-        case "Weekly+Overview":
-        	state.chtt  = "Monthly+Overview"
-        	break;
-        case "Monthly+Overview":
-        	state.chtt  = "Annual+Overview"
-        	break;
-        case "Annual+Overview":
-        	state.chtt  = "Daily+Overview"
-        	break;
-		}
+    if (state.imgCount == null) state.imgCount = 0
+ 	log.info params
+    try {
+        httpGet(params) { response ->
+        	
+            if (response.status == 200 && response.headers.'Content-Type'.contains("image/png")) {
+                def imageBytes = response.data
+                if (imageBytes) {
+                    state.imgCount = state.imgCount + 1
+                    def name = "LightLog$state.imgCount"
+
+                    // the response data is already a ByteArrayInputStream, no need to convert
+                    try {
+                        storeImage(name, imageBytes, "image/png")
+                    } catch (e) {
+                        log.error "error storing image: $e"
+                    }
+                }
+            }
+        else log.error "wrong format of content"
+        }
+    } catch (err) {
+        log.error ("Error making request: $err")
+    }
 }
 
 private def initUsageMap() {
 	// init a map with the previous 48 hours
-    
+
     def tz = location.timeZone as TimeZone
-    def date = new Date().format("yyyy-MM-dd hh:mm:ss", TimeZone.getTimeZone(tz.ID))
-    def start = new Date().parse('yyyy-MM-dd hh', "${date}")
+    def date = new Date().format("yyyy-MM-dd HH:mm:ss", TimeZone.getTimeZone(tz.ID))
+    def start = new Date().parse('yyyy-MM-dd HH', "${date}")
+    int hour
+    Calendar calendar = GregorianCalendar.getInstance(TimeZone.getTimeZone(tz.ID)); // creates a new calendar instance
     state.usageMap = [:]
       
     use (TimeCategory) {
     	def i
     	for (i=1 ; i<49 ; i++) {
             start = start-1.hour
-            state.usageMap[i] = [startHour: start, Off: 3600, On: 0]
+			calendar.setTime(start);   // assigns calendar to given date 
+			hour = calendar.get(Calendar.HOUR_OF_DAY); // gets hour in 24h format
+            state.usageMap[i] = [startHour: start, On: 0, hourLabel: hour]
         }
     } 
-    def pwr = device.currentValue("power")
-    //log.info "${pwr}"
-    log.info state.usageMap
 }
 
 private def getResponse(evt) {
