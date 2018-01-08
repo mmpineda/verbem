@@ -1,3 +1,6 @@
+Version 5.05	
+    use lowcase on/off for ActionTile use
+
 Version 5.04
     updated autodefinition of event notifications on the source device in domoticz
 
