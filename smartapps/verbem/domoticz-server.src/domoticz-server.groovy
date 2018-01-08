@@ -559,7 +559,7 @@ private def runUpdateRoutine() {
 
 	log.info "UPDATE ROUTINE!!!"
 	state.devices.each {key, item ->
-		if (item.type == "switch" && item.devType != "domoticzSelector") {
+		if (item.type == "switch" && item.deviceType != "domoticzSelector") {
         	log.info "Clear Notifications for ${item.type} ${item.dni} ${item.idx}"
         	socketSend([request : "ClearNotification", idx : item.idx])
             pause 2
@@ -917,7 +917,7 @@ def onLocationEvtForEveryThing(evt) {
     
 	if (response?.result == null) return
 
-	TRACE("[onLocationEvtForEveryThing] Domoticz response with Title : ${response.title}, number of items returned ${response.result.size()}, state occupancy is ${state.toString().length()}")
+	//TRACE("[onLocationEvtForEveryThing] Domoticz response with Title : ${response.title}, number of items returned ${response.result.size()}, state occupancy is ${state.toString().length()}")
 
     response.result.each {
     	
@@ -1060,34 +1060,24 @@ private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, pa
         }
         else deviceType = "sensor"
     }
+    
+    def dev = getChildDevice(newdni)
 
-    if (getChildDevice(newdni)) {      
+    if (dev) {      
         TRACE("[addSwitch] Updating child device ${addr}, ${passedFile}, ${passedName}, ${passedStatus}, ${deviceId}")
         
         if (state.devices[addr]?.deviceId == null) state.devices[addr]?.deviceId = deviceId
-        
-        def existingDev = getChildDevice(newdni)
-        
-        if (passedName != existingDev.name) {
-        	existingDev.label = passedName
-            existingDev.name = passedName
+                
+        if (passedName != dev.name) {
+        	dev.label = passedName
+            dev.name = passedName
         }
-        
-		if (passedDomoticzStatus instanceof java.util.Map) {        
-            def attributeList = createAttributes(getChildDevice(newdni), passedDomoticzStatus, addr)
-            generateEvent(getChildDevice(newdni), attributeList)
-
-            if ((passedDomoticzStatus?.Notifications == false || passedDomoticzStatus?.Notifications == "false" ) && deviceType == "switch") {
-                socketSend([request : "Notification", idx : addr, type : 7, action : "On"])
-                socketSend([request : "Notification", idx : addr, type : 16,, action : "Off"])
-            }
-    	}
     }
     else if ((state.listOfRoomPlanDevices?.contains(addr) && settings.domoticzRoomPlans == true) || settings.domoticzRoomPlans == false) {
         
         try {
             TRACE("[addSwitch] Creating child device ${addr}, ${passedFile}, ${passedName}, ${passedStatus}, ${passedDomoticzStatus}")
-            def dev = addChildDevice("verbem", passedFile, newdni, getHubID(), [name:passedName, label:passedName, completedSetup: true])
+            dev = addChildDevice("verbem", passedFile, newdni, getHubID(), [name:passedName, label:passedName, completedSetup: true])
             
             state.devices[addr] = [
                 'dni'   : newdni,
@@ -1101,19 +1091,30 @@ private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, pa
                 'switchTypeVal' : switchTypeVal
             	]
 			pause 5
-            
-			if (passedDomoticzStatus instanceof java.util.Map) {        
-                def attributeList = createAttributes(dev, passedDomoticzStatus, addr)
-                generateEvent(dev, attributeList)
-
-                if (deviceType == "switch" && (passedDomoticzStatus?.Notifications == false || passedDomoticzStatus?.Notifications == "false" )) {
-                    socketSend([request : "Notification", idx : addr, type : 7, action : "On"])
-                    socketSend([request : "Notification", idx : addr, type : 16, action : "Off"])
-                }
-        	}
         } 
         catch (e) { 
             log.error "[addSwitch] Cannot create child device. ${devParam} Error: ${e}" 
+        }
+    }
+    else return
+    
+    if (passedDomoticzStatus instanceof java.util.Map) {        
+        def attributeList = createAttributes(dev, passedDomoticzStatus, addr)
+        generateEvent(dev, attributeList)
+
+        if ((passedDomoticzStatus?.Notifications == false || passedDomoticzStatus?.Notifications == "false" ) && deviceType == "switch" && passedFile != "domoticzSelector") {
+            socketSend([request : "Notification", idx : addr, type : 7, action : "On"])
+            socketSend([request : "Notification", idx : addr, type : 16,, action : "Off"])
+        }
+        if (passedFile == "domoticzSelector" && (passedDomoticzStatus?.Notifications == false || passedDomoticzStatus?.Notifications == "false" )) {
+            socketSend([request : "Notification", idx : addr, type : 16, action : "Off"])
+            def levelNames = passedDomoticzStatus?.LevelNames.tokenize("|")
+            def ix = 10
+            def maxIx = levelNames.size() * 10
+            for (ix=10; ix < maxIx; ix = ix+10) {
+                log.info "domoticzSelector $ix"
+                socketSend([request : "Notification", idx : addr, type : 7, action : "On", value: ix])
+            }
         }
     }
 }
@@ -1401,7 +1402,7 @@ def domoticz_setpoint(nid, setpoint) {
 /*		Excecute The real request via the local HUB
 /*-----------------------------------------------------------------------------------------*/
 private def socketSend(passed) {
-
+	//TRACE("[socketSend] entered with ${passed}")
 	def rooPath = ""
     def rooLog = ""
 	def hubAction = null
@@ -1508,9 +1509,18 @@ private def socketSend(passed) {
          	rooPath = "/json.htm?type=setused&idx=${passed.idx}&setpoint=${passed.setpoint}&mode=ManualOverride&until=&used=true"
 			hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${settings.domoticzIpAddress}:${settings.domoticzTcpPort}"], null, [callback: callbackLog] )
             break;
-         case "Notification":  
+         case "Notification": 
+         	def tWhen = 0
+            def tValue = 0
+            
+            if (passed?.value > 0) {
+            	tWhen = 2
+                tValue = passed.value
+                passed.action = "${passed.action}%20${tValue}" 
+            }
+            
         	rooLog = "/json.htm?type=command&param=addlogmessage&message=SmartThings%20HTTPNotification%20Type%20${passed.type}%20For%20${passed.idx}"		// type7 is ON , 16 is OFF
-            rooPath = "/json.htm?type=command&param=addnotification&idx=${passed.idx}&ttype=${passed.type}&twhen=0&tvalue=0&tmsg=IDX%20${passed.idx}%20${passed.action}&tsystems=http&tpriority=0&tsendalways=false&trecovery=false"
+            rooPath = "/json.htm?type=command&param=addnotification&idx=${passed.idx}&ttype=${passed.type}&twhen=${tWhen}&tvalue=${tValue}&tmsg=IDX%20${passed.idx}%20${passed.action}&tsystems=http&tpriority=0&tsendalways=false&trecovery=false"
 			hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${settings.domoticzIpAddress}:${settings.domoticzTcpPort}"], null, [callback: callbackLog] )
             break;
          case "ClearNotification":  
@@ -1575,7 +1585,7 @@ void callbackStatus(evt) {
 }
 
 void callbackLog(evt) {
-	// dummy handler for addlogmessages, it prevents these responses from going into "normal" response processing
+	// dummy handler for status returns, it prevents these responses from going into "normal" response processing
 	return
 }
 
@@ -1674,13 +1684,16 @@ void refreshDevicesFromDomoticz() {
 /*-----------------------------------------------------------------------------------------*/
 def eventDomoticz() {
 
-	if (params.message.contains("IDX ") && params.message.split().size() == 3) {
+	if (params.message.contains("IDX ") && params.message.split().size() >= 3) {
     	def idx = params.message.split()[1]
     	def status = params.message.split()[2]
         def dni = state.devices[idx].dni
         def deviceType = state.devices[idx].deviceType
-        //log.info "${idx} ${status} ${devType} ${dni}"
+        TRACE("[eventDomoticz] Custom message in Notification ${idx} ${status} ${deviceType} ${dni}")
         def attr = null
+        def level = null
+        
+        if (params.message.split().size() == 4) level = params.message.split()[3]
         
        	switch (deviceType) {
         	case "domoticzOnOff":
@@ -1693,6 +1706,10 @@ def eventDomoticz() {
             case "domoticzBlinds":
             	attr = "switch"
 				if (status == "On") status = "Closed" else status = "Open"
+                break
+            case "domoticzSelector":
+            	attr = "switch"
+				if (status == "Off") level = 0
                 break
             case "domoticzDuskSensor":
             	attr = "switch"
@@ -1709,13 +1726,13 @@ def eventDomoticz() {
         
         if (attr) {
         	getChildDevice(dni).sendEvent(name: attr, value: status)
+            
+            if (level) {getChildDevice(dni).sendEvent(name: "level", value: level)}
         }
         else {
             TRACE("[eventDomoticz] requesting status for ${idx}")
             socketSend([request : "status", idx : idx]) 
         } 
-        //TRACE("[eventDomoticz] requesting status for ${idx}")
-        //socketSend([request : "status", idx : idx]) 
     }
     else {
 		TRACE("[eventDomoticz] no custom message in Notification (unknown device in ST) perform SocketList ${params.message}")
@@ -1745,23 +1762,6 @@ private def initRestApi() {
 private def getResponse(evt) {
 
     if (evt instanceof physicalgraph.device.HubResponse) {
-    	/* try {
-        	def stop
-            def start
-			use (TimeCategory) {
-				stop = new Date().parse('yyyy-MM-dd hh:mm:ss', "2017-12-28 10:20:21")
-            	start = stop-60.minutes
-                start = start+13.seconds
-            }    
-			long startTime = start.getTime()
-            long stopTime = stop.getTime()
-            long timeDiff = Math.abs(stopTime-startTime)/1000  // seconds      
-            log.info timeDiff
-			//def tz = location.timeZone as TimeZone
-            //def date = new Date().format("yyyy-MM-dd HH:mm", TimeZone.getTimeZone(tz.ID))
-            //log.info start
-        }
-        catch (e) {log.error e} */
         return evt.json
     }
 }
