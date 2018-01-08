@@ -21,6 +21,7 @@
     V5.01	Remove NefitEasy specific support and add General Thermostat
     V5.02	Added power today and total to powerToday event -> domoticzOnOff
     V5.04	Automatic settings of notifications for HTTP on/off in Domoticz
+    V5.05	use lowcase on/off for ActionTile use.
  */
 
 import groovy.json.*
@@ -29,7 +30,7 @@ import java.Math.*
 
 private def cleanUpNeeded() {return true}
 
-private def runningVersion() {"5.04"}
+private def runningVersion() {"5.05"}
 
 private def textVersion() { return "Version ${runningVersion()}"}
 
@@ -1103,17 +1104,17 @@ private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, pa
         generateEvent(dev, attributeList)
 
         if ((passedDomoticzStatus?.Notifications == false || passedDomoticzStatus?.Notifications == "false" ) && deviceType == "switch" && passedFile != "domoticzSelector") {
-            socketSend([request : "Notification", idx : addr, type : 7, action : "On"])
-            socketSend([request : "Notification", idx : addr, type : 16,, action : "Off"])
+            socketSend([request : "Notification", idx : addr, type : 7, action : "on"])
+            socketSend([request : "Notification", idx : addr, type : 16,, action : "off"])
         }
         if (passedFile == "domoticzSelector" && (passedDomoticzStatus?.Notifications == false || passedDomoticzStatus?.Notifications == "false" )) {
-            socketSend([request : "Notification", idx : addr, type : 16, action : "Off"])
+            socketSend([request : "Notification", idx : addr, type : 16, action : "off"])
             def levelNames = passedDomoticzStatus?.LevelNames.tokenize("|")
             def ix = 10
             def maxIx = levelNames.size() * 10
             for (ix=10; ix < maxIx; ix = ix+10) {
                 log.info "domoticzSelector $ix"
-                socketSend([request : "Notification", idx : addr, type : 7, action : "On", value: ix])
+                socketSend([request : "Notification", idx : addr, type : 7, action : "on", value: ix])
             }
         }
     }
@@ -1701,26 +1702,26 @@ def eventDomoticz() {
             	break
             case "domoticzMotion":
             	attr = "motion"
-                if (status == "On") status = "active" else status = "inactive"
+                if (status == "on") status = "active" else status = "inactive"
             	break
             case "domoticzBlinds":
             	attr = "switch"
-				if (status == "On") status = "Closed" else status = "Open"
+				if (status == "on") status = "Closed" else status = "Open"
                 break
             case "domoticzSelector":
             	attr = "switch"
-				if (status == "Off") level = 0
+				if (status == "off") level = 0
                 break
             case "domoticzDuskSensor":
             	attr = "switch"
                 break
             case "domoticzContact":
             	attr = "contact"
-                if (status == "On") status = "Open" else status = "Closed"
+                if (status == "on") status = "Open" else status = "Closed"
                	break
             case "domoticzSmokeDetector":
             	attr = "smoke"
-                if (status == "On") status = "smoke" else status = "clear"
+                if (status == "on") status = "smoke" else status = "clear"
             	break                
         }
         
