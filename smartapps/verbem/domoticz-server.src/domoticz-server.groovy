@@ -560,7 +560,7 @@ private def runUpdateRoutine() {
 
 	log.info "UPDATE ROUTINE!!!"
 	state.devices.each {key, item ->
-		if (item.type == "switch" && item.deviceType != "domoticzSelector") {
+		if (item.type == "switch") {
         	log.info "Clear Notifications for ${item.type} ${item.dni} ${item.idx}"
         	socketSend([request : "ClearNotification", idx : item.idx])
             pause 2
