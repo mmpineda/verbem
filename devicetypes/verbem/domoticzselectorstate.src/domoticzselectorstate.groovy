@@ -26,7 +26,7 @@ metadata {
 
 	tiles
     {
-		valueTile("stateButton", "labelButton", decoration: "flat", width: 2, height: 2) {
+		standardTile("stateButton", "device.labelButton", decoration: "flat", width: 2, height: 2) {
 			state "labelButton", label: '${currentValue}', action: "buttonPress"
 			state "Error", label: "Install Error", backgroundColor: "#bc2323"
 		}        
@@ -40,10 +40,10 @@ def on() {
 }
 
 def buttonPress() {
-	log.info parent.state.selector
+	log.info parent.currentValue("selector")
     def stateLevels = device.displayName.tokenize("-")
     def stateLevel = stateLevels[stateLevels.size()-1]
-    stateLevels = parent.state.selector.tokenize("|")
+    stateLevels = parent.currentValue("selector").tokenize("|")
     def ix = 0
     def found = 200
     stateLevels.each {
@@ -68,15 +68,20 @@ def updated() {
 }
 
 def initialize() {
-	// Arrival sensors only goes OFFLINE when Hub is off
+	log.info "Init"
+    try {
     if (parent) {
-        sendEvent(name: "numberOfButtons", value: 1)
         def stateLevels = device.displayName.tokenize("-")
     	def stateLevel = stateLevels[stateLevels.size()-1]
         sendEvent(name: "labelButton", value: stateLevel)
+        //sendEvent(name: "numberOfButtons", value: 1)
     }
     else {
     	log.error "You cannot use this DTH without the related DTH domoticzSelector, the device needs to be a child of this DTH"
         sendEvent(name: "button", value: "Error", descriptionText: "$device.displayName You cannot use this DTH without the related SmartAPP Hue Sensor (Connect)", isStateChange: true)
     }
+  }
+  catch (e) {
+  	log.error e
+  }
 }
