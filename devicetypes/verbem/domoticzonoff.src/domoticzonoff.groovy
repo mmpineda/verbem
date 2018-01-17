@@ -61,10 +61,7 @@ metadata {
         command "year"
         
         attribute "hour", "string"
-        attribute "day", "string"
-        attribute "week", "string"
-        attribute "month", "string"
-        attribute "year", "string"
+        attribute "graph", "string"
     }
 
     tiles(scale:2) {
@@ -88,7 +85,7 @@ metadata {
                 attributeState "powerToday", label:'${currentValue}', icon: "st.Appliances.appliances17"
             }            
             tileAttribute("device.level", key: "SLIDER_CONTROL") {
-            	attributeState "level", label:'Dim Level: ${currentValue}', action:"setLevel" 
+            	attributeState "level", label:'${currentValue}', action:"setLevel" 
             }
             tileAttribute ("device.color", key: "COLOR_CONTROL") {
         		attributeState "color", action:"setColor"
@@ -97,42 +94,42 @@ metadata {
         
         carouselTile("graph", "device.image", width: 6, height: 4)
         
-        valueTile("HourLog", "device.hour", decoration: "flat", inactiveLabel: false, width: 1, height: 1) {
-        	state "Graph", label:'48 Hour Log', backgroundColor:"#00a0dc", action: "hourLog", defaultState: true
-        	state "noGraph", label:'No Graph', action: "hourLog"
+        standardTile("HourLog", "device.hour", decoration: "flat", width: 1, height: 1) {
+        	state "Graph", label:'48 Hour Log', action: "hourLog", defaultState: true
+        	state "noGraph", label:'No 48 Hour Log', action: "hourLog"
         }
      
-        standardTile("day", "device.day", decoration: "flat", inactiveLabel: false, width: 1, height: 1) {
-        	state "Graph", label:'Day Usage', backgroundColor:"#EFEFEF", action: "day", defaultState: true
-        	state "noGraph", label:'No Graph', action: "day"
+        standardTile("day", "device.graph", decoration: "flat", width: 1, height: 1) {
+        	state "Graph", label:'Day Usage', action: "day", defaultState: true
+        	state "noGraph", label:'No Day Usage', action: "day"
         }
      
-        standardTile("week", "device.week", decoration: "flat", inactiveLabel: false, width: 1, height: 1) {
-        	state "Graph", label:'Week Usage', backgroundColor:"#EFEFEF", action: "week", defaultState: true
-        	state "noGraph", label:'No Graph', action: "week"
+        standardTile("week", "device.graph", decoration: "flat", width: 1, height: 1) {
+        	state "Graph", label:'Week Usage', action: "week", defaultState: true
+        	state "noGraph", label:'No Week Usage', action: "week"
         }
      
-        standardTile("month", "device.month", decoration: "flat", inactiveLabel: false, width: 1, height: 1) {
-        	state "Graph", label:'Month Usage', backgroundColor:"#EFEFEF", action: "month", defaultState: true
-        	state "noGraph", label:'No Graph', action: "month"
+        standardTile("month", "device.graph", decoration: "flat", width: 1, height: 1) {
+        	state "Graph", label:'Month Usage', action: "month", defaultState: true
+        	state "noGraph", label:'No Month Usage', action: "month"
         }
      
-        standardTile("year", "device.year", decoration: "flat", inactiveLabel: false, width: 1, height: 1) {
-        	state "Graph", label:'Year Usage', backgroundColor:"#EFEFEF", action: "year", defaultState: true
-        	state "noGraph", label:'No Graph', action: "year"
+        standardTile("year", "device.graph", decoration: "flat", width: 1, height: 1) {
+        	state "Graph", label:'Year Usage', action: "year", defaultState: true
+        	state "noGraph", label:'No Year Usage', action: "year"
         }
      
-		standardTile("rssi", "device.rssi", decoration: "flat", inactiveLabel: false, width: 1, height: 1) {
+		standardTile("rssi", "device.rssi", decoration: "flat", width: 1, height: 1) {
 			state "rssi", label:'Signal ${currentValue}', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzsensor.src/network-signal.png"
 		}
         
-        standardTile("debug", "device.motion", inactiveLabel: false, decoration: "flat", width:1, height:1) {
+        standardTile("debug", "device.motion", decoration: "flat", width:1, height:1) {
             state "default", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
         }
 
         main(["richDomoticzOnOff"])
         
-        details(["richDomoticzOnOff", "graph", "HourLog", "day", "week", "month", "year", "rssi", "debug"])
+        details(["richDomoticzOnOff", "graph", "day", "week", "month", "year", "rssi", "debug"])
     }
 }
 
@@ -172,7 +169,6 @@ def refresh() {
 
     if (parent.name == "Domoticz Server") {
     	parent.domoticz_poll(getIDXAddress())
-        sendPowerChartRequest()
     }
     
     if (parent.name == "Hue Sensor (Connect)") parent.groupCommand(["command" : "poll", "dni": device.deviceNetworkId]) 
@@ -181,7 +177,7 @@ def refresh() {
 
 // switch.on() command handler
 def on() {
-	if (device.currentValue("switch").toUpperCase() == "ON") return
+	//if (device.currentValue("switch").toUpperCase() == "ON") return
     
     if (parent.name == "Domoticz Server") parent.domoticz_on(getIDXAddress())
     if (parent.name == "Hue Sensor (Connect)") parent.groupCommand(["command" : "on", "dni": device.deviceNetworkId])
@@ -189,7 +185,7 @@ def on() {
 
 // switch.off() command handler
 def off() {
-	if (device.currentValue("switch").toUpperCase() == "OFF") return
+	//if (device.currentValue("switch").toUpperCase() == "OFF") return
     
     if (parent.name == "Domoticz Server") parent.domoticz_off(getIDXAddress())
     if (parent.name == "Hue Sensor (Connect)") parent.groupCommand(["command" : "off", "dni": device.deviceNetworkId])
@@ -324,39 +320,19 @@ def hourLog() {
 }
 
 def day() {
-	def power = device.currentValue("power")
-    if (parent.name == "Domoticz Server" && power) {
-    	sendEvent(name:"day", value:"Graph")
-    	sendPowerChartRequest("day")	
-    }
-    else sendEvent(name:"day", value:"noGraph")
+    sendPowerChartRequest("day")	
 }
 
 def week() {
-	def power = device.currentValue("power")
-    if (parent.name == "Domoticz Server" && power) {
-    	sendEvent(name:"week", value:"Graph")
-    	sendPowerChartRequest("week")	
-    }
-    else sendEvent(name:"week", value:"noGraph")
+    sendPowerChartRequest("week")	
 }
 
 def month() {
-	def power = device.currentValue("power")
-    if (parent.name == "Domoticz Server" && power) {
-    	sendEvent(name:"month", value:"Graph")
-    	sendPowerChartRequest("month")	
-    }
-    else sendEvent(name:"month", value:"noGraph")
+    sendPowerChartRequest("month")	
 }
 
 def year() {
-	def power = device.currentValue("power")
-    if (parent.name == "Domoticz Server" && power) {
-    	sendEvent(name:"year", value:"Graph")
-    	sendPowerChartRequest("year")	
-    }
-    else sendEvent(name:"year", value:"noGraph")
+    sendPowerChartRequest("year")	
 }
 
 private def createDaily(result) {
@@ -395,10 +371,19 @@ private def createYearly(result) {
 }
 
 private def sendPowerChartRequest(range) {
-	log.info range
+
 	def idx = parent.state.devices[getIDXAddress()].idxPower
     if (!idx) return
 
+	def power = device.currentValue("power")
+    
+    if (parent.name == "Domoticz Server" && power != null) {
+    	sendEvent(name:"graph", value:"Graph")
+    }
+    else {
+    	sendEvent(name:"graph", value:"noGraph")
+        return
+	}
     
     def rooPath = "/json.htm?type=graph&sensor=counter&idx=${idx}&range=${range}"
 	def hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${parent.settings.domoticzIpAddress}:${parent.settings.domoticzTcpPort}"], null, [callback: handlerPowerChartRequest] )
@@ -407,24 +392,28 @@ private def sendPowerChartRequest(range) {
 
 def handlerPowerChartRequest(evt) {
     def response = getResponse(evt)
+
 	if (response?.result == null) return
     
     sendEvent(name:"${response.title.split()[2]}", value:"Graph")
     state.chd = "t:"
     state.chxl = "0:%7C"
-    state.chtt  = "${response.title.split()[2]}+Overview"
     
     switch (response.title.split()[2]) {
         case "day":
-	        createDaily(response.result)
+	        state.chtt  = "Day+Usage"
+            createDaily(response.result)
 	        break;
         case "week":
+	        state.chtt  = "Week+Usage"
             createMonthkyOrWeekly(response.result)
             break;
         case "month":
+	        state.chtt  = "Month+Usage"
             createMonthkyOrWeekly(response.result)
             break;
         case "year":
+	        state.chtt  = "Year+Usage"
         	createYearly(response.result)
         	break;
     }
@@ -438,16 +427,22 @@ def handlerPowerChartRequest(evt) {
 
 private def sendLightlogRequest() {
 	def idx = getIDXAddress()
+
     if (!idx) return
+
     sendEvent(name:"hour", value:"Graph")
     def rooPath = "/json.htm?type=lightlog&idx=${idx}"
-	def hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${parent.settings.domoticzIpAddress}:${parent.settings.domoticzTcpPort}"], null, [callback: handlerLightlogRequest] )
+	def hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${parent.settings.domoticzIpAddress}:${parent.settings.domoticzTcpPort}"], null, [callback: handler48HourRequest] )
     sendHubCommand(hubAction)
 }
 
-def handlerLightlogRequest(evt) {
+void handler48HourRequest(evt) {
     def response = getResponse(evt)
-	if (response?.result == null) return
+
+	if (response?.result == null) {
+    	sendEvent(name:"hour", value:"noGraph")
+    	return
+    }
     
     initUsageMap()
     
@@ -459,6 +454,7 @@ def handlerLightlogRequest(evt) {
     
     response.result.eachWithIndex { item, index ->
 		dateItem = new Date().parse('yyyy-MM-dd hh:mm:ss', "${item.Date}")
+        if (item.Status.contains("Set")) item.Status = "On"
         if (dateItem < date48 && breakEach == false) {
         	breakEach = true
             lastIndex = item.idx
@@ -481,6 +477,7 @@ def handlerLightlogRequest(evt) {
     removeList.reverseEach {
     	eventMap.remove(it)
     }
+    log.trace "The eventmap size is ${eventMap.size()}"
     
 // Create the usage Map, only ON is needed, the remainder is OFF
     def tz = location.timeZone as TimeZone
@@ -502,24 +499,20 @@ def handlerLightlogRequest(evt) {
     	nextIndex++
 		secondsRemaining = 0
         
-    	if (nextIndex < eventMap.size() ) {
+        if (index == 0) startDate = state.usageMap[48].startHour
+        else startDate = new Date().parse('yyyy-MM-dd HH:mm:ss', "${item.Date}")   
         
-        	if (index == 0) startDate = state.usageMap[48].startHour
-            else startDate = new Date().parse('yyyy-MM-dd HH:mm:ss', "${item.Date}")
-            
-            startTime = startDate.getTime()            
-        	stopDate = new Date().parse('yyyy-MM-dd HH:mm:ss', "${eventMap[nextIndex].Date}")
-            stopTime = stopDate.getTime()
-			secondsDuration = Math.abs(stopTime-startTime)/1000  // seconds                        
-            log.info "${index} : ${item.Status} for ${secondsDuration} seconds, start ${startDate}, stop ${stopDate}, initial ${secondsInitial}"
+    	if (nextIndex < eventMap.size() ) {            
+          	stopDate = new Date().parse('yyyy-MM-dd HH:mm:ss', "${eventMap[nextIndex].Date}")
         }
         else {
-			startDate = new Date().parse('yyyy-MM-dd hh:mm:ss', "${item.Date}")
-            startTime = startDate.getTime()
-            stopTime = nowDate.getTime()
-			secondsDuration = Math.abs(stopTime-startTime)/1000  // seconds                        
-            log.info "${index} : ${item.Status} for ${secondsDuration} seconds, start ${startDate}, stop ${nowDate}, initial ${secondsInitial}"
+        	stopDate = nowDate
         }
+
+		startTime = startDate.getTime()         
+        stopTime = stopDate.getTime()
+        secondsDuration = Math.abs(stopTime-startTime)/1000  // seconds                        
+        log.info "${index} : ${item.Status} for ${secondsDuration} seconds, start ${startDate}, stop ${stopDate}, initial ${secondsInitial}"
 		
         if (secondsInitial > 0 && secondsInitial <= secondsLeftInHour) {
         	eventHour = eventHour-1
@@ -539,11 +532,15 @@ def handlerLightlogRequest(evt) {
             for (secondsRemaining; secondsRemaining >= 3600; secondsRemaining=secondsRemaining-3600) {
                 eventHour = eventHour-1 
                 try {
-                    if (item.Status == "On" && secondsRemaining > 3600) state.usageMap[eventHour].On = 3600
+                    if (item.Status == "On" && secondsRemaining >= 3600) state.usageMap[eventHour].On = 3600
                 }
                 catch (e) {
                     log.error eventHour
                 }
+            }
+            if (secondsRemaining > 0 && eventMap.size() == 1) {            
+            	eventHour = eventHour - 1
+                state.usageMap[eventHour].On = secondsRemaining
             }
             
             secondsInitial = secondsRemaining
