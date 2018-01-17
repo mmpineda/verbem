@@ -1,3 +1,9 @@
+Version 5.06
+    changed the way sensor counts are updated, it will be reported with customer notify from DZ instead op pulled by ST
+    Inspect HaveTimeout property, false == Online health, true == Offline health
+    Scheduling has been consolidated to lower scheduled tasks
+    PLEASE click update on the app in the IDE to have the new scheduling implemented
+
 Version 5.05	
     use lowcase on/off for ActionTile use
 
