@@ -24,6 +24,7 @@
     V5.05	use lowcase on/off for ActionTile use.
     V5.06	changed the way sensor counts are updated, it will be reported with customer notify from DZ instead op pulled by ST
     		inspect HaveTimeout property, false == Online health, true == Offline health
+	V5.07	Take maxdimlevel into account when passing or receiving the level for a dimmer
  */
 
 import groovy.json.*
@@ -32,7 +33,7 @@ import java.Math.*
 
 private def cleanUpNeeded() {return true}
 
-private def runningVersion() {"5.06"}
+private def runningVersion() {"5.07"}
 
 private def textVersion() { return "Version ${runningVersion()}"}
 
@@ -1142,8 +1143,11 @@ private def createAttributes(domoticzDevice, domoticzStatus, addr) {
             	if (domoticzDevice.hasAttribute("battery")) if (v == 255) attributeList.put('battery',100) else attributeList.put('battery',v)
             	break;
             case "Level":
-				if (domoticzStatus?.LevelInt > 0 && v == 0 && domoticzDevice.hasAttribute("level")) attributeList.put('level',domoticzStatus?.LevelInt)
-                else if (domoticzDevice.hasAttribute("level")) attributeList.put('level', v)
+            	if (domoticzDevice.hasAttribute("level")) attributeList.put('level', v)
+                
+                if (domoticzStatus?.LevelInt != v && state.devices[addr]?.MaxDimLevel == null) {
+					state.devices[addr].MaxDimLevel = domoticzStatus.MaxDimLevel                   
+                }    
                 	
                 if (domoticzStatus?.LevelNames) {
                 	def ix = v / 10
@@ -1391,6 +1395,11 @@ def domoticz_setlevel(nid, xLevel) {
             socketSend([request : "stop", idx : nid])
         } 
         else {
+            if (state.devices[nid]?.MaxDimLevel != null) {
+            	xLevel = xLevel/100*state.devices[nid].MaxDimLevel
+                xLevel = xLevel.toInteger()
+                log.info xLevel
+            }
             socketSend([request : "setlevel", idx : nid, level : xLevel])
         }
 	}
