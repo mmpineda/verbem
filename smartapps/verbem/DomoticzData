@@ -1,3 +1,6 @@
+Version 5.07
+    Take maxdimlevel into account when passing or receiving the level for a dimmer
+
 Version 5.06
     changed the way sensor counts are updated, it will be reported with customer notify from DZ instead op pulled by ST
     Inspect HaveTimeout property, false == Online health, true == Offline health
