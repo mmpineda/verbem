@@ -1396,8 +1396,8 @@ def domoticz_setlevel(nid, xLevel) {
         } 
         else {
             if (state.devices[nid]?.MaxDimLevel != null) {
-            	xLevel = xLevel/100*(state.devices[nid].MaxDimLevel+1)
-                xLevel = xLevel.toInteger()
+            	xLevel = xLevel/100*state.devices[nid].MaxDimLevel
+                xLevel = xLevel.toInteger() + 1i
                 log.info xLevel
             }
             socketSend([request : "setlevel", idx : nid, level : xLevel])
