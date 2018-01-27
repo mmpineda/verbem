@@ -1,3 +1,6 @@
+Version 5.08
+    Added Gas Utility reporting device and collecing of usage, fixed a bug with Lux notifications and state reporting
+
 Version 5.07
     Take maxdimlevel into account when passing or receiving the level for a dimmer
 
