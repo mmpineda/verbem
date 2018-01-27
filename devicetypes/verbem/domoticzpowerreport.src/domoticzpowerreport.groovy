@@ -21,7 +21,7 @@ metadata {
 		capability "Power Meter"
         capability "Image Capture"
         
-        attribute "powerTotal", "number"
+        attribute "powerTotal", "string"
         
         command takeDay
         command takeMonth
@@ -31,18 +31,18 @@ metadata {
 	tiles(scale: 2) {       
         multiAttributeTile(name:"powerReport", type:"generic", width:6, height:4) {
             tileAttribute("device.power", key: "PRIMARY_CONTROL") {
-                attributeState "level", label:'${currentValue}', defaultState: true, action: "take", backgroundColors:[                   
-                    [value: 0, color: "#66ff33"],      	//green
-                    [value: 500, color: "#ffff00"],    	//yellow
-                    [value: 1000, color: "#ffcc00"],	//dark yellow	
-                    [value: 2200, color: "#ff9900"],	//light orange
-                    [value: 3300, color: "#cc6600"],	//dark orange
-                    [value: 5000, color: "#ff0000"]		//red
+                attributeState "level", label:'${currentValue}', unit: "W" , defaultState: true, action: "take", backgroundColors:[                   
+                    [value: 0, color: "#153591"],      	//dark blue
+                    [value: 1000, color: "#1e9cbb"],    //light blue
+                    [value: 2200, color: "#90d2a7"],	//greenish
+                    [value: 3300, color: "#44b621"],	//dark green
+                    [value: 5000, color: "#f1d801"],	//dark yellow
+                    [value: 7500, color: "#d04e00"],	//dark orange
+                    [value: 10000, color: "#bc2323"]	//red
                 ]
             }
             tileAttribute("device.powerTotal", key: "SECONDARY_CONTROL") {
-                attributeState "powerTotal", label:'${currentValue} kWh', action: "take"
-
+                attributeState "powerTotal", label:'${currentValue}', unit: "kWh"
             }
         }
         standardTile("day", "day", inactiveLabel: false, decoration: "flat", width:2, height:2) {
@@ -86,15 +86,22 @@ def initialize() {
 }
 
 def takeDay() {
+	def type = device.deviceNetworkId.split(":")[1].split()[0]
+    def copyState 
 	state.chd = "t:"
     state.chxl = "0:%7C"
 	state.chtt = "24%20hours"
     state.chco = "0000FF"
-    state.chdl = "Watt"
-    if (!parent.state.reportPowerDay) return
-    if (parent.state.reportPowerDay.size() == 0) return
-
-	def copyState = parent.state.reportPowerDay
+    state.chdl = device.currentState("power").unit
+    
+    if (type == "Power") {
+        if (!parent.state.reportPowerDay || parent.state.reportPowerDay.size() == 0) return
+		copyState = parent.state.reportPowerDay        
+    }
+    else if (type == "Gas") {
+        if (!parent.state.reportGasDay || parent.state.reportGasDay.size() == 0) return
+    	copyState = parent.state.reportGasDay
+    }
     
     copyState.sort().each { key, item ->
         state.chd = state.chd + item + "," 
@@ -107,15 +114,22 @@ def takeDay() {
 }
 
 def takeMonth() {
+	def type = device.deviceNetworkId.split(":")[1].split()[0]
+    def copyState 
 	state.chd = "t:"
     state.chxl = "0:%7C"
 	state.chtt = "Month"
     state.chco = "0000FF"
-    state.chdl = "kWh"
-    if (!parent.state.reportPowerMonth) return
-    if (parent.state.reportPowerMonth.size() == 0) return
-    
-    def copyState = parent.state.reportPowerMonth
+    state.chdl = device.currentState("powerTotal").unit
+
+    if (type == "Power") {
+        if (!parent.state.reportPowerMonth || parent.state.reportPowerMonth.size() == 0) return
+		copyState = parent.state.reportPowerMonth        
+    }
+    else if (type == "Gas") {
+        if (!parent.state.reportGasMonth || parent.state.reportGasMonth.size() == 0) return
+    	copyState = parent.state.reportGasMonth
+    }
     
     copyState.sort().each { key, item ->
         state.chd = state.chd + item + "," 
@@ -128,15 +142,22 @@ def takeMonth() {
 }
 
 def takeYear() {
+	def type = device.deviceNetworkId.split(":")[1].split()[0]
+    def copyState 
 	state.chd = "t:"
     state.chxl = "0:%7C"
 	state.chtt = "Year"
     state.chco = "0000FF"
-    state.chdl = "kWh"
-    if (!parent.state.reportPowerYear) return
-    if (parent.state.reportPowerYear.size() == 0) return
+    state.chdl = device.currentState("powerTotal").unit
     
-    def copyState = parent.state.reportPowerYear
+    if (type == "Power") {
+        if (!parent.state.reportPowerYear || parent.state.reportPowerYear.size() == 0) return
+		copyState = parent.state.reportPowerYear        
+    }
+    else if (type == "Gas") {
+        if (!parent.state.reportGasYear || parent.state.reportGasYear.size() == 0) return
+    	copyState = parent.state.reportGasYear
+    }
     
     copyState.sort().each { key, item ->
         state.chd = state.chd + item + "," 

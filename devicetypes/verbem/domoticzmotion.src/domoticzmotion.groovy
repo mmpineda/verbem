@@ -84,7 +84,7 @@ def refresh() {
 
     if (parent) {
         parent.domoticz_poll(getIDXAddress())
-        if (device.currentValue("powerToday") == null) sendEvent(name:"powerToday", value:"Power not reported")
+        if (device.currentValue("powerToday") == null) sendEvent(name:"powerToday", value:"Usage not reported")
     }
 }
 

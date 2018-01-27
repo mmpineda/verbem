@@ -139,8 +139,6 @@ def setLevel(level) {
     sendEvent(name : 'selectorState', value : status[ix.toInteger()])
     if (parent) {
         parent.domoticz_setlevel(getIDXAddress(), level)
-        // send selctorstate to associated thermostat if needed (check on both FanMode and Mode)
-        parent.domoticz_modeChange(getIDXAddress(), "Mode", status[ix.toInteger()])
     }
 }
 
@@ -167,7 +165,6 @@ private getIDXAddress() {
         }
     }
 
-    //log.debug "Using IDX: $idx for device: ${device.id}"
     return idx
 }
 

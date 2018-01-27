@@ -49,7 +49,7 @@ metadata {
         capability "Power Meter"
         capability "Image Capture"
 
-		attribute "powerToday", "Number"
+		attribute "powerToday", "String"
 
         // custom commands
         command "parse"     
@@ -82,7 +82,8 @@ metadata {
             }
 
             tileAttribute ("device.powerToday", key: "SECONDARY_CONTROL") {
-                attributeState "powerToday", label:'${currentValue}', icon: "st.Appliances.appliances17"
+                attributeState "powerToday", label:'${currentValue}', icon: "st.Appliances.appliances17", defaultState: true
+                attributeState "noPower", label:''
             }            
             tileAttribute("device.level", key: "SLIDER_CONTROL") {
             	attributeState "level", label:'${currentValue}', action:"setLevel" 
@@ -669,6 +670,7 @@ def initialize() {
 
 	if (parent) {
         sendEvent(name: "DeviceWatch-Enroll", value: groovy.json.JsonOutput.toJson([protocol: "LAN", scheme:"untracked"]), displayed: false)
+        sendEvent(name: "powerToday", value: "noPower")
     }
     else {
     	log.error "You cannot use this DTH without the related SmartAPP Domoticz Server, the device needs to be a child of this App"

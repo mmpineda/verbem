@@ -30,9 +30,7 @@ metadata {
 		command "raiseSetpoint"
 		command "lowerSetpoint"
 		command "resumeProgram"
-		command "switchMode"
 
-		attribute "thermostatSetpoint", "number"
 		attribute "thermostatStatus", "string"
 		attribute "maxHeatingSetpoint", "number"
 		attribute "minHeatingSetpoint", "number"
@@ -42,46 +40,43 @@ metadata {
 //**************************
 
 multiAttributeTile(name:"thermostatFull", type:"thermostat", width:6, height:4) {
-    tileAttribute("device.temperature", key: "PRIMARY_CONTROL") {
-        attributeState("temperature", label:'${currentValue}', unit:"C", defaultState: true,
-					backgroundColors:[
-							[value: 0, color: "#153591"],
-							[value: 7, color: "#1e9cbb"],
-							[value: 15, color: "#90d2a7"],
-							[value: 23, color: "#44b621"],
-							[value: 28, color: "#f1d801"],
-							[value: 35, color: "#d04e00"],
-							[value: 37, color: "#bc2323"],
-					]        
-        )
+        tileAttribute("device.temperature", key: "PRIMARY_CONTROL") {
+            attributeState("temperature", label:'${currentValue}', unit:"C", defaultState: true,
+                        backgroundColors:[
+                                [value: 0, color: "#153591"],
+                                [value: 7, color: "#1e9cbb"],
+                                [value: 15, color: "#90d2a7"],
+                                [value: 23, color: "#44b621"],
+                                [value: 28, color: "#f1d801"],
+                                [value: 35, color: "#d04e00"],
+                                [value: 37, color: "#bc2323"],
+                        ]        
+            )
+        }
+        tileAttribute("device.thermostatSetpoint", key: "VALUE_CONTROL") {
+            attributeState("VALUE_UP", action:"raiseSetpoint", icon:"st.thermostat.thermostat-up")
+            attributeState("VALUE_DOWN", action:"lowerSetpoint", icon:"st.thermostat.thermostat-down")
+        }
+        tileAttribute("device.switch", key: "SECONDARY_CONTROL") {
+            attributeState("On", label:'On', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/Nefit Warm Water.png")
+            attributeState("Off", label:'Off', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/Nefit No Warm Water.png")
+        }
+        tileAttribute("device.thermostatOperatingState", key: "OPERATING_STATE") {
+            attributeState("idle", backgroundColor:"#00A0DC")
+            attributeState("heating", backgroundColor:"#e86d13")
+            attributeState("cooling", backgroundColor:"#00A0DC")
+        }
+        tileAttribute("device.thermostatMode", key: "THERMOSTAT_MODE") {
+            attributeState("thermostatMode", 	label:'${currentValue}')
+        }
+        tileAttribute("device.coolingSetpoint", key: "COOLING_SETPOINT") {
+            attributeState("coolingSetpoint", label:'${currentValue}', unit:"", defaultState: true)
+        }
+        tileAttribute("device.heatingSetpoint", key: "HEATING_SETPOINT") {
+            attributeState("heatingSetpoint", label:'${currentValue}', unit:"", defaultState: true)
+        }
     }
-    tileAttribute("device.temperature", key: "VALUE_CONTROL") {
-        attributeState("VALUE_UP", action:"raiseSetpoint", icon:"st.thermostat.thermostat-up")
-        attributeState("VALUE_DOWN", action:"lowerSetpoint", icon:"st.thermostat.thermostat-down")
-    }
-    tileAttribute("device.switch", key: "SECONDARY_CONTROL") {
-        attributeState("On", label:'On', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/Nefit Warm Water.png")
-        attributeState("Off", label:'Off', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/Nefit No Warm Water.png")
-    }
-    tileAttribute("device.thermostatOperatingState", key: "OPERATING_STATE") {
-        attributeState("idle", backgroundColor:"#00A0DC")
-        attributeState("heating", backgroundColor:"#e86d13")
-        attributeState("cooling", backgroundColor:"#00A0DC")
-    }
-    tileAttribute("device.thermostatMode", key: "THERMOSTAT_MODE") {
-        attributeState("eco", label:'${name}', action:"switchMode", nextState: "updating", icon: "st.thermostat.heating-cooling-off")
-        attributeState("manual", label:'${name}', action:"switchMode", nextState: "updating", icon: "st.thermostat.heat")
-        attributeState("auto", label:'${name}', action:"switchMode",  nextState: "updating", icon: "st.thermostat.auto")
-        attributeState("holiday", label:'${name}', action:"switchMode",  nextState: "updating", icon: "st.thermostat.heating-cooling-off")
-        attributeState("updating", label:"Working", icon: "st.secondary.secondary")
 
-    }
-    tileAttribute("device.coolingSetpoint", key: "COOLING_SETPOINT") {
-        attributeState("coolingSetpoint", label:'${currentValue}', unit:"", defaultState: true)
-    }
-}
-
-//**************************
 		valueTile("currentStatus", "device.thermostatStatus", height: 1, width: 2, decoration: "flat") {
 			state "thermostatStatus", label:'${currentValue}', backgroundColor:"#ffffff"
 		}
@@ -94,6 +89,34 @@ multiAttributeTile(name:"thermostatFull", type:"thermostat", width:6, height:4) 
 		input "holdType", "enum", title: "Hold Type", description: "When changing temperature, use Temporary (Until next transition) or Permanent hold (default)", required: false, options:["Temporary", "Permanent"]
 	}
 }
+void setThermostatMode(setMode) {
+	sendEvent(name: "thermostatMode", value: setMode)
+    log.info "Mode ${setMode} has been set"
+    def thermostatOperatingState
+    
+    switch (setMode) {
+    case "cool":
+		thermostatOperatingState = "cooling"
+		break
+    case "heat":
+		thermostatOperatingState = "heating"
+    	break
+    case "auto":
+		thermostatOperatingState = "idle"
+    	break
+     case "off":
+		thermostatOperatingState = "idle"
+    	break
+   default:
+		thermostatOperatingState = "idle"
+    }
+    sendEvent(name: "thermostatOperatingState", value: thermostatOperatingState)    	
+}
+void setThermostatFanMode(setMode) {
+	sendEvent(name: "thermostatFanMode", value: setMode)
+    log.info "Fan Mode ${setMode} has been set"
+}
+
 
 void installed() {
     // The device refreshes every 5 minutes by default so if we miss 2 refreshes we can consider it offline
@@ -123,10 +146,6 @@ void poll() {
 	
 }
 
-void switchMode() {
-
-}
-
 //return descriptionText to be shown on mobile activity feed
 private getThermostatDescriptionText(name, value, linkText) {
 	if(name == "temperature") {
@@ -151,7 +170,7 @@ void setCoolingSetpoint(setpoint) {
 	log.debug "***cooling setpoint $setpoint for $last"
 	parent.domoticz_setpoint(last, setpoint)  
     sendEvent(name: "coolingSetpoint", value: setpoint)
-	sendEvent(name:"thermostatStatus", value:"Cooling to ${setpoint}", description:"Heating to ${setpoint}", displayed: true)  
+	sendEvent(name: "thermostatStatus", value:"Cooling to ${setpoint}", description:"Heating to ${setpoint}", displayed: true)  
     sendEvent(name: "thermostatOperatingState", value: "cooling")
 
 
@@ -165,7 +184,7 @@ void setHeatingSetpoint(setpoint) {
     
 	parent.domoticz_setpoint(last, setpoint)  
     sendEvent(name: "heatingSetpoint", value: setpoint)
-	sendEvent(name:"thermostatStatus", value:"Heating to ${setpoint}", description:"Heating to ${setpoint}", displayed: true)    
+	sendEvent(name: "thermostatStatus", value:"Heating to ${setpoint}", description:"Heating to ${setpoint}", displayed: true)    
     sendEvent(name: "thermostatOperatingState", value: "heating")
     
     return 
@@ -181,12 +200,16 @@ def getDataByName(String name) {
 
 
 void raiseSetpoint() {
-
+	def currentSetpoint = device.currentValue("thermostatSetpoint") + 0.5  
+    log.info currentSetpoint
+    parent.domoticz_setpoint(getIDXAddress(), currentSetpoint)
 }
 
 //called by tile when user hit raise temperature button on UI
 void lowerSetpoint() {
-
+	def currentSetpoint = device.currentValue("thermostatSetpoint") - 0.5  
+    log.info currentSetpoint
+    parent.domoticz_setpoint(getIDXAddress(), currentSetpoint)
 }
 
 def generateStatusEvent() {
@@ -233,4 +256,21 @@ def convertFtoC (tempF) {
 
 def convertCtoF (tempC) {
 	return (Math.round(tempC * (9/5)) + 32).toInteger()
+}
+
+// gets the IDX address of the device
+private getIDXAddress() {
+	
+    def idx = getDataValue("idx")
+        
+    if (!idx) {
+        def parts = device.deviceNetworkId.split(":")
+        if (parts.length == 3) {
+            idx = parts[2]
+        } else {
+            log.warn "Can't figure out idx for device: ${device.id}"
+        }
+    }
+
+    return idx
 }
