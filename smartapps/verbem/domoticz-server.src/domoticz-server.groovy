@@ -26,6 +26,9 @@
     		inspect HaveTimeout property, false == Online health, true == Offline health
 	V5.07	Take maxdimlevel into account when passing the level for a dimmer
     V5.08	Added Gas Utility reporting device and collecing of usage, fixed a bug with Lux notifications and state reporting.
+    V6.00	Abilty to check oAuth in DZ settings against current oAuth
+    		Restructure of SocketSend routine (only path and callback provided to sendHub)
+            Restructure of UpdateDeviceList routine
  */
 
 import groovy.json.*
@@ -34,7 +37,7 @@ import java.Math.*
 
 private def cleanUpNeeded() {return true}
 
-private def runningVersion() {"5.08"}
+private def runningVersion() {"6.00"}
 
 private def textVersion() { return "Version ${runningVersion()}"}
 
@@ -153,6 +156,9 @@ private def setupMenu() {
     TRACE("[setupMenu]")
     if (state.accessToken) {
 		state.urlCustomActionHttp = getApiServerUrl() - ":443" + "/api/smartapps/installations/${app.id}/" + "EventDomoticz?access_token=" + state.accessToken + "&message=#MESSAGE"
+        if (!state.validUrl) state.validUrl = false
+        socketSend([request: "Settings"])
+        pause 5
     }
 
     if (!settings.containsKey('domoticzIpAddress')) {
@@ -184,6 +190,7 @@ private def setupMenu() {
         }
         section("HTTP Custom Action URL for Domoticz") {
             paragraph "${state.urlCustomActionHttp}"
+            paragraph "Valid setting in Domoticz? : ${state.validUrl}"
         }        
         section("About") {
             paragraph "${app.name}. ${textVersion()}\n${textCopyright()}"
@@ -242,6 +249,8 @@ private def setupCompositeSensors() {
         }
       }
     }
+    
+    sendThermostatModes()
 }
 /*-----------------------------------------------------------------------------------------*/
 /*		SET Up Configure Domoticz PAGE
@@ -385,7 +394,6 @@ private def setupAddDevices() {
         install     : false,
         uninstall   : false
     ]
-
     
 	state.listOfRoomPlanDevices = []
     if (domoticzRoomPlans)
@@ -477,7 +485,6 @@ private def setupListDevices() {
     }
 }
 
-
 def installed() {
     TRACE("[installed]")
     initialize()
@@ -516,7 +523,7 @@ private def initialize() {
     state.alive 				= true
     state.aliveAgain 			= true
     state.devicesOffline 		= false
-    state.scheduleCycle 		= 59i
+    state.scheduleCycle 		= 59i  // next cycle is 60, which triggers refresh of devices
 	state.optionsLux 			= [:]
     state.optionsMotion 		= [:]
     state.optionsTemperature 	= [:]
@@ -529,7 +536,6 @@ private def initialize() {
     updateDeviceList()
 	addReportDevices()
     assignSensorToDevice()
-    sendThermostatModes()		// this needs to be put in another place...more dynamic
         
     if 	(cleanUpNeeded() == true) {
         if (state?.runUpdateRoutine != runningVersion()) runUpdateRoutine()
@@ -539,9 +545,11 @@ private def initialize() {
     runEvery1Minute(aliveChecker)        
     schedule("2015-01-09T12:00:00.000-0600", notifyNewVersion) 
     STATE()
+    
 }
 
 private def runUpdateRoutine() {
+	
 	return    
 	log.info "UPDATE ROUTINE!!!"
 	state.devices.each {key, item ->
@@ -623,6 +631,7 @@ void scheduledGasReport() {
 /*		kWh, Lux etc...
 /*-----------------------------------------------------------------------------------------*/
 void callbackForUCount(evt) {
+	//TRACE("callbackForUCount")
     def response = getResponse(evt)
 
 	response.result.each { utility ->
@@ -788,57 +797,58 @@ private def callbackForDevices(statusrsp) {
 	if (!state.listSensors) state.listSensors = [:]
 
 	statusrsp.result.each {
-    	if (it?.Used != 1) log.error "${it.Name} ${it?.Used}"
-        compareTypeVal = it?.SwitchTypeVal
-        
-       	// handle SwitchTypeVal Exceptions
-        if (it?.Temp) compareTypeVal = 99
-        if (it?.SetPoint) compareTypeVal = 98
-        if (compareTypeVal == null) compareTypeVal = 100
-        
-        switch (compareTypeVal) 
-        {
-            case [3, 13, 6, 16]:		//	Window Coverings, 6 & 16 are inverted
-	            if (domoticzTypes.contains('Window Coverings')) addSwitch(it.idx, "domoticzBlinds", it.Name, it.Status, it.Type, it)
-	            break
-            case [0, 7]:		// 	Lamps OnOff, Dimmers and RGB
-            	SubType = it?.SubType
-                if (domoticzTypes.contains('On/Off/Dimmers/RGB') && SubType != "kWh") addSwitch(it.idx, "domoticzOnOff", it.Name, it.Status, it.Type, it)
+    	if (it?.Used == 1) {						// Only devices that are defined as being USED in DZ will make it as real devices
+            compareTypeVal = it?.SwitchTypeVal
+
+            // handle SwitchTypeVal Exceptions
+            if (it?.Temp) compareTypeVal = 99
+            if (it?.SetPoint) compareTypeVal = 98
+            if (compareTypeVal == null) compareTypeVal = 100
+
+            switch (compareTypeVal) 
+            {
+                case [3, 13, 6, 16]:		//	Window Coverings, 6 & 16 are inverted
+                    if (domoticzTypes.contains('Window Coverings')) addSwitch(it.idx, "domoticzBlinds", it.Name, it.Status, it.Type, it)
+                    break
+                case [0, 7]:		// 	Lamps OnOff, Dimmers and RGB
+                    SubType = it?.SubType
+                    if (domoticzTypes.contains('On/Off/Dimmers/RGB') && SubType != "kWh") addSwitch(it.idx, "domoticzOnOff", it.Name, it.Status, it.Type, it)
+                    break
+                case [2, 11]:				//	Contact 
+                    if (domoticzTypes.contains('Contact Sensors')) addSwitch(it.idx, "domoticzContact", it.Name, it.Status, it.Type, it)
+                    state.listSensors[it.idx] = [name: it.Name, idx: it.idx, type: "domoticzContact"]
+                    break
+                case 5:				//	Smoke Detector
+                    if (domoticzTypes.contains('Smoke Detectors')) addSwitch(it.idx, "domoticzSmokeDetector", it.Name, it.Status, it.Type, it)
+                    state.listSensors[it.idx] = [name: it.Name, idx: it.idx, type: "domoticzSmokeDetector"]
+                    break
+                case 8:				//	Motion Sensors
+                    if (domoticzTypes.contains('Motion Sensors')) addSwitch(it.idx, "domoticzMotion", it.Name, it.Status, it.Type, it)
+                    state.listSensors[it.idx] = [name: it.Name, idx: it.idx, type: "domoticzMotion"]
+                    break
+                case 12:			//	Dusk Sensors/Switch
+                    if (domoticzTypes.contains('Dusk Sensors')) addSwitch(it.idx, "domoticzDuskSensor", it.Name, it.Status, it.Type, it)
+                    state.listSensors[it.idx] = [name: it.Name, idx: it.idx, type: "domoticzDuskSensor"]
+                    break
+                case 18:			//	Selector Switch
+                    if (domoticzTypes.contains("On/Off/Dimmers/RGB")) addSwitch(it.idx, "domoticzSelector", it.Name, it.Status, it.SwitchType, it)
+                    break
+                case 98:			//	Thermostats
+                    if (domoticzTypes.contains("Thermostats")) addSwitch(it.idx, "domoticzThermostat", it.Name, it.SetPoint, it.Type, it)
+                    state.listSensors[it.idx] = [name: it.Name, idx: it.idx, type: "domoticzThermostat"]
+                   break
+                case 99:			//	Sensors
+                    if (domoticzTypes.contains("(Virtual) Sensors")) addSwitch(it.idx, "domoticzSensor", it.Name, "Active", it.Type, it)
+                    state.listSensors[it.idx] = [name: it.Name, idx: it.idx, type: "domoticzSensor"]
+                    break
+                case 100:
+                    break
+                default:
+                    TRACE("[callbackForDevices] non handled SwitchTypeVal ${compareTypeVal} ${it}")
                 break
-            case 2:				//	Contact 
-                if (domoticzTypes.contains('Contact Sensors')) addSwitch(it.idx, "domoticzContact", it.Name, it.Status, it.Type, it)
-                state.listSensors[it.idx] = [name: it.Name, idx: it.idx, type: "domoticzContact"]
-                break
-            case 5:				//	Smoke Detector
-                if (domoticzTypes.contains('Smoke Detectors')) addSwitch(it.idx, "domoticzSmokeDetector", it.Name, it.Status, it.Type, it)
-                state.listSensors[it.idx] = [name: it.Name, idx: it.idx, type: "domoticzSmokeDetector"]
-                break
-            case 8:				//	Motion Sensors
-                if (domoticzTypes.contains('Motion Sensors')) addSwitch(it.idx, "domoticzMotion", it.Name, it.Status, it.Type, it)
-                state.listSensors[it.idx] = [name: it.Name, idx: it.idx, type: "domoticzMotion"]
-                break
-            case 12:			//	Dusk Sensors/Switch
-                if (domoticzTypes.contains('Dusk Sensors')) addSwitch(it.idx, "domoticzDuskSensor", it.Name, it.Status, it.Type, it)
-                state.listSensors[it.idx] = [name: it.Name, idx: it.idx, type: "domoticzDuskSensor"]
-                break
-            case 18:			//	Selector Switch
-                if (domoticzTypes.contains("On/Off/Dimmers/RGB")) addSwitch(it.idx, "domoticzSelector", it.Name, it.Status, it.SwitchType, it)
-                break
-            case 98:			//	Thermostats
-                if (domoticzTypes.contains("Thermostats")) addSwitch(it.idx, "domoticzThermostat", it.Name, it.SetPoint, it.Type, it)
-                state.listSensors[it.idx] = [name: it.Name, idx: it.idx, type: "domoticzThermostat"]
-               break
-            case 99:			//	Sensors
-                if (domoticzTypes.contains("(Virtual) Sensors")) addSwitch(it.idx, "domoticzSensor", it.Name, "Active", it.Type, it)
-                state.listSensors[it.idx] = [name: it.Name, idx: it.idx, type: "domoticzSensor"]
-                break
-           	case 100:
-            	break
-            default:
-                TRACE("[callbackForDevices] non handled SwitchTypeVal ${compareTypeVal} ${it}")
-            break
-        }	
-    }            
+            }	
+        } 
+    }
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -1041,7 +1051,8 @@ def callbackForSettings(evt) {
 
     def decoded = response.HTTPURL.decodeBase64()
     def httpURL = new String(decoded)
-    TRACE("[callbackForSettings] ${httpURL}")
+    TRACE("[callbackForSettings] ${httpURL} ${httpURL.contains(state.urlCustomActionHttp)}")
+    state.validUrl = httpURL.contains(state.urlCustomActionHttp) 
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -1082,8 +1093,7 @@ private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, pa
     }
     
     if (dev) {      
-        //TRACE("[addSwitch] Updating child device ${addr}, ${passedFile}, ${passedName}, ${passedStatus}")
-        
+        TRACE("[addSwitch] Updating child device ${addr}, ${passedFile}, ${passedName}, ${passedStatus}")        
  		if (!state.devices[addr]) {       
             state.devices[addr] = [
                     'dni' : newdni,
@@ -1252,7 +1262,7 @@ private def createAttributes(domoticzDevice, domoticzStatus, addr) {
 /*-----------------------------------------------------------------------------------------*/
 /*		send ThermostatModes that are supported to the thermostat device
 /*		the modes are being retrieved from a multiselector switch that is related to
-/*		the thermostat in the smartapp (composite devices)
+/*		the thermostat in the smartapp (this is done with composite devices)
 /*-----------------------------------------------------------------------------------------*/
 private def sendThermostatModes() {
 	def thermoDev
@@ -1275,7 +1285,6 @@ private def sendThermostatModes() {
             }
         }
 	}
-
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -1317,7 +1326,8 @@ private def addReportDevices() {
 /*		Purge devices that were removed from Domoticz
 /*-----------------------------------------------------------------------------------------*/
 def updateDeviceList() {
-return
+	if (state.alive == false) return		// never execute when OFFLINE
+
     TRACE("[updateDeviceList]")
     def deletedDevices = new ArrayList()
     def findrspDevice
@@ -1330,7 +1340,7 @@ return
     pause 5
     def temprspGroups = state.statusGrpRsp
     pause 5
-    def tempStateDevices = state.devices    
+    def tempStateDevices = [:] << state.devices      
     pause 5
     
     if(temprspDevices) log.trace temprspDevices.size() + " Devices in response : " + temprspDevices
@@ -1358,33 +1368,24 @@ return
             }
       	}
     }
-    
-    tempStateDevices.each { k,v ->
-        inStatusrsp = false
-        
-        if (temprspDevices) findrspDevice = temprspDevices.find {it == k }
-        if (tmprspGroups) findrspGroup = temprspGroups.find {it == k }
-
-        if (findrspDevice || findrspGroup) inStatusrsp = true
-        
-        if (inStatusrsp == false ) {
-            deletedDevices.add(k)
-            try {
-            	if (v.hasProperty("dni")){
-                    TRACE("[updateDeviceList] Removing deleted device from state and from childDevices ${k}")
-                    deleteChildDevice(v.dni)
-                    }
-            } 	catch (e) {
-            	log.error "[updateDeviceList] Cannot delete device ${v.dni}. Error: ${e}"
-            }
-        }
+    // remove all USED devices in DZ, unused will remain
+	temprspDevices.each { idx ->
+		tempStateDevices.remove(idx)		    	
     }
-    
-	deletedDevices.each { k ->
-    	state.devices.remove(k)
+
+	if (tempStateDevices.size() > 0) {
+        def copyStateDevices = [:] << state.devices  
+
+        tempStateDevices.each { idx, item ->
+            log.error "removing from STATE " + idx
+            copyStateDevices.remove(idx)
+        }
+
+        state.devices = copyStateDevices
+        pause 5
     }
 }
-
+ 
 private def getDeviceListAsText(type) {
     String s = ""
     
@@ -1420,7 +1421,7 @@ private def STATE() {
 }
 
 /*-----------------------------------------------------------------------------------------*/
-/*		REGULAR DOMOTICZ COMMAND HANDLERS
+/*		REGULAR DOMOTICZ COMMAND HANDLERS FOR THE DEVICES
 /*-----------------------------------------------------------------------------------------*/
 def domoticz_poll(nid) {
     socketSend([request : "status", idx : nid])
@@ -1517,97 +1518,82 @@ def domoticz_modeChange(nid, modeType, nameLevel) {
 }
 
 /*-----------------------------------------------------------------------------------------*/
-/*		Excecute The real request via the local HUB
+/*		Excecute the real request via the local HUB
 /*-----------------------------------------------------------------------------------------*/
 private def socketSend(passed) {
 	//TRACE("[socketSend] entered with ${passed}")
-	def rooPath = ""
+	def hubPath = null
 	def hubAction = null
+    def hubCallback = [callback: callbackLog]
    
     switch (passed.request) {
 		case "status":
-			rooPath = "/json.htm?type=devices&rid=${passed.idx}" 									// "Devices"
-			hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${state.networkId}"], null, [callback: callbackStatus] )
+			hubPath = "/json.htm?type=devices&rid=${passed.idx}"
+            hubCallback = [callback: callbackStatus]
 			break;
 		case "utilityCount":
-        	rooPath = "/json.htm?type=devices&rid=${passed.idx}"   // "UtilityCount"
-            hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${state.networkId}"], null, [callback: callbackForUCount] )
+        	hubPath = "/json.htm?type=devices&rid=${passed.idx}"
+            hubCallback = [callback: callbackForUCount] 
  			break;
 		case "OptionTemperature":
-        	rooPath = "/json.htm?type=devices&filter=temp"   // "OptionTemp"
-            hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${state.networkId}"], null, [callback: callbackForEveryThing] )
- 			break;
+        	hubPath = "/json.htm?type=devices&filter=temp"
+            hubCallback = [callback: callbackForEveryThing]
+            break;
 		case "OptionUtility":
-        	rooPath = "/json.htm?type=devices&filter=utility"   // "OptionUtility"
-            hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${state.networkId}"], null, [callback: callbackForEveryThing] )
- 			break;
+        	hubPath = "/json.htm?type=devices&filter=utility"
+            hubCallback = [callback: callbackForEveryThing]
+            break;
 		case "OptionDevices":
-        	rooPath = "/json.htm?type=devices&filter=all&used=true&order=Name"   // "OptionDevices"
-            hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${state.networkId}"], null, [callback: callbackForEveryThing] )
- 			break;
+        	hubPath = "/json.htm?type=devices&filter=all&used=true&order=Name"
+            hubCallback = [callback: callbackForEveryThing]
+            break;
         case "List":
-        	rooPath = "/json.htm?type=devices&filter=all&used=true&order=Name"   // ALL
-            hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${state.networkId}"], null, [callback: callbackList] )
+        	hubPath = "/json.htm?type=devices&filter=all&used=true&order=Name"   // ALL USED Devices
+            hubCallback = [callback: callbackList]
 			break;
 		case "scenes":
-        	rooPath = "/json.htm?type=scenes"										// "Scenes"
-            hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${state.networkId}"], null, [callback: callbackForScenes] )
+        	hubPath = "/json.htm?type=scenes"
+            hubCallback = [callback: callbackForScenes]
  			break;
 		case "roomplans":
-        	rooPath = "/json.htm?type=plans&order=name&used=true"					// "Plans"  
-            hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${state.networkId}"], null, [callback: callbackForPlans] )
+        	hubPath = "/json.htm?type=plans&order=name&used=true"
+            hubCallback = [callback: callbackForPlans]
  			break;
 		case "roomplan":
-        	rooPath = "/json.htm?type=command&param=getplandevices&idx=${passed.idx}"		// "GetPlanDevices"
-            hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${state.networkId}"], null, [callback: callbackForRoom] )
+        	hubPath = "/json.htm?type=command&param=getplandevices&idx=${passed.idx}"
+            hubCallback = [callback: callbackForRoom]
  			break;
         case "sceneon":
-        	rooPath = "/json.htm?type=command&param=switchscene&idx=${passed.idx}&switchcmd=On" // "SwitchScene"
-			hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${state.networkId}"], null, [callback: callbackLog] )
+        	hubPath = "/json.htm?type=command&param=switchscene&idx=${passed.idx}&switchcmd=On"
             break;
         case "sceneoff":
-        	rooPath = "/json.htm?type=command&param=switchscene&idx=${passed.idx}&switchcmd=Off"  // "SwitchScene"
-			hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${state.networkId}"], null, [callback: callbackLog] )
+        	hubPath = "/json.htm?type=command&param=switchscene&idx=${passed.idx}&switchcmd=Off"
             break;            
 		case "alive":
-			rooPath = "/json.htm?type=devices&rid=0" 									// "Devices"
-            hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${state.networkId}"], null, [callback: aliveResponse] )
+			hubPath = "/json.htm?type=devices&rid=0"
+            hubCallback = [callback: aliveResponse]
 			break;
-        case "off":
-        	rooPath = "/json.htm?type=command&param=switchlight&idx=${passed.idx}&switchcmd=Off"	// "SwitchLight"
-			hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${state.networkId}"], null, [callback: callbackLog] )
-            break;
-        case "on":
-        	rooPath = "/json.htm?type=command&param=switchlight&idx=${passed.idx}&switchcmd=On"		// "SwitchLight"
-			hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${state.networkId}"], null, [callback: callbackLog] )
-            break;
-        case "stop":
-        	rooPath = "/json.htm?type=command&param=switchlight&idx=${passed.idx}&switchcmd=Stop"		// "SwitchLight"
-			hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${state.networkId}"], null, [callback: callbackLog] )
+        case ["off","on","stop"]:
+        	hubPath = "/json.htm?type=command&param=switchlight&idx=${passed.idx}&switchcmd=${passed.request.capitalize()}"
             break;
         case "setlevel":
-        	rooPath = "/json.htm?type=command&param=switchlight&idx=${passed.idx}&switchcmd=Set%20Level&level=${passed.level}"  // "SwitchLight"
-			hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${state.networkId}"], null, [callback: callbackLog] )
+        	hubPath = "/json.htm?type=command&param=switchlight&idx=${passed.idx}&switchcmd=Set%20Level&level=${passed.level}"
             break;
         case "setcolor":
-        	rooPath = "/json.htm?type=command&param=setcolbrightnessvalue&idx=${passed.idx}&hex=${passed.hex}&iswhite=false&brightness=${passed.brightness}&saturation=${passed.saturation}" // "SetColBrightnessValue"
-			hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${state.networkId}"], null, [callback: callbackLog] )
+        	hubPath = "/json.htm?type=command&param=setcolbrightnessvalue&idx=${passed.idx}&hex=${passed.hex}&iswhite=false&brightness=${passed.brightness}&saturation=${passed.saturation}"
             break;
         case "setcolorhue":
-        	rooPath = "/json.htm?type=command&param=setcolbrightnessvalue&idx=${passed.idx}&hue=${passed.hue}&iswhite=false&brightness=${passed.brightness}&saturation=${passed.saturation}" // "SetColBrightnessValue"
-			hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${state.networkId}"], null, [callback: callbackLog] )
+        	hubPath = "/json.htm?type=command&param=setcolbrightnessvalue&idx=${passed.idx}&hue=${passed.hue}&iswhite=false&brightness=${passed.brightness}&saturation=${passed.saturation}"
             break;
          case "setcolorwhite":
-        	rooPath = "/json.htm?type=command&param=setcolbrightnessvalue&idx=${passed.idx}&hex=${passed.hex}&iswhite=true&brightness=${passed.brightness}&saturation=${passed.saturation}" // "SetColBrightnessValue"
-			hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${state.networkId}"], null, [callback: callbackLog] )
+        	hubPath = "/json.htm?type=command&param=setcolbrightnessvalue&idx=${passed.idx}&hex=${passed.hex}&iswhite=true&brightness=${passed.brightness}&saturation=${passed.saturation}"
             break;
          case "counters":
-         	rooPath = "/json.htm?type=graph&sensor=counter&idx=${passed.idx}&range=${passed.range}"
-			hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${state.networkId}"], null, [callback: callbackForCounters] )
+         	hubPath = "/json.htm?type=graph&sensor=counter&idx=${passed.idx}&range=${passed.range}"
+            hubCallback = [callback: callbackForCounters]
             break;
          case "SetPoint":  
-         	rooPath = "/json.htm?type=setused&idx=${passed.idx}&setpoint=${passed.setpoint}&mode=ManualOverride&until=&used=true"
-			hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${state.networkId}"], null, [callback: callbackLog] )
+         	hubPath = "/json.htm?type=setused&idx=${passed.idx}&setpoint=${passed.setpoint}&mode=ManualOverride&until=&used=true"
             break;
          case "Notification": 
          	def tWhen = 0
@@ -1618,37 +1604,29 @@ private def socketSend(passed) {
                 tValue = passed.value
                 passed.action = "${passed.action}%20${tValue}"
             }
-        	rooPath = "/json.htm?type=command&param=addnotification&idx=${passed.idx}&ttype=${passed.type}&twhen=${tWhen}&tvalue=${tValue}&tmsg=IDX%20${passed.idx}%20${passed.action}&tsystems=http&tpriority=0&tsendalways=false&trecovery=false"
-			hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${settings.domoticzIpAddress}:${settings.domoticzTcpPort}"], null, [callback: callbackLog] )
+        	hubPath = "/json.htm?type=command&param=addnotification&idx=${passed.idx}&ttype=${passed.type}&twhen=${tWhen}&tvalue=${tValue}&tmsg=IDX%20${passed.idx}%20${passed.action}&tsystems=http&tpriority=0&tsendalways=false&trecovery=false"
             break;
-         case "SensorKWHNotification":         
-            rooPath = "/json.htm?type=command&param=addnotification&idx=${passed.idx}&ttype=5&twhen=1&tvalue=0&tmsg=SENSOR%20${passed.idx}&tsystems=http&tpriority=0&tsendalways=false&trecovery=false"
-			hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${settings.domoticzIpAddress}:${settings.domoticzTcpPort}"], null, [callback: callbackLog] )
+        case ["SensorKWHNotification", "SensorLuxNotification"]:         
+            hubPath = "/json.htm?type=command&param=addnotification&idx=${passed.idx}&ttype=5&twhen=1&tvalue=0&tmsg=SENSOR%20${passed.idx}&tsystems=http&tpriority=0&tsendalways=false&trecovery=false"
             break;         
-         case "SensorTempNotification":         
-            rooPath = "/json.htm?type=command&param=addnotification&idx=${passed.idx}&ttype=0&twhen=3&tvalue=-99&tmsg=IDX%20${passed.idx}%20%24value&tsystems=http&tpriority=0&tsendalways=false&trecovery=false"
-			hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${settings.domoticzIpAddress}:${settings.domoticzTcpPort}"], null, [callback: callbackLog] )
-            break;         
-         case "SensorLuxNotification":         
-            rooPath = "/json.htm?type=command&param=addnotification&idx=${passed.idx}&ttype=5&twhen=1&tvalue=0&tmsg=SENSOR%20${passed.idx}&tsystems=http&tpriority=0&tsendalways=false&trecovery=false"
-			hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${settings.domoticzIpAddress}:${settings.domoticzTcpPort}"], null, [callback: callbackLog] )
-            break;         
+        case "SensorTempNotification":         
+            hubPath = "/json.htm?type=command&param=addnotification&idx=${passed.idx}&ttype=0&twhen=3&tvalue=-99&tmsg=IDX%20${passed.idx}%20%24value&tsystems=http&tpriority=0&tsendalways=false&trecovery=false"
+            break;                
         case "ClearNotification":  
-            rooPath = "/json.htm?type=command&param=clearnotifications&idx=${passed.idx}"
-			hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${settings.domoticzIpAddress}:${settings.domoticzTcpPort}"], null, [callback: callbackLog] )
+            hubPath = "/json.htm?type=command&param=clearnotifications&idx=${passed.idx}"
             break;
 		case "Settings":  
-            rooPath = "/json.htm?type=settings"
-			hubAction = new physicalgraph.device.HubAction(method: "GET", path: rooPath, headers: [HOST: "${settings.domoticzIpAddress}:${settings.domoticzTcpPort}"], null, [callback: callbackForSettings] )
+            hubPath = "/json.htm?type=settings"
+            hubCallback = [callback: callbackForSettings]
             break;
         default:
         	return
             break;           
 	}
+	
+	if (hubPath == null) log.error "Error in calling socketsend!!! check rooPath/Request assignment"
 
-	if (hubAction == null) log.error "Error in calling socketsend!!! check hubaction assignment"
-    
-    sendHubCommand(hubAction)
+    sendHubCommand(new physicalgraph.device.HubAction(method: "GET", path: hubPath, headers: [HOST: "${state.networkId}"], null, hubCallback))
 }
 
 void aliveResponse(evt) {
@@ -1658,6 +1636,7 @@ void aliveResponse(evt) {
     if (state.aliveAgain == false) {
     	state.aliveAgain = true
     	log.info "Domoticz server is alive again"
+        sendNotification("Domoticz server is responding", [method: "push"])
         
         if (state.devicesOffline) devicesOnline()
         socketSend([request : "List"])
@@ -1669,7 +1648,7 @@ void aliveChecker(evt) {
 	if (state.alive == false && state.aliveCount > 1) {
     	state.aliveAgain = false
     	log.error "Domoticz server is not responding"
-        
+        sendNotification("Domoticz server is not responding", [method: "push"])
         if (!state.devicesOffline) devicesOffline()
     }
     
@@ -1748,7 +1727,6 @@ void refreshDevicesFromDomoticz() {
     socketSend([request : "roomplans"])
     pause 5
     
-	//state.domoticzRefresh = true
 	state.listOfRoomPlanDevices = []
     settings.domoticzPlans.each { v -> 
         state.statusPlansRsp.each {
