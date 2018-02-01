@@ -22,6 +22,7 @@
  *
  *  Revision History
  *  ----------------
+ *	2018-01-28 6.00 Check state before issue on or off, dont with same state
  *	2017-12-31 5.02	Added power today and total to powerToday event, changed tile to display
  *	2017-12-15 5.00 implemented image graphs for power usage if available
  *  2017-10-28 4.12 correct to saturation color in normal setColor mode
@@ -80,7 +81,6 @@ metadata {
 				attributeState "Error", label:'Install Error', backgroundColor: "#bc2323"
                 
             }
-
             tileAttribute ("device.powerToday", key: "SECONDARY_CONTROL") {
                 attributeState "powerToday", label:'${currentValue}', icon: "st.Appliances.appliances17", defaultState: true
                 attributeState "noPower", label:''
@@ -130,7 +130,7 @@ metadata {
 
         main(["richDomoticzOnOff"])
         
-        details(["richDomoticzOnOff", "graph", "day", "week", "month", "year", "rssi", "debug"])
+        details(["richDomoticzOnOff", "day", "week", "month", "year", "graph", "rssi", "debug"])
     }
 }
 
@@ -178,7 +178,7 @@ def refresh() {
 
 // switch.on() command handler
 def on() {
-	//if (device.currentValue("switch").toUpperCase() == "ON") return
+	if (device.currentValue("switch").toUpperCase() == "ON") return
     
     if (parent.name == "Domoticz Server") parent.domoticz_on(getIDXAddress())
     if (parent.name == "Hue Sensor (Connect)") parent.groupCommand(["command" : "on", "dni": device.deviceNetworkId])
@@ -186,7 +186,7 @@ def on() {
 
 // switch.off() command handler
 def off() {
-	//if (device.currentValue("switch").toUpperCase() == "OFF") return
+	if (device.currentValue("switch").toUpperCase() == "OFF") return
     
     if (parent.name == "Domoticz Server") parent.domoticz_off(getIDXAddress())
     if (parent.name == "Hue Sensor (Connect)") parent.groupCommand(["command" : "off", "dni": device.deviceNetworkId])
