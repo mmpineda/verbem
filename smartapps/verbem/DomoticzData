@@ -1,3 +1,8 @@
+Version 6.00	
+    Abilty to check oAuth in DZ settings against current oAuth
+    Restructure of SocketSend routine (only path and callback provided to sendHub)
+    Restructure of UpdateDeviceList routine
+
 Version 5.08
     Added Gas Utility reporting device and collecing of usage, fixed a bug with Lux notifications and state reporting
 
