@@ -557,6 +557,7 @@ private def initialize() {
     notifyNewVersion()
     
     unschedule()    
+    unsubscribe()    
     
     if (state.accessToken) state.urlCustomActionHttp = getApiServerUrl() - ":443" + "/api/smartapps/installations/${app.id}/" + "EventDomoticz?access_token=" + state.accessToken + "&message=#MESSAGE"
     
@@ -587,7 +588,7 @@ private def initialize() {
             pause 5
        	}
         defineSmartThingsInDomoticz() 
-        unsubscribe()
+
         if (dzDevicesSwitches) subscribe(dzDevicesSwitches, "switch", handlerEvents)
         if (dzSensorsContact) subscribe(dzSensorsContact, "contact", handlerEvents)
         if (dzSensorsMotion) subscribe(dzSensorsMotion, "motion", handlerEvents)
