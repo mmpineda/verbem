@@ -29,6 +29,9 @@
     V6.00	Abilty to check oAuth in DZ settings against current oAuth
     		Restructure of SocketSend routine (only path and callback provided to sendHub)
             Restructure of UpdateDeviceList routine
+	V6.10	Start with implementing creation of ST real devices as DZ virtual devices
+    		Create Hardware routine, Create Device routine, Create Sensor Routine
+            Setup page with what devicetypes to select
  */
 
 import groovy.json.*
@@ -37,7 +40,7 @@ import java.Math.*
 
 private def cleanUpNeeded() {return true}
 
-private def runningVersion() {"6.00"}
+private def runningVersion() {"6.10"}
 
 private def textVersion() { return "Version ${runningVersion()}"}
 
@@ -65,6 +68,7 @@ preferences {
     page name:"setupAddDevices"
     page name:"setupRefreshToken"
     page name:"setupCompositeSensors"
+    page name:"setupSmartThingsToDomoticz"
 
 }
 /*-----------------------------------------------------------------------------------------*/
@@ -184,6 +188,7 @@ private def setupMenu() {
             	href "setupCompositeSensors", title:"Create Composite Devices", description:"Tap to open"	
             }
             href "setupRefreshToken", title:"Revoke/Recreate Access Token", description:"Tap to open"
+            href "setupSmartThingsToDomoticz", title:"Define SmartThing Devices in Domoticz", description:"Tap to open"
         }
         section([title:"Options", mobileOnly:true]) {
             label title:"Assign a name", required:false
@@ -351,6 +356,44 @@ private def setupDomoticz() {
 }
 
 /*-----------------------------------------------------------------------------------------*/
+/*		SET Up Configure Domoticz PAGE
+/*-----------------------------------------------------------------------------------------*/
+private def setupSmartThingsToDomoticz() {
+    TRACE("[setupSmartThingsToDomoticz]")
+    
+    socketSend([request:"ListHardware"])
+   
+    def inputST2DZ = [
+        name        : "domoticzVirtualDevices",
+        submitOnChange : true,
+        type        : "bool",
+        title       : "Define native Smartthings devices as Domoticz Virtuals",
+        defaultValue: false
+    ]
+    def pageProperties = [
+        name        : "setupSmartThingsToDomoticz",
+        title       : "Configure SmartThings to Domoticz Server",
+        nextPage    : "setupMenu",
+        install     : false,
+        uninstall   : false
+    ]
+    return dynamicPage(pageProperties) {
+      section {
+            input inputST2DZ
+        	}
+      if (domoticzVirtualDevices) {
+      	section {
+      		paragraph "Select native SmartThing devices \n\n Devices created by this App will be IGNORED when you select them"
+      		input "dzDevicesSwitches", "capability.switch", title:"Select switch devices", multiple:true, required:false
+      		input "dzSensorsContact", "capability.contactSensor", title:"Select contact sensors", multiple:true, required:false
+      		input "dzSensorsMotion", "capability.motionSensor", title:"Select motion sensors", multiple:true, required:false
+      		input "dzSensorsTemp", "capability.temperatureMeasurement", title:"Select Temperature sensors", multiple:true, required:false
+      		input "dzSensorsIll", "capability.illuminanceMeasurement", title:"Select Illuminance sensors", multiple:true, required:false
+        }
+      }
+    }
+}
+/*-----------------------------------------------------------------------------------------*/
 /*		SET Up Add Domoticz Devices PAGE
 /*-----------------------------------------------------------------------------------------*/
 private def setupDeviceRequest() {
@@ -513,7 +556,6 @@ private def initialize() {
     TRACE("[Initialize] ${app.name}. ${textVersion()}. ${textCopyright()}")
     notifyNewVersion()
     
-    unsubscribe()
     unschedule()    
     
     if (state.accessToken) state.urlCustomActionHttp = getApiServerUrl() - ":443" + "/api/smartapps/installations/${app.id}/" + "EventDomoticz?access_token=" + state.accessToken + "&message=#MESSAGE"
@@ -532,10 +574,26 @@ private def initialize() {
     state.optionsPower 			= [:]
     state.optionsModes 			= [:]
     state.optionsGas 			= [:]
-	      
+
     updateDeviceList()
 	addReportDevices()
     assignSensorToDevice()
+    
+    if (settings?.domoticzVirtualDevices == true) {
+    	if (state.dzHardwareIdx == null) {
+        	socketSend([request:"CreateHardware"])
+        	pause 2
+            socketSend([request:"ListHardware"])
+            pause 5
+       	}
+        defineSmartThingsInDomoticz() 
+        unsubscribe()
+        if (dzDevicesSwitches) subscribe(dzDevicesSwitches, "switch", handlerEvents)
+        if (dzSensorsContact) subscribe(dzSensorsContact, "contact", handlerEvents)
+        if (dzSensorsMotion) subscribe(dzSensorsMotion, "motion", handlerEvents)
+        if (dzSensorsTemp) subscribe(dzSensorsTemp, "temperature", handlerEvents)
+        if (dzSensorsIll) subscribe(dzSensorsIll, "illuminance", handlerEvents)
+    }
         
     if 	(cleanUpNeeded() == true) {
         if (state?.runUpdateRoutine != runningVersion()) runUpdateRoutine()
@@ -543,9 +601,7 @@ private def initialize() {
     }    
     
     runEvery1Minute(aliveChecker)        
-    schedule("2015-01-09T12:00:00.000-0600", notifyNewVersion) 
-    STATE()
-    
+    schedule("2015-01-09T12:00:00.000-0600", notifyNewVersion)   
 }
 
 private def runUpdateRoutine() {
@@ -626,6 +682,104 @@ void scheduledGasReport() {
     }
 }
 
+private def defineSmartThingsInDomoticz() {
+	if (!state?.unitcode) state.unitcode = 0
+    def unitcode = state.unitcode
+    def type
+    def exists
+      
+        dzDevicesSwitches.each { dev ->
+        	if (dev.deviceNetworkId.contains("IDX") == false) {
+            	type = "switch"
+                if (getVirtualIdx([name: dev.displayName, type: type]) == null) {
+                    socketSend([request:"CreateVirtualDevice", deviceName:dev.displayName.replaceAll(" ", "%20"), switchType:0, unitcode: unitcode])
+                    unitcode = unitcode + 1
+                	// type 0 = on Off, 7 = dimmer, 8 = motion, contact = 2
+             	}
+           	}
+        }
+        dzSensorsContact.each { dev ->
+        	if (dev.deviceNetworkId.contains("IDX") == false) {
+            	type = "contact"
+                if (getVirtualIdx([name: dev.displayName, type: type]) == null) {
+                    socketSend([request:"CreateVirtualDevice", deviceName:dev.displayName.replaceAll(" ", "%20"), switchType:2, unitcode: unitcode])
+                    unitcode = unitcode + 1
+              	}
+            }
+        }
+        dzSensorsMotion.each { dev ->
+        	if (dev.deviceNetworkId.contains("IDX") == false) {
+            	type = "motion"
+                if (getVirtualIdx([name: dev.displayName, type: type]) == null) {
+                    socketSend([request:"CreateVirtualDevice", deviceName:dev.displayName.replaceAll(" ", "%20"), switchType:8, unitcode: unitcode])
+                    unitcode = unitcode + 1
+                }
+            }
+        }
+        state.unitcode = unitcode
+        
+        dzSensorsTemp.each { dev ->
+        	if (dev.deviceNetworkId.contains("IDX") == false) {
+            	type = "temperature"
+                if (getVirtualIdx([name: dev.displayName, type: type]) == null) {
+                	socketSend([request:"CreateVirtualSensor", deviceName:dev.displayName.replaceAll(" ", "%20"), sensorType:80])
+               	}
+            }
+        }
+       	dzSensorsIll.each { dev ->
+        	if (dev.deviceNetworkId.contains("IDX") == false) {
+            	type = "illuminance"
+                if (getVirtualIdx([name: dev.displayName, type: type]) == null) {
+	                socketSend([request:"CreateVirtualSensor", deviceName:dev.displayName.replaceAll(" ", "%20"), sensorType:246])
+                }
+            }
+        }
+}
+/*-----------------------------------------------------------------------------------------*/
+/*		Update the usage info in virtual domoticz devices that have been selected by user to sync to DZ
+/*-----------------------------------------------------------------------------------------*/
+void handlerEvents(evt) {
+
+	if (evt?.isStateChange() == false) {
+        return
+    }
+
+	def dev = evt?.device
+    
+    if (!dev) return
+    if (dev?.typeName.contains("domoticz")) return
+         
+	def idx = getVirtualIdx([name:dev.displayName, type: evt.name])
+    
+    if (idx) {   
+    	log.info "${evt.name} ${evt.stringValue} for ${dev.displayName} idx${idx}"
+        switch (evt.name) {
+        case "switch":
+            socketSend([request: evt.stringValue, idx: idx])
+            break
+        case "motion":
+        	if (evt.stringValue == "inactive") socketSend([request: "off", idx: idx]) else socketSend([request: "on", idx: idx])
+            break
+        case "contact":
+        	if (evt.stringValue == "closed") socketSend([request: "off", idx: idx]) else socketSend([request: "on", idx: idx])
+            break
+        case "temperature":
+        	socketSend([request: "SetTemp", idx: idx, temp:evt.stringValue])
+            break
+        case "illuminance":
+        	socketSend([request: "SetLux", idx: idx, lux:evt.stringValue])
+            break
+        default:
+            break
+        }
+	}
+}
+
+private def getVirtualIdx(passed) {
+    def virtual = state.virtualDevices.find {key, item -> item.name.toUpperCase() == passed.name.toUpperCase() && item.type.toUpperCase() == passed.type.toUpperCase() }
+  
+    if (virtual) return virtual.key   
+}
 /*-----------------------------------------------------------------------------------------*/
 /*		Update the usage info on composite DZ devices that report on a utility
 /*		kWh, Lux etc...
@@ -794,57 +948,96 @@ private def callbackForDevices(statusrsp) {
 
 	def compareTypeVal
     def SubType
+    def dni
+    def idxST = state.dzHardwareIdx.toInteger()
+    
 	if (!state.listSensors) state.listSensors = [:]
-
-	statusrsp.result.each {
-    	if (it?.Used == 1) {						// Only devices that are defined as being USED in DZ will make it as real devices
-            compareTypeVal = it?.SwitchTypeVal
+    if (!state.virtualDevices) state.virtualDevices = [:]
+    
+	statusrsp.result.each { device ->
+    	if (device?.Used == 1) {						// Only devices that are defined as being USED in DZ will make it as real devices
+            compareTypeVal = device?.SwitchTypeVal
+            dni = null
 
             // handle SwitchTypeVal Exceptions
-            if (it?.Temp) compareTypeVal = 99
-            if (it?.SetPoint) compareTypeVal = 98
+            if (device?.Type == "Temp") compareTypeVal = 99
+            if (device?.SetPoint) compareTypeVal = 98
             if (compareTypeVal == null) compareTypeVal = 100
+			
+            // REAL SmartThings devices that where defined in Domoticz as virtual devices
+            if (device?.HardwareID == idxST) {
+  
+                switch (compareTypeVal) {
+                case 0:
+                	SubType = "switch"
+                    def dev
+                    settings.dzDevicesSwitches.each {
+                        if (it.displayName == device.Name) dev = it
+                    }
+                    dni = dev.deviceNetworkId
 
+                	if (device.Notifications == "false") {
+                        socketSend([request : "Notification", idx : device.idx, type : 7, action : "on"])
+                        socketSend([request : "Notification", idx : device.idx, type : 16, action : "off"])
+                    }
+                    break
+               	case 2:
+                	SubType = "contact"
+                    break
+                case 8:
+                	SubType = "motion"
+                    break
+                case 99:
+                	SubType = "temperature"
+                    break
+                case 100:
+                	SubType = "illuminance"
+                    break
+                }
+                state.virtualDevices[device.idx] = [idx: device.idx, name: device.Name, type: SubType, dni: dni ]
+            	compareTypeVal = 100
+            }
+			
             switch (compareTypeVal) 
             {
                 case [3, 13, 6, 16]:		//	Window Coverings, 6 & 16 are inverted
-                    if (domoticzTypes.contains('Window Coverings')) addSwitch(it.idx, "domoticzBlinds", it.Name, it.Status, it.Type, it)
+                    if (domoticzTypes.contains('Window Coverings')) addSwitch(device.idx, "domoticzBlinds", device.Name, device.Status, device.Type, device)
                     break
                 case [0, 7]:		// 	Lamps OnOff, Dimmers and RGB
-                    SubType = it?.SubType
-                    if (domoticzTypes.contains('On/Off/Dimmers/RGB') && SubType != "kWh") addSwitch(it.idx, "domoticzOnOff", it.Name, it.Status, it.Type, it)
+                    SubType = device?.SubType
+                    if (domoticzTypes.contains('On/Off/Dimmers/RGB') && SubType != "kWh") addSwitch(device.idx, "domoticzOnOff", device.Name, device.Status, device.Type, device)
                     break
                 case [2, 11]:				//	Contact 
-                    if (domoticzTypes.contains('Contact Sensors')) addSwitch(it.idx, "domoticzContact", it.Name, it.Status, it.Type, it)
-                    state.listSensors[it.idx] = [name: it.Name, idx: it.idx, type: "domoticzContact"]
+                    if (domoticzTypes.contains('Contact Sensors')) addSwitch(device.idx, "domoticzContact", device.Name, device.Status, device.Type, device)
+                    state.listSensors[device.idx] = [name: device.Name, idx: device.idx, type: "domoticzContact"]
                     break
                 case 5:				//	Smoke Detector
-                    if (domoticzTypes.contains('Smoke Detectors')) addSwitch(it.idx, "domoticzSmokeDetector", it.Name, it.Status, it.Type, it)
-                    state.listSensors[it.idx] = [name: it.Name, idx: it.idx, type: "domoticzSmokeDetector"]
+                    if (domoticzTypes.contains('Smoke Detectors')) addSwitch(device.idx, "domoticzSmokeDetector", device.Name, device.Status, device.Type, device)
+                    state.listSensors[device.idx] = [name: device.Name, idx: device.idx, type: "domoticzSmokeDetector"]
                     break
                 case 8:				//	Motion Sensors
-                    if (domoticzTypes.contains('Motion Sensors')) addSwitch(it.idx, "domoticzMotion", it.Name, it.Status, it.Type, it)
-                    state.listSensors[it.idx] = [name: it.Name, idx: it.idx, type: "domoticzMotion"]
+                    if (domoticzTypes.contains('Motion Sensors')) addSwitch(device.idx, "domoticzMotion", device.Name, device.Status, device.Type, device)
+                    state.listSensors[device.idx] = [name: device.Name, idx: device.idx, type: "domoticzMotion"]
                     break
                 case 12:			//	Dusk Sensors/Switch
-                    if (domoticzTypes.contains('Dusk Sensors')) addSwitch(it.idx, "domoticzDuskSensor", it.Name, it.Status, it.Type, it)
-                    state.listSensors[it.idx] = [name: it.Name, idx: it.idx, type: "domoticzDuskSensor"]
+                    if (domoticzTypes.contains('Dusk Sensors')) addSwitch(device.idx, "domoticzDuskSensor", device.Name, device.Status, device.Type, device)
+                    state.listSensors[device.idx] = [name: device.Name, idx: device.idx, type: "domoticzDuskSensor"]
                     break
                 case 18:			//	Selector Switch
-                    if (domoticzTypes.contains("On/Off/Dimmers/RGB")) addSwitch(it.idx, "domoticzSelector", it.Name, it.Status, it.SwitchType, it)
+                    if (domoticzTypes.contains("On/Off/Dimmers/RGB")) addSwitch(device.idx, "domoticzSelector", device.Name, device.Status, device.SwitchType, device)
                     break
                 case 98:			//	Thermostats
-                    if (domoticzTypes.contains("Thermostats")) addSwitch(it.idx, "domoticzThermostat", it.Name, it.SetPoint, it.Type, it)
-                    state.listSensors[it.idx] = [name: it.Name, idx: it.idx, type: "domoticzThermostat"]
+                    if (domoticzTypes.contains("Thermostats")) addSwitch(device.idx, "domoticzThermostat", device.Name, device.SetPoint, device.Type, device)
+                    state.listSensors[device.idx] = [name: device.Name, idx: device.idx, type: "domoticzThermostat"]
                    break
                 case 99:			//	Sensors
-                    if (domoticzTypes.contains("(Virtual) Sensors")) addSwitch(it.idx, "domoticzSensor", it.Name, "Active", it.Type, it)
-                    state.listSensors[it.idx] = [name: it.Name, idx: it.idx, type: "domoticzSensor"]
+                    if (domoticzTypes.contains("(Virtual) Sensors")) addSwitch(device.idx, "domoticzSensor", device.Name, "Active", device.Type, device)
+                    state.listSensors[device.idx] = [name: device.Name, idx: device.idx, type: "domoticzSensor"]
                     break
                 case 100:
                     break
                 default:
-                    TRACE("[callbackForDevices] non handled SwitchTypeVal ${compareTypeVal} ${it}")
+                    TRACE("[callbackForDevices] non handled SwitchTypeVal ${compareTypeVal} ${device}")
                 break
             }	
         } 
@@ -873,7 +1066,7 @@ def callbackForEveryThing(evt) {
     
     response.result.each {
 		//TEMP		    	        
-        if (it?.Temp) {
+        if (it?.Type == "Temp") {
         	state.optionsTemperature[it.idx] = "${it.idx} : ${it.Name}"
             if (it.Notifications == "false") socketSend([request : "SensorTempNotification", idx : it.idx])
         }
@@ -891,7 +1084,7 @@ def callbackForEveryThing(evt) {
         	state.optionsCarbon2[it.idx] = "${it.idx} : ${it.Name}"
         }
         //LUX
-        if (it?.SubType == "Lux") {
+        if (it?.Type == "Lux") {
         	state.optionsLux[it.idx] = "${it.idx} : ${it.Name}"
             if (it.Notifications == "false") socketSend([request : "SensorLuxNotification", idx : it.idx])
         }
@@ -1018,18 +1211,19 @@ def callbackForCounters(evt) {
 /*		callback for getting all devices 
 /*-----------------------------------------------------------------------------------------*/
 def callbackList(evt) {
-
+	state.listInprogress = true
     def response = getResponse(evt)
     def listIdx = response.result.collect {it.idx}.sort() 
-    state.statusrsp = listIdx
-    pause 10
     callbackForDevices(response)    
+    state.statusrsp = listIdx
+    state.listInprogress = false
 }
 
 /*-----------------------------------------------------------------------------------------*/
 /*		callback for getting single device status
 /*-----------------------------------------------------------------------------------------*/
 def callbackStatus(evt) {
+	if (state.listInprogress) return
     def response = getResponse(evt)
     callbackForDevices(response)    
 }
@@ -1042,7 +1236,18 @@ def callbackLog(evt) {
 }
 
 /*-----------------------------------------------------------------------------------------*/
-/*		callback for getting the Domoticz Settings (BETA)
+/*		Capture the created hardware IDX for SmartThings
+/*-----------------------------------------------------------------------------------------*/
+def callbackListHardware(evt) {
+    def response = getResponse(evt)
+    state.dzHardwareIdx			= null
+	response.result.each { hardware ->
+    	if (hardware.Name == "SmartThings") state.dzHardwareIdx = hardware.idx
+    }
+}
+
+/*-----------------------------------------------------------------------------------------*/
+/*		callback for getting the Domoticz Settings
 /*-----------------------------------------------------------------------------------------*/
 def callbackForSettings(evt) {
 
@@ -1053,6 +1258,19 @@ def callbackForSettings(evt) {
     def httpURL = new String(decoded)
     TRACE("[callbackForSettings] ${httpURL} ${httpURL.contains(state.urlCustomActionHttp)}")
     state.validUrl = httpURL.contains(state.urlCustomActionHttp) 
+}
+
+/*-----------------------------------------------------------------------------------------*/
+/*		callback after creation of the virtual sensor/device it will provide the new IDX
+/*		call for the provided device, this will create the link between IDX and NAME
+/*		in state.virtualDevices
+/*-----------------------------------------------------------------------------------------*/
+def callbackVirtualDevices(evt) {
+    def response = getResponse(evt)
+    log.info response
+	response?.result.each { hardware ->
+    	socketSend([request:"status", idx:hardware.idx])
+    }  
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -1093,7 +1311,7 @@ private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, pa
     }
     
     if (dev) {      
-        TRACE("[addSwitch] Updating child device ${addr}, ${passedFile}, ${passedName}, ${passedStatus}")        
+        //TRACE("[addSwitch] Updating child device ${addr}, ${passedFile}, ${passedName}, ${passedStatus}")        
  		if (!state.devices[addr]) {       
             state.devices[addr] = [
                     'dni' : newdni,
@@ -1573,7 +1791,7 @@ private def socketSend(passed) {
 			hubPath = "/json.htm?type=devices&rid=0"
             hubCallback = [callback: aliveResponse]
 			break;
-        case ["off","on","stop"]:
+        case ["off","on","stop", "toggle"]:
         	hubPath = "/json.htm?type=command&param=switchlight&idx=${passed.idx}&switchcmd=${passed.request.capitalize()}"
             break;
         case "setlevel":
@@ -1594,6 +1812,12 @@ private def socketSend(passed) {
             break;
          case "SetPoint":  
          	hubPath = "/json.htm?type=setused&idx=${passed.idx}&setpoint=${passed.setpoint}&mode=ManualOverride&until=&used=true"
+            break;
+         case "SetLux":  
+         	hubPath = "/json.htm?type=command&param=udevice&idx=${passed.idx}&svalue=${passed.lux}"
+            break;
+         case "SetTemp":  
+         	hubPath = "/json.htm?type=command&param=udevice&idx=${passed.idx}&nvalue=0&svalue=${passed.temp}"
             break;
          case "Notification": 
          	def tWhen = 0
@@ -1619,12 +1843,31 @@ private def socketSend(passed) {
             hubPath = "/json.htm?type=settings"
             hubCallback = [callback: callbackForSettings]
             break;
+		case "CreateHardware":  
+            hubPath = "/json.htm?type=command&param=addhardware&htype=15&port=1&name=SmartThings&enabled=true"
+            break;
+		case "ListHardware":  
+            hubPath = "/json.htm?type=hardware"
+            hubCallback = [callback: callbackListHardware]
+            break;        
+		case "CreateVirtualDevice":  
+            hubPath = "/json.htm?type=command&param=addswitch&hwdid=${state.dzHardwareIdx}&name=${passed.deviceName}&description=undefined&switchtype=${passed.switchType}&lighttype=0&housecode=80&unitcode=${passed.unitcode}"
+            hubCallback = [callback: callbackVirtualDevices]
+            log.info hubPath
+			break;        
+		case "CreateVirtualSensor":  
+            hubPath = "/json.htm?type=createvirtualsensor&idx=${state.dzHardwareIdx}&sensorname=${passed.deviceName}&sensortype=${passed.sensorType}"
+            hubCallback = [callback: callbackVirtualDevices]
+            break;        
         default:
         	return
             break;           
 	}
 	
-	if (hubPath == null) log.error "Error in calling socketsend!!! check rooPath/Request assignment"
+	if (hubPath == null) {
+    	log.error "Error in calling socketsend!!! check rooPath/Request assignment"
+        return
+    }
 
     sendHubCommand(new physicalgraph.device.HubAction(method: "GET", path: hubPath, headers: [HOST: "${state.networkId}"], null, hubCallback))
 }
@@ -1636,7 +1879,7 @@ void aliveResponse(evt) {
     if (state.aliveAgain == false) {
     	state.aliveAgain = true
     	log.info "Domoticz server is alive again"
-        sendNotification("Domoticz server is responding", [method: "push"])
+        sendNotification("Domoticz server is responding again", [method: "push"])
         
         if (state.devicesOffline) devicesOnline()
         socketSend([request : "List"])
@@ -1644,7 +1887,9 @@ void aliveResponse(evt) {
 }
 
 void aliveChecker(evt) {
-
+	def cycles 
+	if (state?.scheduleCycle == null)  cycles = 59i else cycles = state.scheduleCycle + 1
+    
 	if (state.alive == false && state.aliveCount > 1) {
     	state.aliveAgain = false
     	log.error "Domoticz server is not responding"
@@ -1663,12 +1908,8 @@ void aliveChecker(evt) {
 	// -----------------------------------------------
 
     runIn(30, scheduledListSensorOptions)
- 
-	if (state?.scheduleCycle == null)  state.scheduleCycle = 59i
     
-	state.scheduleCycle = state.scheduleCycle + 1
-    
-    if (state.scheduleCycle % 60 == 0) {
+    if (cycles % 60 == 0) {
         runIn(10,refreshDevicesFromDomoticz)
         
         if (state.devReportPower != null) {      
@@ -1678,6 +1919,8 @@ void aliveChecker(evt) {
         	runIn(60+40, scheduledGasReport)
         }
     }
+    state.scheduleCycle = cycles
+
 }
 
 private def devOnline(dev) {
@@ -1748,6 +1991,23 @@ void refreshDevicesFromDomoticz() {
 /*		Domoticz will send an notification message to ST for all devices THAT HAVE BEEN SELECTED to do that
 /*-----------------------------------------------------------------------------------------*/
 def eventDomoticz() {
+	if (params.message.contains("IDX ") && params.message.split().size() == 3) {
+    	def idx = params.message.split()[1]
+    	def status = params.message.split()[2]
+        def item = state.virtualDevices.find {key, item -> item.idx == idx && item.type == "switch" }
+		if (item != null) {
+        	log.debug "Found virtual device ${item.value.dni} of switch type"
+            settings.dzDevicesSwitches.each { device ->
+            	if (device.deviceNetworkId == item.value.dni) {
+                	if (device.currentValue("switch").toUpperCase() != status.toUpperCase()) {		// status was changed in DZ for a virtual device
+                    	log.debug "change status of virtual device ${device.displayName}"
+                    	if (status == "on") device.on() else device.off()
+                    }
+                }
+            }
+            return
+        }
+    }
     
 	if (params.message.contains("IDX ") && params.message.split().size() >= 3) {
     	def idx = params.message.split()[1]
