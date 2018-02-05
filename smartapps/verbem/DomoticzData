@@ -1,3 +1,11 @@
+Version 6.11
+    toInteger check on device return
+
+Version 6.10
+    Start with implementing creation of ST real devices as DZ virtual devices
+    Create Hardware routine, Create Device routine, Create Sensor Routine
+    Setup page with what devicetypes to select
+
 Version 6.00	
     Abilty to check oAuth in DZ settings against current oAuth
     Restructure of SocketSend routine (only path and callback provided to sendHub)
