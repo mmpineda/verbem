@@ -584,7 +584,7 @@ private def initialize() {
     if (settings?.domoticzVirtualDevices == true) {
     	if (state.dzHardwareIdx == null) {
         	socketSend([request:"CreateHardware"])
-        	pause 2
+        	pause 5
             socketSend([request:"ListHardware"])
             pause 5
        	}
@@ -599,6 +599,8 @@ private def initialize() {
     else {
     	state.remove("virtualDevices")
         socketSend([request:"DeleteHardware"])
+        state.remove("dzHardwareIdx")
+        pause 5
     }
         
     if 	(cleanUpNeeded() == true) {
@@ -611,7 +613,6 @@ private def initialize() {
 }
 
 private def runUpdateRoutine() {
-	
 	return    
 	log.info "UPDATE ROUTINE!!!"
 	state.devices.each {key, item ->
@@ -962,7 +963,9 @@ private def callbackForDevices(statusrsp) {
 	def compareTypeVal
     def SubType
     def dni
-    def idxST = state?.dzHardwareIdx.toInteger()
+    def idxST = 9999999
+    
+    if (state?.dzHardwareIdx) idxST = state.dzHardwareIdx.toInteger() 
     
 	if (!state.listSensors) state.listSensors = [:]
     if (!state.virtualDevices) state.virtualDevices = [:]
@@ -2011,6 +2014,7 @@ void refreshDevicesFromDomoticz() {
 /*		Domoticz will send an notification message to ST for all devices THAT HAVE BEEN SELECTED to do that
 /*-----------------------------------------------------------------------------------------*/
 def eventDomoticz() {
+
 	if (settings?.domoticzVirtualDevices == true) {
         if (params.message.contains("IDX ") && params.message.split().size() == 3) {
             def idx = params.message.split()[1]
