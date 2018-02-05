@@ -32,6 +32,7 @@
 	V6.10	Start with implementing creation of ST real devices as DZ virtual devices
     		Create Hardware routine, Create Device routine, Create Sensor Routine
             Setup page with what devicetypes to select
+    V6.11	toInteger check on device return
  */
 
 import groovy.json.*
@@ -40,7 +41,7 @@ import java.Math.*
 
 private def cleanUpNeeded() {return true}
 
-private def runningVersion() {"6.10"}
+private def runningVersion() {"6.11"}
 
 private def textVersion() { return "Version ${runningVersion()}"}
 
@@ -595,7 +596,10 @@ private def initialize() {
         if (dzSensorsTemp) subscribe(dzSensorsTemp, "temperature", handlerEvents)
         if (dzSensorsIll) subscribe(dzSensorsIll, "illuminance", handlerEvents)
     }
-    else state.remove("virtualDevices")
+    else {
+    	state.remove("virtualDevices")
+        socketSend([request:"DeleteHardware"])
+    }
         
     if 	(cleanUpNeeded() == true) {
         if (state?.runUpdateRoutine != runningVersion()) runUpdateRoutine()
@@ -791,6 +795,8 @@ private def getVirtualIdx(passed) {
 void callbackForUCount(evt) {
 	//TRACE("callbackForUCount")
     def response = getResponse(evt)
+    
+    if (response?.result) return
 
 	response.result.each { utility ->
 		// Power usage    
@@ -879,7 +885,7 @@ void callbackForUCount(evt) {
 void callbackForRoom(evt) {
 	def response = getResponse(evt)
 
-	if (response.result == null) return
+	if (response?.result == null) return
 
     TRACE("[callbackForRoom] Domoticz response with Title : ${response.title} number of items returned ${response.result.size()}") 
 
@@ -896,9 +902,10 @@ void callbackForRoom(evt) {
 /*-----------------------------------------------------------------------------------------*/
 void callbackForPlans(evt) {
 	def response = getResponse(evt)
+    
+    if (response?.result == null) return
+    
     state.statusPlansRsp = response.result
-
-    if (response.result == null) return
 
     TRACE("[callbackForPlans] Domoticz response with Title : ${response.title} number of items returned ${response.result.size()}") 
 
@@ -920,15 +927,15 @@ void callbackForPlans(evt) {
 /*-----------------------------------------------------------------------------------------*/
 void callbackForScenes(evt) {
     def response = getResponse(evt)
-    def groupIdx = response.result.collect {it.idx}.sort()
+    def groupIdx = response?.result.collect {it.idx}.sort()
     state.statusGrpRsp = groupIdx
     pause 2
 
-	if (response.result == null) return
+	if (response?.result == null) return
 
     TRACE("[callbackForScenes] Domoticz response with Title : ${response.title} number of items returned ${response.result.size()}") 
 
-	response.result.each {
+	response?.result.each {
         TRACE("[callbackForScenes] ${it.Type} ${it.Name} ${it.Status} ${it.Type}")
         switch (it.Type) {
         case "Scene":
@@ -950,10 +957,12 @@ void callbackForScenes(evt) {
 /*-----------------------------------------------------------------------------------------*/
 private def callbackForDevices(statusrsp) {
 
+	if (statusrsp?.result== null) return	
+    
 	def compareTypeVal
     def SubType
     def dni
-    def idxST = state.dzHardwareIdx.toInteger()
+    def idxST = state?.dzHardwareIdx.toInteger()
     
 	if (!state.listSensors) state.listSensors = [:]
     if (!state.virtualDevices) state.virtualDevices = [:]
@@ -1154,8 +1163,7 @@ def callbackForEveryThing(evt) {
 /*-----------------------------------------------------------------------------------------*/
 def callbackForCounters(evt) {
     def response = getResponse(evt)
-
-	if (response.result == null) return
+	if (response?.result == null) return
     
     def hour
     def day
@@ -1216,7 +1224,9 @@ def callbackForCounters(evt) {
 /*-----------------------------------------------------------------------------------------*/
 def callbackList(evt) {
 	state.listInprogress = true
-    def response = getResponse(evt)
+    def response = getResponse(evt)    
+    if (response?.result == null) return
+    
     def listIdx = response.result.collect {it.idx}.sort() 
     callbackForDevices(response)    
     state.statusrsp = listIdx
@@ -1244,6 +1254,9 @@ def callbackLog(evt) {
 /*-----------------------------------------------------------------------------------------*/
 def callbackListHardware(evt) {
     def response = getResponse(evt)
+    
+    if (response?.result == null) return
+    
     state.dzHardwareIdx			= null
 	response.result.each { hardware ->
     	if (hardware.Name == "SmartThings") state.dzHardwareIdx = hardware.idx
@@ -1851,7 +1864,7 @@ private def socketSend(passed) {
             hubPath = "/json.htm?type=command&param=addhardware&htype=15&port=1&name=SmartThings&enabled=true"
             break;
 		case "DeleteHardware":  
-            hubPath = "/json.htm?type=command&param=deletehardware&hwdid=${state.dzHardwareIdx}"
+            hubPath = "/json.htm?type=command&param=deletehardware&idx=${state.dzHardwareIdx}"
             break;
 		case "ListHardware":  
             hubPath = "/json.htm?type=hardware"
