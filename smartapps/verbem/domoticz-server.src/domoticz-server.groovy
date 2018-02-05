@@ -595,6 +595,7 @@ private def initialize() {
         if (dzSensorsTemp) subscribe(dzSensorsTemp, "temperature", handlerEvents)
         if (dzSensorsIll) subscribe(dzSensorsIll, "illuminance", handlerEvents)
     }
+    else state.remove("virtualDevices")
         
     if 	(cleanUpNeeded() == true) {
         if (state?.runUpdateRoutine != runningVersion()) runUpdateRoutine()
@@ -777,7 +778,9 @@ void handlerEvents(evt) {
 }
 
 private def getVirtualIdx(passed) {
-    def virtual = state.virtualDevices.find {key, item -> item.name.toUpperCase() == passed.name.toUpperCase() && item.type.toUpperCase() == passed.type.toUpperCase() }
+	if (!settings?.domoticzVirtualDevices) return
+
+    def virtual = state?.virtualDevices.find {key, item -> item.name.toUpperCase() == passed.name.toUpperCase() && item.type.toUpperCase() == passed.type.toUpperCase() }
   
     if (virtual) return virtual.key   
 }
@@ -966,7 +969,7 @@ private def callbackForDevices(statusrsp) {
             if (compareTypeVal == null) compareTypeVal = 100
 			
             // REAL SmartThings devices that where defined in Domoticz as virtual devices
-            if (device?.HardwareID == idxST) {
+            if (settings?.domoticzVirtualDevices == true && device?.HardwareID == idxST) {
   
                 switch (compareTypeVal) {
                 case 0:
@@ -1847,6 +1850,9 @@ private def socketSend(passed) {
 		case "CreateHardware":  
             hubPath = "/json.htm?type=command&param=addhardware&htype=15&port=1&name=SmartThings&enabled=true"
             break;
+		case "DeleteHardware":  
+            hubPath = "/json.htm?type=command&param=deletehardware&hwdid=${state.dzHardwareIdx}"
+            break;
 		case "ListHardware":  
             hubPath = "/json.htm?type=hardware"
             hubCallback = [callback: callbackListHardware]
@@ -1992,23 +1998,25 @@ void refreshDevicesFromDomoticz() {
 /*		Domoticz will send an notification message to ST for all devices THAT HAVE BEEN SELECTED to do that
 /*-----------------------------------------------------------------------------------------*/
 def eventDomoticz() {
-	if (params.message.contains("IDX ") && params.message.split().size() == 3) {
-    	def idx = params.message.split()[1]
-    	def status = params.message.split()[2]
-        def item = state.virtualDevices.find {key, item -> item.idx == idx && item.type == "switch" }
-		if (item != null) {
-        	log.debug "Found virtual device ${item.value.dni} of switch type"
-            settings.dzDevicesSwitches.each { device ->
-            	if (device.deviceNetworkId == item.value.dni) {
-                	if (device.currentValue("switch").toUpperCase() != status.toUpperCase()) {		// status was changed in DZ for a virtual device
-                    	log.debug "change status of virtual device ${device.displayName}"
-                    	if (status == "on") device.on() else device.off()
+	if (settings?.domoticzVirtualDevices == true) {
+        if (params.message.contains("IDX ") && params.message.split().size() == 3) {
+            def idx = params.message.split()[1]
+            def status = params.message.split()[2]
+            def item = state.virtualDevices.find {key, item -> item.idx == idx && item.type == "switch" }
+            if (item != null) {
+                log.debug "Found virtual device ${item.value.dni} of switch type"
+                settings.dzDevicesSwitches.each { device ->
+                    if (device.deviceNetworkId == item.value.dni) {
+                        if (device.currentValue("switch").toUpperCase() != status.toUpperCase()) {		// status was changed in DZ for a virtual device
+                            log.debug "change status of virtual device ${device.displayName}"
+                            if (status == "on") device.on() else device.off()
+                        }
                     }
                 }
+                return
             }
-            return
         }
-    }
+   	}
     
 	if (params.message.contains("IDX ") && params.message.split().size() >= 3) {
     	def idx = params.message.split()[1]
