@@ -542,7 +542,11 @@ def updated() {
 
 def uninstalled() {
     TRACE("[uninstalled]")
-
+    unsubscribe()
+    unschedule()
+	// delete ST HARDWARE in DZ
+    if (settings?.domoticzVirtualDevices == true) socketSend([request:"DeleteHardware"])
+    
     // delete all child devices
     def devices = getChildDevices()
     devices?.each {
