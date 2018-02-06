@@ -41,7 +41,7 @@ import java.Math.*
 
 private def cleanUpNeeded() {return true}
 
-private def runningVersion() {"6.11"}
+private def runningVersion() {"6.12"}
 
 private def textVersion() { return "Version ${runningVersion()}"}
 
@@ -585,16 +585,20 @@ private def initialize() {
     	if (state.dzHardwareIdx == null) {
         	socketSend([request:"CreateHardware"])
         	pause 5
+        	socketSend([request:"UpdateHardware"])
+        	pause 5
             socketSend([request:"ListHardware"])
             pause 5
        	}
-        defineSmartThingsInDomoticz() 
 
         if (dzDevicesSwitches) subscribe(dzDevicesSwitches, "switch", handlerEvents)
         if (dzSensorsContact) subscribe(dzSensorsContact, "contact", handlerEvents)
         if (dzSensorsMotion) subscribe(dzSensorsMotion, "motion", handlerEvents)
         if (dzSensorsTemp) subscribe(dzSensorsTemp, "temperature", handlerEvents)
         if (dzSensorsIll) subscribe(dzSensorsIll, "illuminance", handlerEvents)
+        
+        defineSmartThingsInDomoticz() 
+
     }
     else {
     	state.remove("virtualDevices")
@@ -759,7 +763,7 @@ void handlerEvents(evt) {
 	def idx = getVirtualIdx([name:dev.displayName, type: evt.name])
     
     if (idx) {   
-    	log.info "${evt.name} ${evt.stringValue} for ${dev.displayName} idx${idx}"
+    	log.info "${evt.name} ${evt.stringValue} for ${dev.displayName} idx ${idx}"
         switch (evt.name) {
         case "switch":
             socketSend([request: evt.stringValue, idx: idx])
@@ -1865,6 +1869,9 @@ private def socketSend(passed) {
             break;
 		case "CreateHardware":  
             hubPath = "/json.htm?type=command&param=addhardware&htype=15&port=1&name=SmartThings&enabled=true"
+            break;
+		case "UpdateHardware":  
+            hubPath = "/json.htm?type=command&param=updatehardware&htype=15&name=SmartThings&enabled=true&idx=${state.dzHardwareIdx}&datatimeout=0&Mode1=0&Mode2=0&Mode3=0&Mode4=0&Mode5=0&Mode6=0"
             break;
 		case "DeleteHardware":  
             hubPath = "/json.htm?type=command&param=deletehardware&idx=${state.dzHardwareIdx}"
