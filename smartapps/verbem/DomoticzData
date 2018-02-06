@@ -1,5 +1,6 @@
 Version 6.13
     Add Lock as a sync possibility
+    Fix null pointer check
 
 Version 6.12
     Fix problem in hardwareidx
