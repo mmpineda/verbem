@@ -16,7 +16,7 @@
 	V4.05	check for null on result in callbackForEveryThing
     V4.06	[updateDeviceList] remove obsolete childs, ones that are unused in Domoticz
  	V4.07	Adding linkage to power usage devices
-    V4.08	checking for usage types returned fromDZ that should n0t be added
+    V4.08	checking for usage types returned fromDZ that should not be added
     V5.00	Added power reporting device and collecting of usage
     V5.01	Remove NefitEasy specific support and add General Thermostat
     V5.02	Added power today and total to powerToday event -> domoticzOnOff
@@ -34,6 +34,7 @@
             Setup page with what devicetypes to select
     V6.11	toInteger check on device return
     V6.12	hardwareIdx was not set on time for virtual devices creation
+    V6.13	Add lock as a virtual device
  */
 
 import groovy.json.*
@@ -42,7 +43,7 @@ import java.Math.*
 
 private def cleanUpNeeded() {return true}
 
-private def runningVersion() {"6.12"}
+private def runningVersion() {"6.13"}
 
 private def textVersion() { return "Version ${runningVersion()}"}
 
@@ -385,6 +386,7 @@ private def setupSmartThingsToDomoticz() {
       	section {
       		paragraph "Select native SmartThing devices \n\n Devices created by this App will be IGNORED when you select them"
       		input "dzDevicesSwitches", "capability.switch", title:"Select switch devices", multiple:true, required:false
+      		input "dzDevicesLocks", "capability.lock", title:"Select Locks", multiple:true, required:false
       		input "dzSensorsContact", "capability.contactSensor", title:"Select contact sensors", multiple:true, required:false
       		input "dzSensorsMotion", "capability.motionSensor", title:"Select motion sensors", multiple:true, required:false
       		input "dzSensorsTemp", "capability.temperatureMeasurement", title:"Select Temperature sensors", multiple:true, required:false
@@ -591,6 +593,7 @@ private def initialize() {
        	}
 
         if (dzDevicesSwitches) subscribe(dzDevicesSwitches, "switch", handlerEvents)
+        if (dzDevicesLocks) subscribe(dzDevicesLocks, "lock", handlerEvents)
         if (dzSensorsContact) subscribe(dzSensorsContact, "contact", handlerEvents)
         if (dzSensorsMotion) subscribe(dzSensorsMotion, "motion", handlerEvents)
         if (dzSensorsTemp) subscribe(dzSensorsTemp, "temperature", handlerEvents)
@@ -704,7 +707,16 @@ void defineSmartThingsInDomoticz() {
                 if (getVirtualIdx([name: dev.displayName, type: type]) == null) {
                     socketSend([request:"CreateVirtualDevice", deviceName:dev.displayName.replaceAll(" ", "%20"), switchType:0, unitcode: unitcode])
                     unitcode = unitcode + 1
-                	// type 0 = on Off, 7 = dimmer, 8 = motion, contact = 2
+                	// type 0 = on Off, 7 = dimmer, 8 = motion, contact = 2, lock = 19
+             	}
+           	}
+        }
+        dzDevicesLocks.each { dev ->
+        	if (dev.deviceNetworkId.contains("IDX") == false) {
+            	type = "lock"
+                if (getVirtualIdx([name: dev.displayName, type: type]) == null) {
+                    socketSend([request:"CreateVirtualDevice", deviceName:dev.displayName.replaceAll(" ", "%20"), switchType:19, unitcode: unitcode])
+                    unitcode = unitcode + 1
              	}
            	}
         }
@@ -766,6 +778,9 @@ void handlerEvents(evt) {
         switch (evt.name) {
         case "switch":
             socketSend([request: evt.stringValue, idx: idx])
+            break
+        case "lock":
+        	if (evt.stringValue == "locked") socketSend([request: "on", idx: idx]) else socketSend([request: "off", idx: idx])
             break
         case "motion":
         	if (evt.stringValue == "inactive") socketSend([request: "off", idx: idx]) else socketSend([request: "on", idx: idx])
@@ -989,6 +1004,19 @@ private def callbackForDevices(statusrsp) {
                 switch (compareTypeVal) {
                 case 0:
                 	SubType = "switch"
+                    def dev
+                    settings.dzDevicesSwitches.each {
+                        if (it.displayName == device.Name) dev = it
+                    }
+                    dni = dev.deviceNetworkId
+
+                	if (device.Notifications == "false") {
+                        socketSend([request : "Notification", idx : device.idx, type : 7, action : "on"])
+                        socketSend([request : "Notification", idx : device.idx, type : 16, action : "off"])
+                    }
+                    break
+                case 19:
+                	SubType = "lock"
                     def dev
                     settings.dzDevicesSwitches.each {
                         if (it.displayName == device.Name) dev = it
@@ -2029,14 +2057,27 @@ def eventDomoticz() {
         if (params.message.contains("IDX ") && params.message.split().size() == 3) {
             def idx = params.message.split()[1]
             def status = params.message.split()[2]
+            //SWITCHES
             def item = state.virtualDevices.find {key, item -> item.idx == idx && item.type == "switch" }
             if (item != null) {
-                log.debug "Found virtual device ${item.value.dni} of switch type"
                 settings.dzDevicesSwitches.each { device ->
                     if (device.deviceNetworkId == item.value.dni) {
                         if (device.currentValue("switch").toUpperCase() != status.toUpperCase()) {		// status was changed in DZ for a virtual device
-                            log.debug "change status of virtual device ${device.displayName}"
                             if (status == "on") device.on() else device.off()
+                        }
+                    }
+                }
+                return
+            }
+            //LOCKS
+            def lock = state.virtualDevices.find {key, lock -> lock.idx == idx && lock.type == "lock" }
+            if (lock != null) {
+                log.debug "Found virtual device ${lock.value.dni} of lock type"
+                settings.dzDevicesLocks.each { device ->
+                    if (device.deviceNetworkId == lock.value.dni) {
+                        if (device.currentValue("lock").toUpperCase() != status.toUpperCase()) {		// status was changed in DZ for a virtual device
+                            log.debug "change status of virtual device ${device.displayName}"
+                            if (status == "Locked") device.lock() else device.unlock()
                         }
                     }
                 }
