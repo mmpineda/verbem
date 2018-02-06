@@ -34,7 +34,7 @@
             Setup page with what devicetypes to select
     V6.11	toInteger check on device return
     V6.12	hardwareIdx was not set on time for virtual devices creation
-    V6.13	Add lock as a virtual device
+    V6.13	Add lock as a virtual device, fix of null pointer check in ucount
  */
 
 import groovy.json.*
@@ -812,10 +812,9 @@ private def getVirtualIdx(passed) {
 /*		kWh, Lux etc...
 /*-----------------------------------------------------------------------------------------*/
 void callbackForUCount(evt) {
+    def response = getResponse(evt)   
+    if (response?.result == null)  return
 	//TRACE("callbackForUCount")
-    def response = getResponse(evt)
-    
-    if (response?.result) return
 
 	response.result.each { utility ->
 		// Power usage    
