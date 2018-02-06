@@ -33,6 +33,7 @@
     		Create Hardware routine, Create Device routine, Create Sensor Routine
             Setup page with what devicetypes to select
     V6.11	toInteger check on device return
+    V6.12	hardwareIdx was not set on time for virtual devices creation
  */
 
 import groovy.json.*
@@ -361,9 +362,7 @@ private def setupDomoticz() {
 /*-----------------------------------------------------------------------------------------*/
 private def setupSmartThingsToDomoticz() {
     TRACE("[setupSmartThingsToDomoticz]")
-    
-    socketSend([request:"ListHardware"])
-   
+     
     def inputST2DZ = [
         name        : "domoticzVirtualDevices",
         submitOnChange : true,
@@ -597,7 +596,7 @@ private def initialize() {
         if (dzSensorsTemp) subscribe(dzSensorsTemp, "temperature", handlerEvents)
         if (dzSensorsIll) subscribe(dzSensorsIll, "illuminance", handlerEvents)
         
-        defineSmartThingsInDomoticz() 
+        runIn(10, defineSmartThingsInDomoticz) 
 
     }
     else {
@@ -693,7 +692,7 @@ void scheduledGasReport() {
     }
 }
 
-private def defineSmartThingsInDomoticz() {
+void defineSmartThingsInDomoticz() {
 	if (!state?.unitcode) state.unitcode = 0
     def unitcode = state.unitcode
     def type
@@ -1266,7 +1265,11 @@ def callbackListHardware(evt) {
     
     state.dzHardwareIdx			= null
 	response.result.each { hardware ->
-    	if (hardware.Name == "SmartThings") state.dzHardwareIdx = hardware.idx
+    	if (hardware.Name == "SmartThings") {
+        	state.dzHardwareIdx = hardware.idx
+            pause 5
+            TRACE("[] SmartThings Hardware id in Domoticz is ${state.dzHardwareIdx}")
+        }
     }
 }
 
