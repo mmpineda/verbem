@@ -13,19 +13,6 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *	
-	V4.05	check for null on result in callbackForEveryThing
-    V4.06	[updateDeviceList] remove obsolete childs, ones that are unused in Domoticz
- 	V4.07	Adding linkage to power usage devices
-    V4.08	checking for usage types returned fromDZ that should not be added
-    V5.00	Added power reporting device and collecting of usage
-    V5.01	Remove NefitEasy specific support and add General Thermostat
-    V5.02	Added power today and total to powerToday event -> domoticzOnOff
-    V5.04	Automatic settings of notifications for HTTP on/off in Domoticz
-    V5.05	use lowcase on/off for ActionTile use.
-    V5.06	changed the way sensor counts are updated, it will be reported with customer notify from DZ instead op pulled by ST
-    		inspect HaveTimeout property, false == Online health, true == Offline health
-	V5.07	Take maxdimlevel into account when passing the level for a dimmer
-    V5.08	Added Gas Utility reporting device and collecing of usage, fixed a bug with Lux notifications and state reporting.
     V6.00	Abilty to check oAuth in DZ settings against current oAuth
     		Restructure of SocketSend routine (only path and callback provided to sendHub)
             Restructure of UpdateDeviceList routine
@@ -35,6 +22,7 @@
     V6.11	toInteger check on device return
     V6.12	hardwareIdx was not set on time for virtual devices creation
     V6.13	Add lock as a virtual device, fix of null pointer check in ucount
+    V6.14	uninstalled with clearAllNotifications, redo device.Temp check 
  */
 
 import groovy.json.*
@@ -42,9 +30,7 @@ import groovy.time.*
 import java.Math.*
 
 private def cleanUpNeeded() {return true}
-
-private def runningVersion() {"6.13"}
-
+private def runningVersion() {"6.14"}
 private def textVersion() { return "Version ${runningVersion()}"}
 
 definition(
@@ -390,6 +376,8 @@ private def setupSmartThingsToDomoticz() {
       		input "dzSensorsContact", "capability.contactSensor", title:"Select contact sensors", multiple:true, required:false
       		input "dzSensorsMotion", "capability.motionSensor", title:"Select motion sensors", multiple:true, required:false
       		input "dzSensorsTemp", "capability.temperatureMeasurement", title:"Select Temperature sensors", multiple:true, required:false
+      		input "dzSensorsHum", "capability.relativeHumidityMeasurement", title:"Select Humidity sensors", multiple:true, required:false
+      		//input "dzSensorsPressure", "capability.relativeHumidityMeasurement", title:"Select Pressure sensors", multiple:true, required:false
       		input "dzSensorsIll", "capability.illuminanceMeasurement", title:"Select Illuminance sensors", multiple:true, required:false
         }
       }
@@ -546,6 +534,8 @@ def uninstalled() {
     unschedule()
 	// delete ST HARDWARE in DZ
     if (settings?.domoticzVirtualDevices == true) socketSend([request:"DeleteHardware"])
+	// clear custom notifications in DZ
+    clearAllNotifications()
     
     // delete all child devices
     def devices = getChildDevices()
@@ -581,6 +571,8 @@ private def initialize() {
     state.optionsPower 			= [:]
     state.optionsModes 			= [:]
     state.optionsGas 			= [:]
+    state.optionsHumidity		= [:]
+    state.optionsPressure		= [:]
 
     updateDeviceList()
 	addReportDevices()
@@ -601,6 +593,7 @@ private def initialize() {
         if (dzSensorsContact) subscribe(dzSensorsContact, "contact", handlerEvents)
         if (dzSensorsMotion) subscribe(dzSensorsMotion, "motion", handlerEvents)
         if (dzSensorsTemp) subscribe(dzSensorsTemp, "temperature", handlerEvents)
+        if (dzSensorsHum) subscribe(dzSensorsHum, "humidity", handlerEvents)
         if (dzSensorsIll) subscribe(dzSensorsIll, "illuminance", handlerEvents)
         
         runIn(10, defineSmartThingsInDomoticz) 
@@ -623,15 +616,26 @@ private def initialize() {
 }
 
 private def runUpdateRoutine() {
-	return    
-	log.info "UPDATE ROUTINE!!!"
+}
+
+private def clearAllNotifications() {
 	state.devices.each {key, item ->
 		if (item.type == "switch") {
-        	log.info "Clear Notifications for ${item.type} ${item.dni} ${item.idx}"
+        	log.info "Clear Notifications for Devices ${item.type} ${item.dni} idx ${item.idx}"
         	socketSend([request : "ClearNotification", idx : item.idx])
             pause 2
         }
     }
+
+	def options = state.findAll { key, value -> key.startsWith("options") }
+    options.each { key, sensor ->
+    	sensor.each { idx, content ->
+        	log.info "Clear Notifications for Sensor ${content} idx ${item.idx}"
+        	socketSend([request : "ClearNotification", idx : idx])
+            pause 2        
+        }
+    }
+    
 }
 
 private def assignSensorToDevice() {
@@ -665,7 +669,6 @@ private def assignSensorToDevice() {
 }
 
 void scheduledListSensorOptions() {
-
 	socketSend([request : "OptionUtility"])
     socketSend([request : "OptionTemperature"])
     socketSend([request : "OptionDevices"])
@@ -795,6 +798,9 @@ void handlerEvents(evt) {
         case "temperature":
         	socketSend([request: "SetTemp", idx: idx, temp:evt.stringValue])
             break
+        case "humidity":
+        	socketSend([request: "SetHumidity", idx: idx, temp:evt.stringValue])
+            break
         case "illuminance":
         	socketSend([request: "SetLux", idx: idx, lux:evt.stringValue])
             break
@@ -906,7 +912,6 @@ void callbackForUCount(evt) {
 /*-----------------------------------------------------------------------------------------*/
 void callbackForRoom(evt) {
 	def response = getResponse(evt)
-
 	if (response?.result == null) return
 
     TRACE("[callbackForRoom] Domoticz response with Title : ${response.title} number of items returned ${response.result.size()}") 
@@ -923,8 +928,7 @@ void callbackForRoom(evt) {
 /*		Get Room Plans defined into Selectables for setupDomoticz
 /*-----------------------------------------------------------------------------------------*/
 void callbackForPlans(evt) {
-	def response = getResponse(evt)
-    
+	def response = getResponse(evt)   
     if (response?.result == null) return
     
     state.statusPlansRsp = response.result
@@ -997,7 +1001,7 @@ private def callbackForDevices(statusrsp) {
             dni = null
 
             // handle SwitchTypeVal Exceptions
-            if (device?.Type == "Temp") compareTypeVal = 99
+            if (device?.Temp) compareTypeVal = 99
             if (device?.SetPoint) compareTypeVal = 98
             if (compareTypeVal == null) compareTypeVal = 100
 			
@@ -1099,7 +1103,6 @@ private def callbackForDevices(statusrsp) {
 /*		it will also do some linking between individual domoticz devices into a single SmartThings device
 /*-----------------------------------------------------------------------------------------*/
 def callbackForEveryThing(evt) {
-
     def response = getResponse(evt)
 	if (response?.result == null) return
     
@@ -1137,6 +1140,11 @@ def callbackForEveryThing(evt) {
         if (it?.Type == "Lux") {
         	state.optionsLux[it.idx] = "${it.idx} : ${it.Name}"
             if (it.Notifications == "false") socketSend([request : "SensorLuxNotification", idx : it.idx])
+        }
+        //HUMIDITY
+        if (it?.Type == "Humidity") {
+        	state.optionsHumidity[it.idx] = "${it.idx} : ${it.Name}"
+            if (it.Notifications == "false") socketSend([request : "SensorHumidityNotification", idx : it.idx])
         }
         //USAGE POWER
         if (it?.SubType == "kWh") {	
@@ -1260,9 +1268,10 @@ def callbackForCounters(evt) {
 /*		callback for getting all devices 
 /*-----------------------------------------------------------------------------------------*/
 def callbackList(evt) {
-	state.listInprogress = true
     def response = getResponse(evt)    
     if (response?.result == null) return
+    
+	state.listInprogress = true
     
     def listIdx = response.result.collect {it.idx}.sort() 
     callbackForDevices(response)    
@@ -1290,8 +1299,7 @@ def callbackLog(evt) {
 /*		Capture the created hardware IDX for SmartThings
 /*-----------------------------------------------------------------------------------------*/
 def callbackListHardware(evt) {
-    def response = getResponse(evt)
-    
+    def response = getResponse(evt)    
     if (response?.result == null) return
     
     state.dzHardwareIdx			= null
@@ -1308,7 +1316,6 @@ def callbackListHardware(evt) {
 /*		callback for getting the Domoticz Settings
 /*-----------------------------------------------------------------------------------------*/
 def callbackForSettings(evt) {
-
     def response = getResponse(evt)
 	if (response.HTTPURL == null) return
 
@@ -1689,13 +1696,6 @@ private def TRACE(message) {
     if(domoticzTrace) {log.trace message}
 }
 
-private def STATE() {
-	if(domoticzTrace) {
-    	TRACE("state: ${state}")
-    	TRACE("settings: ${settings}")
-    }
-}
-
 /*-----------------------------------------------------------------------------------------*/
 /*		REGULAR DOMOTICZ COMMAND HANDLERS FOR THE DEVICES
 /*-----------------------------------------------------------------------------------------*/
@@ -1781,7 +1781,6 @@ def domoticz_setpoint(nid, setpoint) {
 
 def domoticz_modeChange(nid, modeType, nameLevel) {
 
-	log.debug "[domoticz_modeChange] Thermostat association to be found $nid $modeType $nameLevel"
     idxComponentDevices([type: modeType, idx: nid]).each { key, device ->
         def thermostatDev = getChildDevice(device.dni)
 
@@ -1877,6 +1876,9 @@ private def socketSend(passed) {
          case "SetTemp":  
          	hubPath = "/json.htm?type=command&param=udevice&idx=${passed.idx}&nvalue=0&svalue=${passed.temp}"
             break;
+         case "SetHumidity":  
+         	hubPath = "/json.htm?type=command&param=udevice&idx=${passed.idx}&svalue=0&nvalue=${passed.humidity}"
+            break;
          case "Notification": 
          	def tWhen = 0
             def tValue = 0
@@ -1888,7 +1890,7 @@ private def socketSend(passed) {
             }
         	hubPath = "/json.htm?type=command&param=addnotification&idx=${passed.idx}&ttype=${passed.type}&twhen=${tWhen}&tvalue=${tValue}&tmsg=IDX%20${passed.idx}%20${passed.action}&tsystems=http&tpriority=0&tsendalways=false&trecovery=false"
             break;
-        case ["SensorKWHNotification", "SensorLuxNotification"]:         
+        case ["SensorKWHNotification", "SensorLuxNotification", "SensorHumidityNotification"]:         
             hubPath = "/json.htm?type=command&param=addnotification&idx=${passed.idx}&ttype=5&twhen=1&tvalue=0&tmsg=SENSOR%20${passed.idx}&tsystems=http&tpriority=0&tsendalways=false&trecovery=false"
             break;         
         case "SensorTempNotification":         
