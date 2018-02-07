@@ -793,7 +793,7 @@ void handlerEvents(evt) {
         	if (evt.stringValue == "inactive") socketSend([request: "off", idx: idx]) else socketSend([request: "on", idx: idx])
             break
         case "contact":
-        	if (evt.stringValue == "closed") socketSend([request: "off", idx: idx]) else socketSend([request: "on", idx: idx])
+        	if (evt.stringValue == "closed") socketSend([request: "SetContact", idx: idx, nvalue:0]) else socketSend([request: "SetContact", idx: idx, nvalue:1])
             break
         case "temperature":
         	socketSend([request: "SetTemp", idx: idx, temp:evt.stringValue])
@@ -1015,7 +1015,7 @@ private def callbackForDevices(statusrsp) {
                     settings.dzDevicesSwitches.each {
                         if (it.displayName == device.Name) dev = it
                     }
-                    dni = dev.deviceNetworkId
+                    if (dev) dni = dev.deviceNetworkId
 
                 	if (device.Notifications == "false") {
                         socketSend([request : "Notification", idx : device.idx, type : 7, action : "on"])
@@ -1028,7 +1028,7 @@ private def callbackForDevices(statusrsp) {
                     settings.dzDevicesSwitches.each {
                         if (it.displayName == device.Name) dev = it
                     }
-                    dni = dev.deviceNetworkId
+                    if (dev) dni = dev.deviceNetworkId
 
                 	if (device.Notifications == "false") {
                         socketSend([request : "Notification", idx : device.idx, type : 7, action : "on"])
@@ -1870,10 +1870,13 @@ private def socketSend(passed) {
          case "SetPoint":  
          	hubPath = "/json.htm?type=setused&idx=${passed.idx}&setpoint=${passed.setpoint}&mode=ManualOverride&until=&used=true"
             break;
+         case "SetContact":  
+         	hubPath = "/json.htm?type=command&param=udevice&idx=${passed.idx}&nvalue=${passed.nvalue}"
+            break;
          case "SetLux":  
          	hubPath = "/json.htm?type=command&param=udevice&idx=${passed.idx}&svalue=${passed.lux}"
             break;
-         case "SetTemp":  
+        case "SetTemp":  
          	hubPath = "/json.htm?type=command&param=udevice&idx=${passed.idx}&nvalue=0&svalue=${passed.temp}"
             break;
          case "SetHumidity":  
@@ -2184,11 +2187,10 @@ private def getHubID(){
     TRACE("[getHubID]")
     def hubID
     def hubs = location.hubs.findAll{ it.type == physicalgraph.device.HubType.PHYSICAL } 
-    TRACE("[getHubID] hub count: ${hubs.size()}")
     if (hubs.size() == 1) hubID = hubs[0].id 
-    TRACE("[getHubID] hubID: ${hubID}")
     return hubID
 }
+
 private Integer convertHexToInt(hex) {
     return Integer.parseInt(hex,16)
 }
