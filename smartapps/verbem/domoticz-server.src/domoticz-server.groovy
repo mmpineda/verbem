@@ -1025,7 +1025,7 @@ private def callbackForDevices(statusrsp) {
                 case 19:
                 	SubType = "lock"
                     def dev
-                    settings.dzDevicesSwitches.each {
+                    settings.dzDevicesLocks.each {
                         if (it.displayName == device.Name) dev = it
                     }
                     if (dev) dni = dev.deviceNetworkId
@@ -1293,6 +1293,8 @@ def callbackStatus(evt) {
 /*-----------------------------------------------------------------------------------------*/
 def callbackLog(evt) {
 	// dummy handler for status returns, it prevents these responses from going into "normal" response processing
+    def response = getResponse(evt)
+    if (response?.status != "OK") log.error "[callbackLog] ${response}"
 }
 
 /*-----------------------------------------------------------------------------------------*/
