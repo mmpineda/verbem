@@ -1,3 +1,8 @@
+Version 6.15 
+    issue a clear notification for devices that are removed from State.devices
+    Add setting to delete state/childdevice when not in selected Domoticz Room anymore
+    Add code to delete state/childdevice when not in rooms anymore and setting DDIP is true
+
 Version 6.13
     Add Lock as a sync possibility
     Fix null pointer check
