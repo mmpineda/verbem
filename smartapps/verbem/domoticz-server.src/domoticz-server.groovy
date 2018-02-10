@@ -23,6 +23,9 @@
     V6.12	hardwareIdx was not set on time for virtual devices creation
     V6.13	Add lock as a virtual device, fix of null pointer check in ucount
     V6.14	uninstalled with clearAllNotifications, redo device.Temp check 
+    V6.15	also issue a clear notification for devices that are removed from State.devices
+    		Add setting to delete state/childdevice when not in selected Domoticz Room anymore
+            Add code to delete state/childdevice when not in rooms anymore
  */
 
 import groovy.json.*
@@ -30,7 +33,7 @@ import groovy.time.*
 import java.Math.*
 
 private def cleanUpNeeded() {return true}
-private def runningVersion() {"6.14"}
+private def runningVersion() {"6.15"}
 private def textVersion() { return "Version ${runningVersion()}"}
 
 definition(
@@ -298,6 +301,7 @@ private def setupDomoticz() {
         type        : "enum",
         title       : "Select the rooms",
         options	    : state.listPlans,
+        submitOnChange : true,
         multiple	: true
     ]
 
@@ -312,6 +316,13 @@ private def setupDomoticz() {
         name        : "domoticzScene",
         type        : "bool",
         title       : "Add Scenes from Domoticz?",
+        defaultValue: false
+    ]
+    
+    def deleteDevicesInPlans = [
+        name        : "domoticzDDIP",
+        type        : "bool",
+        title       : "Remove devices from App not related to a Roomplan anymore?",
         defaultValue: false
     ]
     
@@ -337,6 +348,7 @@ private def setupDomoticz() {
             input inputDzTypes
             if (settings.containsKey('domoticzIpAddress') && settings?.domoticzIpAddress != "0.0.0.0") input inputRoomPlans
             if (domoticzRoomPlans && settings.containsKey('domoticzIpAddress')) input inputPlans
+            if (domoticzPlans) input deleteDevicesInPlans
             input inputGroup
             input inputScene
             input inputTrace
@@ -429,6 +441,7 @@ private def setupAddDevices() {
     ]
     
 	state.listOfRoomPlanDevices = []
+    pause 3
     if (domoticzRoomPlans)
     	{
         settings.domoticzPlans.each { v ->       	
@@ -621,7 +634,7 @@ private def runUpdateRoutine() {
 private def clearAllNotifications() {
 	state.devices.each {key, item ->
 		if (item.type == "switch") {
-        	log.info "Clear Notifications for Devices ${item.type} ${item.dni} idx ${item.idx}"
+        	TRACE("Clear Notifications for Devices ${item.type} ${item.dni} idx ${item.idx}")
         	socketSend([request : "ClearNotification", idx : item.idx])
             pause 2
         }
@@ -630,7 +643,7 @@ private def clearAllNotifications() {
 	def options = state.findAll { key, value -> key.startsWith("options") }
     options.each { key, sensor ->
     	sensor.each { idx, content ->
-        	log.info "Clear Notifications for Sensor ${content} idx ${item.idx}"
+        	TRACE("Clear Notifications for Sensor ${content} idx ${item.idx}")
         	socketSend([request : "ClearNotification", idx : idx])
             pause 2        
         }
@@ -781,7 +794,7 @@ void handlerEvents(evt) {
 	def idx = getVirtualIdx([name:dev.displayName, type: evt.name])
     
     if (idx) {   
-    	log.info "${evt.name} ${evt.stringValue} for ${dev.displayName} idx ${idx}"
+    	TRACE("${evt.name} ${evt.stringValue} for ${dev.displayName} idx ${idx}")
         switch (evt.name) {
         case "switch":
             socketSend([request: evt.stringValue, idx: idx])
@@ -918,10 +931,10 @@ void callbackForRoom(evt) {
 
     response.result.each {
 		if (it?.SubType != "kWh") {
-            TRACE("[callbackForRoom] Device ${it.Name} with idx ${it.devidx}")
             state.listOfRoomPlanDevices.add(it.devidx)
         }
     }
+    pause 3
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -930,22 +943,12 @@ void callbackForRoom(evt) {
 void callbackForPlans(evt) {
 	def response = getResponse(evt)   
     if (response?.result == null) return
-    
-    state.statusPlansRsp = response.result
 
     TRACE("[callbackForPlans] Domoticz response with Title : ${response.title} number of items returned ${response.result.size()}") 
+    
+    state.statusPlansRsp = response.result
+    state.listPlans = response.result.collect{it.Name}.sort()
 
-    state.listPlans = []
-    pause 1
-
-    response.result.each {
-        TRACE("[callbackForPlans] ${it.Devices} devices in room plan ${it.Name} with idx ${it.idx}")
-        state.listPlans.add(it.Name)
-        pause 1
-    }
-
-    state.listPlans.sort()
-    pause 1
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -1334,7 +1337,7 @@ def callbackForSettings(evt) {
 /*-----------------------------------------------------------------------------------------*/
 def callbackVirtualDevices(evt) {
     def response = getResponse(evt)
-    log.info response
+
 	response?.result.each { hardware ->
     	socketSend([request:"status", idx:hardware.idx])
     }  
@@ -1618,19 +1621,23 @@ def updateDeviceList() {
     def findrspDevice
     def findrspGroup
     def inStatusrsp
-    def idx10k
+    def Idx
     def allChildren = getAllChildDevices()
+    def temprspDevices 
+
+	if (settings.domoticzDDIP == true) {
+		temprspDevices = state.listOfRoomPlanDevices
+        pause 5
+    }
+    else {
+        temprspDevices = state.statusrsp
+        pause 5
+    }
     
-	def temprspDevices = state.statusrsp
+    def tempStateDevices = [:] << state.devices      
     pause 5
     def temprspGroups = state.statusGrpRsp
     pause 5
-    def tempStateDevices = [:] << state.devices      
-    pause 5
-    
-    if(temprspDevices) log.trace temprspDevices.size() + " Devices in response : " + temprspDevices
-    
-    if (temprspGroups) log.trace temprspGroups?.size() + " Groups in response : " + temprspGroups
     
     TRACE("${tempStateDevices?.size()} state Devices : ${tempStateDevices?.collect {it.value.idx as int}.sort()}")
        
@@ -1638,9 +1645,9 @@ def updateDeviceList() {
     	
     	findrspDevice = temprspDevices.find {it == child.deviceNetworkId.split(":")[2] }
     	findrspGroup = temprspGroups.find {it == child.deviceNetworkId.split(":")[2] }
-        idx10k = child.deviceNetworkId.split(":")[2]
+        Idx = child.deviceNetworkId.split(":")[2]
 
-        if (idx10k != "10000") {   // special devices that should not be deleted automatically have idx = 10000
+        if (Idx != "10000") {   // special devices that should not be deleted automatically have idx = 10000
             if (!findrspDevice && !findrspGroup) {
                 TRACE("[updateDeviceList] NOT FOUND ${child.name} delete childDevice")
                 try {
@@ -1662,8 +1669,10 @@ def updateDeviceList() {
         def copyStateDevices = [:] << state.devices  
 
         tempStateDevices.each { idx, item ->
-            log.error "removing from STATE " + idx
+            TRACE("removing from STATE ${idx}")
             copyStateDevices.remove(idx)
+            // ClearNotification in DZ for idx
+            socketSend([request : "ClearNotification", idx : idx])
         }
 
         state.devices = copyStateDevices
@@ -1751,7 +1760,6 @@ def domoticz_setlevel(nid, xLevel) {
             if (state.devices[nid]?.MaxDimLevel != null) {
             	xLevel = xLevel/100*state.devices[nid].MaxDimLevel
                 xLevel = xLevel.toInteger() + 1i
-                log.info xLevel
             }
             socketSend([request : "setlevel", idx : nid, level : xLevel])
         }
@@ -1790,7 +1798,7 @@ def domoticz_modeChange(nid, modeType, nameLevel) {
             if (modeType == "Mode") thermostatDev.setThermostatMode(nameLevel.toLowerCase())
             if (modeType == "FanMode") thermostatDev.setThermostatFanMode(nameLevel.toLowerCase())
         }
-        else log.debug "[domoticz_modeChange] Thermostat association not found $nid $modeType $nameLevel"
+        else TRACE("[domoticz_modeChange] Thermostat association not found $nid $modeType $nameLevel")
     }
 }
 
@@ -1924,7 +1932,6 @@ private def socketSend(passed) {
 		case "CreateVirtualDevice":  
             hubPath = "/json.htm?type=command&param=addswitch&hwdid=${state.dzHardwareIdx}&name=${passed.deviceName}&description=undefined&switchtype=${passed.switchType}&lighttype=0&housecode=80&unitcode=${passed.unitcode}"
             hubCallback = [callback: callbackVirtualDevices]
-            log.info hubPath
 			break;        
 		case "CreateVirtualSensor":  
             hubPath = "/json.htm?type=createvirtualsensor&idx=${state.dzHardwareIdx}&sensorname=${passed.deviceName}&sensortype=${passed.sensorType}"
@@ -2039,9 +2046,9 @@ void devicesOffline() {
 void refreshDevicesFromDomoticz() {
 
     socketSend([request : "roomplans"])
+	state.listOfRoomPlanDevices = []
     pause 5
     
-	state.listOfRoomPlanDevices = []
     settings.domoticzPlans.each { v -> 
         state.statusPlansRsp.each {
             if (v == it.Name) {
@@ -2082,11 +2089,10 @@ def eventDomoticz() {
             //LOCKS
             def lock = state.virtualDevices.find {key, lock -> lock.idx == idx && lock.type == "lock" }
             if (lock != null) {
-                log.debug "Found virtual device ${lock.value.dni} of lock type"
+                TRACE("Found virtual device ${lock.value.dni} of lock type")
                 settings.dzDevicesLocks.each { device ->
                     if (device.deviceNetworkId == lock.value.dni) {
                         if (device.currentValue("lock").toUpperCase() != status.toUpperCase()) {		// status was changed in DZ for a virtual device
-                            log.debug "change status of virtual device ${device.displayName}"
                             if (status == "Locked") device.lock() else device.unlock()
                         }
                     }
