@@ -26,6 +26,7 @@
     V6.15	also issue a clear notification for devices that are removed from State.devices
     		Add setting to delete state/childdevice when not in selected Domoticz Room anymore
             Add code to delete state/childdevice when not in rooms anymore
+	V6.16	Fix for multipurpose temp sensors to be recognized for notifications
  */
 
 import groovy.json.*
@@ -717,65 +718,67 @@ void scheduledGasReport() {
 
 void defineSmartThingsInDomoticz() {
 	if (!state?.unitcode) state.unitcode = 0
+    
     def unitcode = state.unitcode
     def type
     def exists
-      
-        dzDevicesSwitches.each { dev ->
-        	if (dev.deviceNetworkId.contains("IDX") == false) {
-            	type = "switch"
-                if (getVirtualIdx([name: dev.displayName, type: type]) == null) {
-                    socketSend([request:"CreateVirtualDevice", deviceName:dev.displayName.replaceAll(" ", "%20"), switchType:0, unitcode: unitcode])
-                    unitcode = unitcode + 1
-                	// type 0 = on Off, 7 = dimmer, 8 = motion, contact = 2, lock = 19
-             	}
-           	}
-        }
-        dzDevicesLocks.each { dev ->
-        	if (dev.deviceNetworkId.contains("IDX") == false) {
-            	type = "lock"
-                if (getVirtualIdx([name: dev.displayName, type: type]) == null) {
-                    socketSend([request:"CreateVirtualDevice", deviceName:dev.displayName.replaceAll(" ", "%20"), switchType:19, unitcode: unitcode])
-                    unitcode = unitcode + 1
-             	}
-           	}
-        }
-        dzSensorsContact.each { dev ->
-        	if (dev.deviceNetworkId.contains("IDX") == false) {
-            	type = "contact"
-                if (getVirtualIdx([name: dev.displayName, type: type]) == null) {
-                    socketSend([request:"CreateVirtualDevice", deviceName:dev.displayName.replaceAll(" ", "%20"), switchType:2, unitcode: unitcode])
-                    unitcode = unitcode + 1
-              	}
+    
+    //DEVICES
+    dzDevicesSwitches.each { dev ->
+        if (dev.deviceNetworkId.contains("IDX") == false) {
+            type = "switch"
+            if (getVirtualIdx([name: dev.displayName, type: type]) == null) {
+                socketSend([request:"CreateVirtualDevice", deviceName:dev.displayName.replaceAll(" ", "%20"), switchType:0, unitcode: unitcode])
+                unitcode = unitcode + 1
+                // type 0 = on Off, 7 = dimmer, 8 = motion, contact = 2, lock = 19
             }
         }
-        dzSensorsMotion.each { dev ->
-        	if (dev.deviceNetworkId.contains("IDX") == false) {
-            	type = "motion"
-                if (getVirtualIdx([name: dev.displayName, type: type]) == null) {
-                    socketSend([request:"CreateVirtualDevice", deviceName:dev.displayName.replaceAll(" ", "%20"), switchType:8, unitcode: unitcode])
-                    unitcode = unitcode + 1
-                }
+    }
+    dzDevicesLocks.each { dev ->
+        if (dev.deviceNetworkId.contains("IDX") == false) {
+            type = "lock"
+            if (getVirtualIdx([name: dev.displayName, type: type]) == null) {
+                socketSend([request:"CreateVirtualDevice", deviceName:dev.displayName.replaceAll(" ", "%20"), switchType:19, unitcode: unitcode])
+                unitcode = unitcode + 1
             }
         }
-        state.unitcode = unitcode
-        
-        dzSensorsTemp.each { dev ->
-        	if (dev.deviceNetworkId.contains("IDX") == false) {
-            	type = "temperature"
-                if (getVirtualIdx([name: dev.displayName, type: type]) == null) {
-                	socketSend([request:"CreateVirtualSensor", deviceName:dev.displayName.replaceAll(" ", "%20"), sensorType:80])
-               	}
+    }
+    dzSensorsContact.each { dev ->
+        if (dev.deviceNetworkId.contains("IDX") == false) {
+            type = "contact"
+            if (getVirtualIdx([name: dev.displayName, type: type]) == null) {
+                socketSend([request:"CreateVirtualDevice", deviceName:dev.displayName.replaceAll(" ", "%20"), switchType:2, unitcode: unitcode])
+                unitcode = unitcode + 1
             }
         }
-       	dzSensorsIll.each { dev ->
-        	if (dev.deviceNetworkId.contains("IDX") == false) {
-            	type = "illuminance"
-                if (getVirtualIdx([name: dev.displayName, type: type]) == null) {
-	                socketSend([request:"CreateVirtualSensor", deviceName:dev.displayName.replaceAll(" ", "%20"), sensorType:246])
-                }
+    }
+    dzSensorsMotion.each { dev ->
+        if (dev.deviceNetworkId.contains("IDX") == false) {
+            type = "motion"
+            if (getVirtualIdx([name: dev.displayName, type: type]) == null) {
+                socketSend([request:"CreateVirtualDevice", deviceName:dev.displayName.replaceAll(" ", "%20"), switchType:8, unitcode: unitcode])
+                unitcode = unitcode + 1
             }
         }
+    }
+    state.unitcode = unitcode
+    // SENSORS
+    dzSensorsTemp.each { dev ->
+        if (dev.deviceNetworkId.contains("IDX") == false) {
+            type = "temperature"
+            if (getVirtualIdx([name: dev.displayName, type: type]) == null) {
+                socketSend([request:"CreateVirtualSensor", deviceName:dev.displayName.replaceAll(" ", "%20"), sensorType:80])
+            }
+        }
+    }
+    dzSensorsIll.each { dev ->
+        if (dev.deviceNetworkId.contains("IDX") == false) {
+            type = "illuminance"
+            if (getVirtualIdx([name: dev.displayName, type: type]) == null) {
+                socketSend([request:"CreateVirtualSensor", deviceName:dev.displayName.replaceAll(" ", "%20"), sensorType:246])
+            }
+        }
+    }
 }
 /*-----------------------------------------------------------------------------------------*/
 /*		Update the usage info in virtual domoticz devices that have been selected by user to sync to DZ
@@ -1122,7 +1125,7 @@ def callbackForEveryThing(evt) {
     
     response.result.each {
 		//TEMP		    	        
-        if (it?.Type == "Temp") {
+        if (it?.Type.contains("Temp")) {
         	state.optionsTemperature[it.idx] = "${it.idx} : ${it.Name}"
             if (it.Notifications == "false") socketSend([request : "SensorTempNotification", idx : it.idx])
         }
