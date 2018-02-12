@@ -28,6 +28,7 @@
             Add code to delete state/childdevice when not in rooms anymore
 	V6.16	Fix for multipurpose temp/hum/pressure sensors to be recognized for notifications
     		Do intitial seed of values for virtual devices in DZ from ST when devices are created
+    V6.17	Fix for data flow Thermostat DZ to ST direction, setting of Notifications
  */
 
 import groovy.json.*
@@ -35,7 +36,7 @@ import groovy.time.*
 import java.Math.*
 
 private def cleanUpNeeded() {return true}
-private def runningVersion() {"6.16"}
+private def runningVersion() {"6.17"}
 private def textVersion() { return "Version ${runningVersion()}"}
 
 definition(
@@ -1150,8 +1151,8 @@ def callbackForEveryThing(evt) {
         }	
 		//MODES for thermostatFanModes and thermostatModes
 		if (it?.SwitchTypeVal == 18) {
-        	state.optionsModes[it.idx] = "${it.idx} : ${it.Name}"
-        }	
+        	state.optionsModes[it.idx] = "${it.idx} : ${it.Name}"     
+            }	
         //SMOKE       
         if (it?.SwitchTypeVal == 5) {
         	state.optionsCarbon1[it.idx] = "${it.idx} : ${it.Name}"
@@ -1161,6 +1162,10 @@ def callbackForEveryThing(evt) {
         if (it?.Type == "Lux") {
         	state.optionsLux[it.idx] = "${it.idx} : ${it.Name}"
             if (it.Notifications == "false") socketSend([request : "SensorLuxNotification", idx : it.idx])
+        }
+        //THERMOSTAT
+        if (it?.Type == "Thermostat") {
+            if (it.Notifications == "false") socketSend([request : "Notification", idx : it.idx, type:0, action:"%24value"])
         }
         //HUMIDITY
         if (it?.Type == "Humidity") {
@@ -1454,18 +1459,23 @@ private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, pa
     if (passedDomoticzStatus instanceof java.util.Map) {        
         def attributeList = createAttributes(dev, passedDomoticzStatus, addr)
         generateEvent(dev, attributeList)
-
-        if ((passedDomoticzStatus?.Notifications == false || passedDomoticzStatus?.Notifications == "false" ) && deviceType == "switch" && passedFile != "domoticzSelector") {
-            socketSend([request : "Notification", idx : addr, type : 7, action : "on"])
-            socketSend([request : "Notification", idx : addr, type : 16, action : "off"])
-        }
-        if (passedFile == "domoticzSelector" && (passedDomoticzStatus?.Notifications == false || passedDomoticzStatus?.Notifications == "false" )) {
-            socketSend([request : "Notification", idx : addr, type : 16, action : "off"])
-            def levelNames = passedDomoticzStatus?.LevelNames.tokenize("|")
-            def ix = 10
-            def maxIx = levelNames.size() * 10
-            for (ix=10; ix < maxIx; ix = ix+10) {
-                socketSend([request : "Notification", idx : addr, type : 7, action : "on", value: ix])
+        
+		if (passedDomoticzStatus?.Notifications == "false") {
+            if (deviceType == "switch" && passedFile != "domoticzSelector") {
+                socketSend([request : "Notification", idx : addr, type : 7, action : "on"])
+                socketSend([request : "Notification", idx : addr, type : 16, action : "off"])
+            }
+            if (passedFile == "domoticzThermostat") {
+                socketSend([request : "Notification", idx : addr, type : 0, action : "%24value"])
+            }
+            if (passedFile == "domoticzSelector") {
+                socketSend([request : "Notification", idx : addr, type : 16, action : "off"])
+                def levelNames = passedDomoticzStatus?.LevelNames.tokenize("|")
+                def ix = 10
+                def maxIx = levelNames.size() * 10
+                for (ix=10; ix < maxIx; ix = ix+10) {
+                    socketSend([request : "Notification", idx : addr, type : 7, action : "on", value: ix])
+                }
             }
         }
     }
@@ -2159,6 +2169,9 @@ def eventDomoticz() {
             case "domoticzContact":
             	attr = "contact"
                 if (status == "on") status = "Open" else status = "Closed"
+               	break
+            case "domoticzThermostat":
+            	attr = "thermostatSetpoint"
                	break
             case "domoticzSmokeDetector":
             	attr = "smoke"
