@@ -1,3 +1,10 @@
+Version 6.17
+    Fix for data flow Thermostat DZ to ST direction, setting of Notifications
+    
+Version 6.16
+    Fix for multipurpose temp/hum/pressure sensors to be recognized for notifications
+    Do intitial seed of values for virtual devices in DZ from ST when devices are created
+
 Version 6.15 
     issue a clear notification for devices that are removed from State.devices
     Add setting to delete state/childdevice when not in selected Domoticz Room anymore
