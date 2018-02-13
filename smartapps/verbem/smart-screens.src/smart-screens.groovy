@@ -24,13 +24,14 @@
  *  Select interval to check conditions
  * 
  *	V2	Add subscription to device refresh, this will execute the latest info back to the devices
+ 	V3.00 move to windowShade capability, and issue createchild command to create related component device for smart screens
  
  */
 
 
 import groovy.json.*
 import java.Math.*
-private def runningVersion() 	{"2.00"}
+private def runningVersion() 	{"3.00"}
 
 definition(
     name: "Smart Screens",
@@ -87,7 +88,7 @@ def pageSetupForecastIO() {
               
     def inputBlinds = [
         name:       "z_blinds",
-        type:       "capability.switch",
+        type:       "capability.windowShade",
         title:      "Which blinds/screens/shutters?",
         multiple:   true,
         required:   false
@@ -232,13 +233,13 @@ def pageProperties = [
                 if (settings."z_blindType_${devId}" == "Screen") {
                     input	"z_windForceCloseMax_${devId}","number",title:"Allow Operation below under which windforce ${z_windForceMetric}",multiple:false,required:false,default:0                 
 
-                    if (blind) 	{input	"z_closeMaxAction_${devId}","enum",title:"", options: ["Down","Up","Stop","Dynamic"], default:"Stop" }
+                    if (blind) 	{input	"z_closeMaxAction_${devId}","enum",title:"", options: ["Down","Up","Preset","Dynamic"], default:"Preset" }
                     else 		{input	"z_closeMaxAction_${devId}","enum",title:"", options: ["Down","Up","Dynamic"], default:"Up" }
 					}
 
 					if (settings."z_blindType_${devId}" == "Shutter") {
 
-                    if (blind) 	{input	"z_closeMaxAction_${devId}","enum",title:"Action for Sun protection", options: ["Down","Up","Stop","Dynamic"], default:"Stop" }
+                    if (blind) 	{input	"z_closeMaxAction_${devId}","enum",title:"Action for Sun protection", options: ["Down","Up","Preset","Dynamic"], default:"Preset" }
                     else 		{input	"z_closeMaxAction_${devId}","enum",title:"Action for Sun protection", options: ["Down","Up","Dynamic"], default:"Up" }
 					}
 
@@ -247,13 +248,13 @@ def pageProperties = [
 				if (settings."z_blindType_${devId}" == "Shutter") {
                     input 	"z_windForceCloseMin_${devId}","number",title:"Force Operation below above which windforce ${z_windForceMetric}",multiple:false,required:false,default:999                     
 
-                    if (blind) 	{input	"z_closeMinAction_${devId}","enum",title:"", options: ["Down","Up","Stop"], default:"Stop" }
+                    if (blind) 	{input	"z_closeMinAction_${devId}","enum",title:"", options: ["Down","Up","Preset"], default:"Preset" }
                     else 		{input	"z_closeMinAction_${devId}","enum",title:"", options: ["Down","Up"], default:"Up" }
                 	}
                 
                 input	"z_sunsetOffset_${devId}","number",title:"Operation below at Sunset +/- offset",multiple:false,required:false,default:0                 
                 
-                if (blind) 	{input	"z_eodAction_${devId}","enum",title:"", options: ["Down","Up","Stop"], default:"Stop" }
+                if (blind) 	{input	"z_eodAction_${devId}","enum",title:"", options: ["Down","Up","Preset"], default:"Preset" }
                 else if (settings."z_blindType_${devId}" == "Shutter")	{input	"z_eodAction_${devId}","enum",title:"", options: ["Down","Up"], default:"Down" }
                 		else {input	"z_eodAction_${devId}","enum",title:"", options: ["Down","Up"], default:"Up" }
                 
@@ -341,7 +342,7 @@ def initialize() {
   
     subscribe(z_sensors, "WindStrength", eventNetatmo)
     
-    z_blinds.each {
+    settings.z_blinds.each {
     	subscribeToCommand(it, "refresh", eventRefresh)
         }
     
@@ -516,14 +517,14 @@ settings.z_blinds.each {
                    	    	{
                             if (blindParams.closeMaxAction == "Down") 	{it.close()}
                     	    if (blindParams.closeMaxAction == "Up") 	{it.open()}
-                        	if (blindParams.closeMaxAction == "Stop") 	{it.stop()}
+                        	if (blindParams.closeMaxAction == "Preset") {it.presetPosition()}
                            	}
                         }
                 	else // shutter
                 		{
                     	if (blindParams.closeMaxAction == "Down") 	{it.close()}
                     	if (blindParams.closeMaxAction == "Up") 	{it.open()}
-                    	if (blindParams.closeMaxAction == "Stop") 	{it.stop()}
+                    	if (blindParams.closeMaxAction == "Preset") {it.presetPosition()}
                     	}
         }
     }
@@ -559,13 +560,13 @@ settings.z_blinds.each {
         {
 			if (blindParams.closeMaxAction == "Down") it.open()
             if (blindParams.closeMaxAction == "Up") it.close()
-            if (blindParams.closeMaxAction == "Stop") it.open()
+            if (blindParams.closeMaxAction == "Preset") it.open()
         }
         if(state.cloudCover.toInteger() > blindParams.cloudCover.toInteger() && blindParams.blindsType == "Shutter") 
         {
 			if (blindParams.closeMaxAction == "Down") it.open()
             if (blindParams.closeMaxAction == "Up") it.close()
-            if (blindParams.closeMaxAction == "Stop") it.stop()
+            if (blindParams.closeMaxAction == "Preset") it.presetPosition()
         }
     }
 }
@@ -635,13 +636,13 @@ def checkForWind(evt) {
             if(state.windSpeed.toInteger() > blindParams.windForceCloseMin.toInteger() && blindParams.blindsType == "Shutter") {
                 if (blindParams.closeMinAction == "Down") it.close()
                 if (blindParams.closeMinAction == "Up") it.open()
-                if (blindParams.closeMinAction == "Stop") it.stop()
+                if (blindParams.closeMinAction == "Preset") it.presetPosition()
             }
             if(state.windSpeed.toInteger() > blindParams.windForceCloseMax.toInteger() && blindParams.blindsType == "Screen") {
                 //reverse the defined MaxAction
                 if (blindParams.closeMaxAction == "Down") it.open()
                 if (blindParams.closeMaxAction == "Up") it.close()
-                if (blindParams.closeMaxAction == "Stop") it.open()
+                if (blindParams.closeMaxAction == "Preset") it.open()
             }
         }
     }
@@ -650,7 +651,10 @@ def checkForWind(evt) {
 }
 
 def eventRefresh(evt) {
-	if (state.night == true) return
+	if (state.night == true) {
+        checkForWind()
+    	return
+    }
     
     TRACE("[eventRefresh] ${evt.device} Source ${evt.source}")
     checkForClouds()
