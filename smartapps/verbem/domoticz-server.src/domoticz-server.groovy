@@ -3,16 +3,6 @@
  *
  *  Copyright 2018 Martin Verbeek
  *
- *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
- *  in compliance with the License. You may obtain a copy of the License at:
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
- *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
- *  for the specific language governing permissions and limitations under the License.
- *
- *	
     V6.00	Abilty to check oAuth in DZ settings against current oAuth
     		Restructure of SocketSend routine (only path and callback provided to sendHub)
             Restructure of UpdateDeviceList routine
@@ -29,6 +19,7 @@
 	V6.16	Fix for multipurpose temp/hum/pressure sensors to be recognized for notifications
     		Do intitial seed of values for virtual devices in DZ from ST when devices are created
     V6.17	Fix for data flow Thermostat DZ to ST direction, setting of Notifications
+    V6.18	Move Blinds to windowShade capability
  */
 
 import groovy.json.*
@@ -113,23 +104,6 @@ private def setupWelcome() {
 
     def textPara2 = "${app.name}. ${textVersion()}\n${textCopyright()}"
 
-    def textPara3 =
-        "Please read the License Agreement below. By tapping the 'Next' " +
-        "button at the top of the screen, you agree and accept the terms " +
-        "and conditions of the License Agreement."
-
-    def textLicense =
-        "This program is free software: you can redistribute it and/or " +
-        "modify it under the terms of the GNU General Public License as " +
-        "published by the Free Software Foundation, either version 3 of " +
-        "the License, or (at your option) any later version.\n\n" +
-        "This program is distributed in the hope that it will be useful, " +
-        "but WITHOUT ANY WARRANTY; without even the implied warranty of " +
-        "MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU " +
-        "General Public License for more details.\n\n" +
-        "You should have received a copy of the GNU General Public License " +
-        "along with this program. If not, see <http://www.gnu.org/licenses/>."
-
     def pageProperties = [
         name        : "setupInit",
         title       : "Welcome!",
@@ -141,10 +115,7 @@ private def setupWelcome() {
     return dynamicPage(pageProperties) {
         section {
             paragraph textPara1
-            paragraph textPara3
-        }
-        section("License") {
-            paragraph textLicense
+            paragraph textPara2
         }
     }
 }
@@ -225,7 +196,7 @@ private def setupCompositeSensors() {
         }
         section {	
       		state.listSensors.sort().each { key, item ->
-        	if (item.type == "domoticzSensor" || item.type == "domoticzMotion" || item.type == "domoticzThermostat" ) {
+        	if (item.type.matches("domoticzSensor|domoticzMotion|domoticzThermostat")) {
                 def iMap = item as Map
                 paragraph "Extend ${iMap.type.toUpperCase()}\n${iMap.name}"
                 
@@ -819,7 +790,7 @@ void handlerEvents(evt) {
         	if (evt.stringValue == "locked") socketSend([request: "on", idx: idx]) else socketSend([request: "off", idx: idx])
             break
         case "motion":
-        	if (evt.stringValue == "inactive" || evt.stringValue == "off") socketSend([request: "off", idx: idx]) else socketSend([request: "on", idx: idx])
+        	if (evt.stringValue.matches("inactive|off")) socketSend([request: "off", idx: idx]) else socketSend([request: "on", idx: idx])
             break
         case "contact":
         	if (evt.stringValue == "closed") socketSend([request: "SetContact", idx: idx, nvalue:0]) else socketSend([request: "SetContact", idx: idx, nvalue:1])
@@ -1563,6 +1534,10 @@ private def createAttributes(domoticzDevice, domoticzStatus, addr) {
             	if (domoticzDevice.hasAttribute("motion")) attributeList.put('motion', v)
             	if (domoticzDevice.hasAttribute("contact")) attributeList.put('contact', v)
             	if (domoticzDevice.hasAttribute("smoke")) attributeList.put('smoke', v)
+            	if (domoticzDevice.hasAttribute("windowShade")) { 
+                	if (v == "Stopped") v = "partially open"
+                	attributeList.put('windowShade', v.toLowerCase())
+                }
             	if (domoticzDevice.hasAttribute("switch")) {
                 	if (v.contains("Level")) attributeList.put('switch', 'On') 
                     else attributeList.put('switch', v)
@@ -1982,6 +1957,7 @@ private def socketSend(passed) {
     }
 
     sendHubCommand(new physicalgraph.device.HubAction(method: "GET", path: hubPath, headers: [HOST: "${state.networkId}"], null, hubCallback))
+    pause 2
 }
 
 void aliveResponse(evt) {
@@ -2155,10 +2131,6 @@ def eventDomoticz() {
             	attr = "motion"
                 if (status == "on") status = "active" else status = "inactive"
             	break
-            case "domoticzBlinds":
-            	attr = "switch"
-				if (status == "on") status = "Closed" else status = "Open"
-                break
             case "domoticzSelector":
             	attr = "switch"
 				if (status == "off") level = 0
