@@ -44,7 +44,6 @@ metadata {
         attribute "selectorState", "string"
         
         // custom commands
-        command "parse"     // (String "<attribute>:<value>[,<attribute>:<value>]")
        	command "setLevel"
     }
 
@@ -75,27 +74,6 @@ metadata {
         
         details(["richDomoticzSelector", "rssi", "debug", "stateButton"])
     }
-}
-
-def parse(String message) {
-    TRACE("parse(${message})")
-
-    Map msg = stringToMap(message)
-    if (msg?.size() == 0) {
-        log.error "Invalid message: ${message}"
-        return null
-    }
-
-    if (msg.containsKey("switch")) {
-        def value = msg.switch.toInteger()
-        switch (value) {
-        case 0: off(); break
-        case 1: on(); break
-        }
-    }
-
-    STATE()
-    return null
 }
 
 // switch.poll() command handler

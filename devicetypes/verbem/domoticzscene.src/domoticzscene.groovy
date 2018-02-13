@@ -36,11 +36,7 @@ metadata {
         capability "Refresh"
         capability "Polling"
 		capability "Health Check"
-        
-        // custom commands
-        command "parse"     // (String "<attribute>:<value>[,<attribute>:<value>]")
-
-    }
+}
 
     tiles(scale:2) {
     	multiAttributeTile(name:"richDomoticzOnOff", type:"lighting",  width:6, height:4, canChangeIcon: true, canChangeBackground: true) {
@@ -72,27 +68,6 @@ metadata {
             status "Switch Off": "switch:0"
         }
     }
-}
-
-def parse(String message) {
-    TRACE("parse(${message})")
-
-    Map msg = stringToMap(message)
-    if (msg?.size() == 0) {
-        log.error "Invalid message: ${message}"
-        return null
-    }
-
-    if (msg.containsKey("switch")) {
-        def value = msg.switch.toInteger()
-        switch (value) {
-        case 0: off(); break
-        case 1: on(); break
-        }
-    }
-
-    STATE()
-    return null
 }
 
 // switch.poll() command handler
@@ -153,17 +128,6 @@ private getIDXAddress() {
 
     //log.debug "Using IDX: $idx for device: ${device.id}"
     return idx
-}
-
-/*----------------------------------------------------*/
-/*			execute event can be called from the service manager!!!
-/*----------------------------------------------------*/
-def generateEvent (Map results) {
-    results.each { name, value ->
-        log.info "generateEvent " + name + " " + value
-        sendEvent(name:"${name}", value:"${value}")
-        }
-        return null
 }
 
 def installed() {

@@ -72,13 +72,6 @@ metadata {
 	}
 }
 
-// parse events into attributes
-def parse(String description) {
-	log.debug "Parsing '${description}'"
-	// TODO: handle 'motion' attribute
-
-}
-
 def refresh() {
 	log.debug "Executing 'refresh'"
 
@@ -104,21 +97,6 @@ private getIDXAddress() {
 
     //log.debug "Using IDX: $idx for device: ${device.id}"
     return idx
-}
-
-/*----------------------------------------------------*/
-/*			execute event can be called from the service manager!!!
-/*----------------------------------------------------*/
-def generateEvent (Map results) {
-    results.each { name, value ->
-    	def v = value
-    	if (name.toUpperCase() == "MOTION") 
-        	if (value.toUpperCase() == "ON") v = "active" else v = "inactive"
-            
-        log.info "generateEvent " + name + " " + v
-        sendEvent(name:"${name}", value:"${v}")
-        }
-        return null
 }
 
 def installed() {

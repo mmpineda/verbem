@@ -118,17 +118,6 @@ private getIDXAddress() {
     return idx
 }
 
-/*----------------------------------------------------*/
-/*			execute event can be called from the service manager!!!
-/*----------------------------------------------------*/
-def generateEvent (Map results) {
-    results.each { name, value ->
-        log.info "generateEvent " + name + " " + value
-        sendEvent(name:"${name}", value:"${value}")
-        }
-    return null
-}
-
 def installed() {
 	initialize()
 }

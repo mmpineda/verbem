@@ -45,11 +45,6 @@ metadata {
         attribute "startCalibrationTime", "number"
         attribute "endCalibrationTime", "number"
         attribute "blindClosingTime", "number"
-
-        attribute "windBearing", "string"
-        attribute "windSpeed", "number"
-		attribute "cloudCover", "number"
-		attribute "sunBearing", "string"
         attribute "somfySupported", "enum", [true, false]
         attribute "eodAction", "string"
         attribute "eodTime", "string"
@@ -103,51 +98,7 @@ metadata {
             state "default", label:'Calibrate', icon:"st.doors.garage.garage-closing",
                 action:"calibrate"
         }
-/*
- 		standardTile("windBearing", "device.windBearing",  inactiveLabel: false, width: 2, height: 2, decoration:"flat") {
-			state "windBearing", label:'${currentValue}', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/windBearing.png"            
-        }
 
- 		standardTile("windSpeed", "device.windSpeed",  inactiveLabel: false, width: 2, height: 2, decoration:"flat") {
-			state "windSpeed", label:'${currentValue} km/h', unit:"km/h", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/windSpeed.png",            
-							backgroundColors:[
-							// km/h -> bft
-							[value: 0, color: "#bef9b8"], 	//bft0 
-							[value: 1, color: "#a8f99f"], 	//bft1 
-							[value: 6, color: "#90f984"],	//bft2 
-							[value: 12, color: "#72fc62"],	//bft3 
-							[value: 20, color: "#4efc3a"],	//bft4 
-							[value: 29, color: "#1efc05"],	//bft5 
-							[value: 39, color: "#f6f7e8"],	//bft6 
-							[value: 50, color: "#f1f7a5"],	//bft7
-							[value: 62, color: "#fafc74"],	//bft8 
-							[value: 75, color: "#f9fc20"],	//bft9 
-							[value: 89, color: "#f7ae60"],	//bft10 
-							[value: 103, color: "#fc8a11"],	//bft11 
-							[value: 117, color: "#f9260e"]	//bft12 
-							]        
-        }
-
- 		standardTile("sunBearing", "device.sunBearing",  inactiveLabel: false, width: 2, height: 2, decoration:"flat") {
-			state "sunBearing", label:'${currentValue}', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/sunBearing.png"            
-        }
-
- 		standardTile("cloudCover", "device.cloudCover",  inactiveLabel: false, width: 2, height: 2, decoration:"flat") {
-			state "cloudCover", label:'${currentValue}%', unit:"%", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/cloudCover.png"            
-        }
-		
-		standardTile("eodAction", "device.eodAction", inactiveLabel: false, width: 2, height: 2, decoration:"flat") {
-			state "eodAction", label:'${currentValue} EoD Action', unit:""
-		}
-
-		standardTile("eodTime", "device.eodTime", inactiveLabel: false, width: 4, height: 1, decoration:"flat") {
-			state "eodTime", label:'${currentValue}', unit:""
-		}
-
-		standardTile("eodDone", "device.eodDone", inactiveLabel: false, width: 2, height: 2, decoration:"flat") {
-			state "eodDone", label:'${currentValue}', unit:""
-		}
-*/
         standardTile("Refresh", "device.refresh", width: 2, height: 2, inactiveLabel: false, decoration: "flat") {
             state "refresh", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
         }
@@ -199,7 +150,7 @@ def parse(String message) {
 // handle commands
 
 def on() {
-	log.debug "Close()"
+	log.debug "on()"
     if (parent) {
 		sendEvent(name:'windowShade', value:"closed" as String)
 		parent.domoticz_on(getIDXAddress())
@@ -208,7 +159,7 @@ def on() {
 }
 
 def off() {
-	log.debug "Open()"
+	log.debug "off()"
     if (parent) {
 		sendEvent(name:'windowShade', value:"open" as String)
         parent.domoticz_off(getIDXAddress())
@@ -216,7 +167,7 @@ def off() {
 }
 
 def close() {
-	log.debug "Close()"
+	log.debug "close()"
     if (parent) {
 		sendEvent(name:'windowShade', value:"closed" as String)
         parent.domoticz_on(getIDXAddress())
@@ -224,21 +175,21 @@ def close() {
 }
 
 def refresh() {
-	log.debug "Refresh()"
+	log.debug "refresh()"
     if (parent) {
         parent.domoticz_poll(getIDXAddress())
     }
 }
 
 def poll() {
-	log.debug "Poll()"
+	log.debug "poll()"
     if (parent) {
         parent.domoticz_poll(getIDXAddress())
     }
 }
 
 def open() {
-	log.debug "Open()"
+	log.debug "open()"
     if (parent) {
 		sendEvent(name:'windowShade', value:"open" as String)
         parent.domoticz_off(getIDXAddress())
@@ -246,7 +197,7 @@ def open() {
 }
 
 def stop() {
-	log.debug "Stop()"
+	log.debug "stop()"
     if (parent) {
         sendEvent(name:'switch', value:"Stopped" as String)
         presetPosition()
@@ -397,46 +348,6 @@ def generateEvent (Map results) {
 	    	dev.generateEvent(passedResults)
      	}
     }
-
-return
-results.each { name, value ->
-	log.info "generateEvent " + name + " " + value
-    
-    if (name == "eodTime")	{
-    	log.info "sendevent eodDone"
-    	sendEvent(name:'eodDone', value:false)
-        }
-	if (name == "cloudCover") {
-    	def cloudIcon = "http://icons.wxug.com/i/c/k/cloudy.gif"
-        if (value != null) {
-    	switch (value.toInteger()) {
-        	case 0..20:
-            	cloudIcon = "http://icons.wxug.com/i/c/k/clear.gif"
-            	break
-            case 21..50:
-            	cloudIcon = "http://icons.wxug.com/i/c/k/partlycloudy.gif"
-            	break
-            case 51..80:
-            	cloudIcon = "http://icons.wxug.com/i/c/k/mostlycloudy.gif"
-            	break
-            default:
-            	break
-        	}
-        }
-    	sendEvent(name:"${name}", value:"${value}", data:[icon:cloudIcon])}
-		
-	else if(name == "windBearing" || name == "sunBearing") {
-    	def directionIcon = "https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/WindDirN.PNG"
-        if (value != null) {
-        	directionIcon = "https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/WindDir${value}.PNG"
-        	}
-       	log.info directionIcon
-    	sendEvent(name:"${name}", value:"${value}", data:[icon:directionIcon])}    	
-    	
-    else {sendEvent(name:"${name}", value:"${value}")}
-	
-    }
-    return null
 }
 
 def installed() {

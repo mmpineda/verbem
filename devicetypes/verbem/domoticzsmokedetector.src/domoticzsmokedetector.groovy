@@ -63,13 +63,6 @@ metadata {
 	}
 }
 
-// parse events into attributes
-def parse(String description) {
-	log.debug "Parsing '${description}'"
-	// TODO: handle 'smoke' attribute
-
-}
-
 def refresh() {
 	log.debug "Executing 'refresh'"
 
@@ -95,22 +88,6 @@ private getIDXAddress() {
 
     //log.debug "Using IDX: $idx for device: ${device.id}"
     return idx
-}
-
-/*----------------------------------------------------*/
-/*			execute event can be called from the service manager!!!
-/*----------------------------------------------------*/
-def generateEvent (Map results) {
-    results.each { name, value ->
-    	def v = value
-    	if (name.toUpperCase() == "SMOKE") { 
-        	if (value.toUpperCase() == "ON") v = "smoke"
-        	if (value.toUpperCase() == "OFF") v = "clear"
-            }
-        log.info "generateEvent " + name + " " + v
-        sendEvent(name:"${name}", value:"${v}")
-        }
-        return null
 }
 
 def installed() {

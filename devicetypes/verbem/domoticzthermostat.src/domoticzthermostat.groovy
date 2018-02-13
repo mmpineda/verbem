@@ -133,11 +133,6 @@ def ping() {
     }
 }
 
-// parse events into attributes
-def parse(String description) {
-	log.debug "Parsing '${description}'"
-}
-
 def refresh() {
 	poll()
 }

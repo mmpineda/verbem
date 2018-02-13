@@ -53,8 +53,6 @@ metadata {
 		attribute "powerToday", "String"
 
         // custom commands
-        command "parse"     
-        command "generateEvent"
         command "hourLog"
         command	"day"
         command "week"
@@ -132,27 +130,6 @@ metadata {
         
         details(["richDomoticzOnOff", "day", "week", "month", "year", "graph", "rssi", "debug"])
     }
-}
-
-def parse(String message) {
-    TRACE("parse(${message})")
-
-    Map msg = stringToMap(message)
-    if (msg?.size() == 0) {
-        log.error "Invalid message: ${message}"
-        return null
-    }
-
-    if (msg.containsKey("switch")) {
-        def value = msg.switch.toInteger()
-        switch (value) {
-        case 0: off(); break
-        case 1: on(); break
-        }
-    }
-
-    STATE()
-    return null
 }
 
 // switch.poll() command handler
@@ -282,24 +259,6 @@ private getIDXAddress() {
 
     //log.debug "Using IDX: $idx for device: ${device.id}"
     return idx
-}
-
-/*----------------------------------------------------*/
-/*			execute event can be called from the service manager!!!
-/*----------------------------------------------------*/
-def generateEvent (Map results) {
-    results.each { name, value ->
-    	def v = value
-    	if (name == "switch") {
-        	if (v instanceof String) {
-                if (v.toUpperCase() == "OFF" ) v = "off"
-                if (v.toUpperCase() == "ON") v = "on"
-                }
-            }
-        log.info "generateEvent " + name + " " + v
-        sendEvent(name:"${name}", value:"${v}")
-        }
-        return null
 }
 
 def getWhite(value) {
