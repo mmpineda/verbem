@@ -1957,7 +1957,6 @@ private def socketSend(passed) {
     }
 
     sendHubCommand(new physicalgraph.device.HubAction(method: "GET", path: hubPath, headers: [HOST: "${state.networkId}"], null, hubCallback))
-    pause 2
 }
 
 void aliveResponse(evt) {
@@ -2103,7 +2102,7 @@ def eventDomoticz() {
                 settings.dzDevicesLocks.each { device ->
                     if (device.deviceNetworkId == lock.value.dni) {
                         if (device.currentValue("lock").toUpperCase() != status.toUpperCase()) {		// status was changed in DZ for a virtual device
-                            if (status == "Locked") device.lock() else device.unlock()
+                            if (status == "on") device.lock() else device.unlock()
                         }
                     }
                 }
