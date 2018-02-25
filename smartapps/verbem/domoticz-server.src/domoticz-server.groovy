@@ -20,6 +20,7 @@
     		Do intitial seed of values for virtual devices in DZ from ST when devices are created
     V6.17	Fix for data flow Thermostat DZ to ST direction, setting of Notifications
     V6.18	Move Blinds to windowShade capability
+    V6.19	Added call to uCount to capture notifications that are for non-specific devices
  */
 
 import groovy.json.*
@@ -27,7 +28,7 @@ import groovy.time.*
 import java.Math.*
 
 private def cleanUpNeeded() {return true}
-private def runningVersion() {"6.17"}
+private def runningVersion() {"6.19"}
 private def textVersion() { return "Version ${runningVersion()}"}
 
 definition(
@@ -781,7 +782,7 @@ void handlerEvents(evt) {
 	def idx = getVirtualIdx([name:dev.displayName, type: evt.name])
     
     if (idx) {   
-    	TRACE("${evt.name} ${evt.stringValue} for ${dev.displayName} idx ${idx}")
+    	//TRACE("${evt.name} ${evt.stringValue} for ${dev.displayName} idx ${idx}")
         switch (evt.name) {
         case "switch":
             socketSend([request: evt.stringValue, idx: idx])
@@ -824,7 +825,7 @@ private def getVirtualIdx(passed) {
 void callbackForUCount(evt) {
     def response = getResponse(evt)   
     if (response?.result == null)  return
-	//TRACE("callbackForUCount")
+	TRACE("callbackForUCount")
 
 	response.result.each { utility ->
 		// Power usage    
@@ -895,7 +896,7 @@ void callbackForUCount(evt) {
 			def stateDevice = state.devices.find {key, item -> 
 		    	item.idxTemperature == utility.idx
     		}
-
+			
 			if (stateDevice) {
                 stateDevice = stateDevice.toString().split("=")[0]
                 def dni = state.devices[stateDevice].dni
@@ -1310,7 +1311,7 @@ def callbackListHardware(evt) {
     	if (hardware.Name == "SmartThings") {
         	state.dzHardwareIdx = hardware.idx
             pause 5
-            TRACE("[] SmartThings Hardware id in Domoticz is ${state.dzHardwareIdx}")
+            TRACE("[callbackListHardware] SmartThings Hardware id in Domoticz is ${state.dzHardwareIdx}")
         }
     }
 }
@@ -1979,9 +1980,10 @@ void aliveChecker(evt) {
     
 	if (state.alive == false && state.aliveCount > 1) {
     	state.aliveAgain = false
-    	log.error "Domoticz server is not responding"
-        sendNotification("Domoticz server is not responding", [method: "push"])
-        if (!state.devicesOffline) devicesOffline()
+        if (!state.devicesOffline) {
+        	sendNotification("Domoticz server is not responding", [method: "push"])
+        	devicesOffline()
+        }
     }
     
     if (state.aliveCount) state.aliveCount = state.aliveCount + 1
@@ -2160,7 +2162,8 @@ def eventDomoticz() {
                 }
         }
         else {
-            socketSend([request : "status", idx : idx]) 
+            socketSend([request : "status", idx : idx])
+            socketSend([request : "utilityCount", idx : idx])
         } 
     }
     else if (params.message.contains("SENSOR ") && params.message.split().size() >= 2) { 
