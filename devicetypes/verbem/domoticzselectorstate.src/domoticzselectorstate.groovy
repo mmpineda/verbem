@@ -40,7 +40,6 @@ def on() {
 }
 
 def buttonPress() {
-	log.info parent.currentValue("selector")
     def stateLevels = device.displayName.tokenize("-")
     def stateLevel = stateLevels[stateLevels.size()-1]
     stateLevels = parent.currentValue("selector").tokenize("|")
@@ -54,7 +53,6 @@ def buttonPress() {
     }
     
     if (found != 200) {
-    	log.info "${device.displayName} set Level ${found} for ${stateLevel}"
         parent.setLevel(found)
     }
 }
@@ -74,7 +72,6 @@ def initialize() {
         def stateLevels = device.displayName.tokenize("-")
     	def stateLevel = stateLevels[stateLevels.size()-1]
         sendEvent(name: "labelButton", value: stateLevel)
-        //sendEvent(name: "numberOfButtons", value: 1)
     }
     else {
     	log.error "You cannot use this DTH without the related DTH domoticzSelector, the device needs to be a child of this DTH"

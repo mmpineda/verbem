@@ -17,7 +17,7 @@
  *	3.0 2016-12-24 cleanup of DTH statuses
  *  3.1 2017-05-10 Adding end of day scheduling for blinds as an offset to sunset, these are set in the Smart Screens app. 
  *  3.2 2017-07-12 Adding HC and parent check
- *	4.0 2018-02-12 Add windowShade capability
+ *	4.0 2018-02-12 Add windowShade capability, fix eodDone
  */
 import groovy.time.TimeCategory 
 import groovy.time.TimeDuration
@@ -50,15 +50,11 @@ metadata {
         attribute "eodTime", "string"
         attribute "eodDone", "enum" , [true, false]
 
-
         // custom commands
         command "parse"     // (String "<attribute>:<value>[,<attribute>:<value>]")
-        //command "close"
-        //command "open"
         command "stop"
         command "setLevel"
         command "calibrate"
-        command "generateEvent"
         command "eodRunOnce"
 
     }
@@ -123,28 +119,21 @@ metadata {
 }
 
 // parse events into attributes
-def parse(String message) {
+def parse(Map message) {
     log.debug "parse(${message})"
 
-    Map msg = stringToMap(message)
-    if (msg?.size() == 0) {
+    if (message?.size() == 0) {
         log.error "Parse- Invalid message: ${message}"
         return null
     }
 
-
-    if (msg.containsKey("switch")) {
-    	log.debug "Parse- value  ${msg.switch}"
-        switch (msg.switch.toUpperCase()) {
-        case "ON": close(); break
-        case "STOPPED": stop(); break
-        case "OFF": open(); break
-        sendPush( "Parse- Invalid message: ${message}")
+	if (message?.name.matches("sunBearing|windBearing|windSpeed|cloudCover")) {
+    	childEvent(message)
         return null
-        }
     }
-//    STATE()
-    return null
+
+    def evt = createEvent(message)
+	return evt
 }
 
 // handle commands
@@ -298,11 +287,14 @@ def calibrate() {
 }
 
 def eodRunOnce(tempTime) {
-	createComponent()
+	//this is only called by Smart Screens as a command, so add component tiles
+    def children = getChildDevices()
+    
+	if (!children) 	createComponent()
     
     def tempEodAction = device.currentValue("eodAction")
     runOnce(tempTime, handlerEod, [overwrite: false, data: ["eodAction": tempEodAction]])
-
+    sendEvent(name:'eodDone', value:false)
 }
 
 private def createComponent() {
@@ -340,14 +332,45 @@ private getIDXAddress() {
 /*----------------------------------------------------*/
 /*			execute event can be called from the service manager!!!
 /*----------------------------------------------------*/
-def generateEvent (Map results) {
+private def childEvent(Map message) {
     def children = getChildDevices()
+    def childSmart
+    def icon
+   
+	if (message?.value == null) return   
     if (children) {
-    	children.each { dev ->
-            def passedResults = results
-	    	dev.generateEvent(passedResults)
-     	}
+ 		children.each {
+        	childSmart = it
+        }
     }
+    else {
+    	log.error "no children cannot issue sendEvent"
+        return
+    }
+    
+    if (message.name == "cloudCover") {      
+        switch (message.value.toInteger()) {
+            case 0..20:
+            icon = "http://icons.wxug.com/i/c/k/clear.gif"
+            break
+            case 21..50:
+            icon = "http://icons.wxug.com/i/c/k/partlycloudy.gif"
+            break
+            case 51..80:
+            icon = "http://icons.wxug.com/i/c/k/mostlycloudy.gif"
+            break
+            default:
+                icon = "http://icons.wxug.com/i/c/k/cloudy.gif"
+            break
+        } 
+    }
+    
+    if(message.name.matches("windBearing|sunBearing")) {
+        icon = "https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/WindDir${message.value}.PNG"
+    }    
+    
+    if (icon) childSmart.sendEvent(name:"${message.name}", value:"${message.value}", data:[icon:icon])
+    else childSmart.sendEvent(name:"${message.name}", value:"${message.value}")
 }
 
 def installed() {

@@ -32,14 +32,6 @@ metadata {
         attribute "windSpeed", "number"
 		attribute "cloudCover", "number"
 		attribute "sunBearing", "string"
-        attribute "eodAction", "string"
-        attribute "eodTime", "string"
-        attribute "eodDone", "enum" , [true, false]
-
-        // custom commands
-        command "generateEvent"
-        command "eodRunOnce"
-
     }
 
     tiles (scale: 2) {
@@ -79,76 +71,6 @@ metadata {
         main(["windBearing"])
         details(["windBearing", "windSpeed", "sunBearing", "cloudCover"])
     }    
-}
-
-def handlerEod(data) {
-	sendEvent(name:'eodDone', value:true)
-    switch (data.eodAction) {
-    case "Up":
-    	parent.open()	
-        break;
-    case "Down":
-    	parent.close()
-        break;
-    case "Stop":
-    	parent.presetPosition()
-        break;
-    default:
-        log.error "Non handled eodAction(${tempEodAction})"
-        break;
-    }
-}
-
-def eodRunOnce(tempTime) {
-
-def tempEodAction = device.currentValue("eodAction")
-runOnce(tempTime, handlerEod, [overwrite: false, data: ["eodAction": tempEodAction]])
-
-}
-
-/*----------------------------------------------------*/
-/*			execute event can be called from the service manager!!!
-/*----------------------------------------------------*/
-def generateEvent (Map results) {
-log.info results
-results.each { name, value ->
-	log.info "generateEvent " + name + " " + value
-    
-    if (name == "eodTime")	{
-    	log.info "sendevent eodDone"
-    	sendEvent(name:'eodDone', value:false)
-        }
-	if (name == "cloudCover") {
-    	def cloudIcon = "http://icons.wxug.com/i/c/k/cloudy.gif"
-        if (value != null) {
-    	switch (value.toInteger()) {
-        	case 0..20:
-            	cloudIcon = "http://icons.wxug.com/i/c/k/clear.gif"
-            	break
-            case 21..50:
-            	cloudIcon = "http://icons.wxug.com/i/c/k/partlycloudy.gif"
-            	break
-            case 51..80:
-            	cloudIcon = "http://icons.wxug.com/i/c/k/mostlycloudy.gif"
-            	break
-            default:
-            	break
-        	}
-        }
-    	sendEvent(name:"${name}", value:"${value}", data:[icon:cloudIcon])}
-		
-	else if(name == "windBearing" || name == "sunBearing") {
-    	def directionIcon = "https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/WindDirN.PNG"
-        if (value != null) {
-        	directionIcon = "https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/WindDir${value}.PNG"
-        	}
-       	log.info directionIcon
-    	sendEvent(name:"${name}", value:"${value}", data:[icon:directionIcon])}    	
-    	
-    else {sendEvent(name:"${name}", value:"${value}")}
-	
-    }
-    return null
 }
 
 def installed() {

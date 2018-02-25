@@ -45,6 +45,9 @@ metadata {
                 attributeState "powerTotal", label:'${currentValue}', unit: "kWh"
             }
         }
+        standardTile("powerMain", "device.power", inactiveLabel: false, decoration: "flat", width:2, height:2) {
+            state "level", label:'${currentValue} W'
+        }	        
         standardTile("day", "day", inactiveLabel: false, decoration: "flat", width:2, height:2) {
             state "default", label:'24 hours', action:"takeDay"
         }		
