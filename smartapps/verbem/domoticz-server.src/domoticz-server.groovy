@@ -1370,7 +1370,7 @@ private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, pa
         else deviceType = "sensor"
         
 		// offline/not accessible in DZ???
-        if (passedDomoticzStatus?.HaveTimeout == false) {
+        if (passedDomoticzStatus?.HaveTimeout != true) {
             devOnline(dev)
         }
         else {
