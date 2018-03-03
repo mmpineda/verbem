@@ -25,7 +25,7 @@ metadata {
 
 	tiles
     {
-		standardTile("stateButton", "device.labelButton", decoration: "flat", width: 2, height: 2) {
+		standardTile("stateButton", "device.labelButton", decoration: "flat", width: 2, height: 1) {
 			state "labelButton", label: '${currentValue}', action: "buttonPress"
 			state "Error", label: "Install Error", backgroundColor: "#bc2323"
 		}        
@@ -39,6 +39,7 @@ def on() {
 }
 
 def buttonPress() {
+	sendEvent(name:"button", value: "pushed", data: [buttonNumber: 1], descriptionText: "$device.displayName button ${device.displayName.split("=")[1]} was pushed", isStateChange: true)
 	parent.callMood(device.displayName.split("=")[1])
 }
 

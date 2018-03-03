@@ -15,15 +15,12 @@
  */
 metadata {
 	definition (name: "domoticzMotion", namespace: "verbem", author: "SmartThings") {
+    	capability "Configuration"
 		capability "Motion Sensor"
-		capability "Temperature Measurement"
 		capability "Sensor"
-		capability "Battery"
 		capability "Actuator"
 		capability "Refresh"
-        capability "Signal Strength"
 		capability "Health Check"
-        capability "Illuminance Measurement"
         capability "Power"
         
         attribute "powerToday", "string"
@@ -50,25 +47,19 @@ metadata {
 		standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
 			state "default", action:"refresh.refresh", icon:"st.secondary.refresh"
 		} 
-        
-		valueTile("battery", "device.battery", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
-			state "battery", label:'${currentValue}% battery', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzsensor.src/battery.png"
-		}        
-		valueTile("temperature", "device.temperature", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
-			state "temparature", label:'${currentValue}', unit:"", icon:"st.Weather.weather2"
-		}
-		valueTile("illuminance", "device.illuminance", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
-			state "illuminance", label:'${currentValue} Lux', unit:"", icon:""
-		}
-		//valueTile("power", "device.powerToday", decoration: "flat", inactiveLabel: false, width: 4, height: 2) {
-		//	state "powerToday", label:'${currentValue}', unit:"", icon:""
-		//}
-		valueTile("rssi", "device.rssi", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
-            state "rssi", label:'Signal ${currentValue}', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzsensor.src/network-signal.png"
-        }
+                    
+		childDeviceTile("sensorHumidity", "Relative Humidity Measurement", decoration: "flat", width: 2, height: 2, childTileName: "sensorHumidity")   
+		childDeviceTile("sensorBarometricPressure", "Barometric Pressure", decoration: "flat", width: 2, height: 2, childTileName: "sensorBarometricPressure")   
+		childDeviceTile("sensorPower", "Power Meter", decoration: "flat", width: 2, height: 2, childTileName: "sensorPower")   
+		childDeviceTile("sensorIlluminance", "Illuminance Measurement", decoration: "flat", width: 2, height: 2, childTileName: "sensorIlluminance")   
+		childDeviceTile("sensorAirQuality", "Air Quality Sensor", decoration: "flat", width: 2, height: 2, childTileName: "sensorAirQuality")   
+		childDeviceTile("sensorSound", "Sound Sensor", decoration: "flat", width: 2, height: 2, childTileName: "sensorSound")   
+		childDeviceTile("sensorTemperature", "Temperature Measurement", decoration: "flat", width: 2, height: 2, childTileName: "sensorTemperature")   
+		childDeviceTile("sensorSignalStrength", "Signal Strength", decoration: "flat", width: 2, height: 2, childTileName: "sensorSignalStrength")   
+		childDeviceTile("sensorBattery", "Battery", decoration: "flat", width: 2, height: 2, childTileName: "sensorBattery")   
 
 		main "motion"
-		details(["motion", "temperature", "battery", "illuminance", "power", "rssi", "refresh"])
+		details(["motion", "sensorTemperature", "sensorBattery", "sensorIlluminance", "sensorSignalStrength", "refresh"])
 	}
 }
 
@@ -103,6 +94,73 @@ def installed() {
 	initialize()
 }
 
+def parse(Map message) {
+	
+    def capability
+    def evt = createEvent(message)
+    if (message.name.matches("illuminance|soundPressureLevel|temperature|battery|rssi")) {
+
+    	switch (message.name) {
+        	case "airQuality":
+            capability = "Air Quality Sensor"
+            break
+        	case "illuminance":
+            capability = "Illuminance Measurement"
+            break
+        	case "temperature":
+            capability = "Temperature Measurement"
+            break
+        	case "soundPressureLevel":
+            capability = "Sound Sensor"
+            break
+        	case "barometricPressure":
+            capability = "Barometric Pressure"
+            break
+        	case "humidity":
+            capability = "Relative Humidity Measurement"
+            break
+        	case "power":
+            capability = "Power Meter"
+            break
+        	case "battery":
+            capability = "Battery"
+            break
+        	case "rssi":
+            capability = "Signal Strength"
+            break
+        }
+        if (capability) {
+            getChildDevices().each { child ->
+                if (child.deviceNetworkId.split("-")[1] == capability) { 
+                	log.info "Capability : ${capability} Message : ${message}"
+                	child.sendEvent(message)
+                    evt = null
+                }
+            }
+        }
+    }
+    else log.info message
+
+    return evt
+}
+
+def configure(type) {  
+    def children = getChildDevices()
+    def childExists = false
+
+    children.each { child ->
+        if (!childExists) childExists = child.deviceNetworkId.contains(type.toString())   	
+    }
+    
+    if (!childExists) {
+        log.info "Adding capability ${type}"
+        addChildDevice("domoticzSensor ${type}", 
+                       "${device.displayName}-${type}", 
+                       null, 
+                       [completedSetup: true, label: "${device.displayName}-${type}", isComponent: true, componentName: "${type}", componentLabel: "${type}"])
+	}                   
+
+}
 def updated() {
 	initialize()
 }

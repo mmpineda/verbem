@@ -1,5 +1,5 @@
 /**
- *  domoticzPower component
+ *  domoticzSelector "State" component
  *
  *  Copyright 2017 Martin Verbeek
  *

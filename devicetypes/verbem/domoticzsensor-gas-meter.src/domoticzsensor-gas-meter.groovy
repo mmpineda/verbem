@@ -1,5 +1,5 @@
 /**
- *  domoticzSensor "Air Quality" component
+ *  domoticzSensor "Gas" component
  *
  *  Copyright 2018 Martin Verbeek
  *
@@ -14,19 +14,20 @@
  *
  */
 metadata {
-	definition (name: "domoticzSensor Air Quality Sensor", namespace: "verbem", author: "Martin Verbeek") {
-		capability "Air Quality Sensor"
+	definition (name: "domoticzSensor Gas Meter", namespace: "verbem", author: "Martin Verbeek") {
 		capability "Sensor"
-	}
+        
+ 		attribute "gas", "number"	       
+    }
 
 	tiles
     {
-		standardTile("sensorAirQuality", "device.airQuality", decoration: "flat", width: 2, height: 2) {
-			state "airQuality", label:'${currentValue} ppm', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzsensor-air-quality-sensor.src/airQuality.png"
+		standardTile("sensorGas", "device.gas", decoration: "flat", width: 2, height: 2) {
+			state "gas", label: '${currentValue} m', icon: "http://cdn.device-icons.smartthings.com/Home/home29-icn@2x.png"
 			state "Error", label: "Install Error", backgroundColor: "#bc2323"
 		}        
-		main (["sensorAirQuality"])
-		details(["sensorAirQuality"])
+		main (["sensorGas"])
+		details(["sensorGas"])
 	}
 }
 
@@ -42,11 +43,11 @@ def initialize() {
 
     try {
     if (parent) {
-        sendEvent(name: "airQuality", value: 0)
+        sendEvent(name: "gas", value: 0)
     }
     else {
     	log.error "You cannot use this DTH without the related DTH domoticzSensor, the device needs to be a child of this DTH"
-        sendEvent(name: "airQuality", value: "Error", descriptionText: "$device.displayName You cannot use this DTH without the related domoticzSensor DTH", isStateChange: true)
+        sendEvent(name: "gas", value: "Error", descriptionText: "$device.displayName You cannot use this DTH without the related domoticzSensor DTH", isStateChange: true)
     }
   }
   catch (e) {

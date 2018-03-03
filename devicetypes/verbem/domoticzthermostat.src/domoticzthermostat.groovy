@@ -1,24 +1,15 @@
 /**
- *  Copyright 2017 Martin Verbeek
+ *  Copyright 2018 Martin Verbeek
  *
- *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
- *  in compliance with the License. You may obtain a copy of the License at:
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
- *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
- *  for the specific language governing permissions and limitations under the License.
- *
- *	Generic Domoticz Thermostat
  *
  *	Author: Martin Verbeek
  *	
- 	V1.00	Initial release
+ 	V7.00	Initial release
  
  */
 metadata {
 	definition (name: "domoticzThermostat", namespace: "verbem", author: "Martin Verbeek") {
+    	capability "Configuration"
 		capability "Actuator"
 		capability "Thermostat"
 		capability "Temperature Measurement"
@@ -31,7 +22,6 @@ metadata {
 		command "lowerSetpoint"
 		command "resumeProgram"
 
-		attribute "thermostatStatus", "string"
 		attribute "maxHeatingSetpoint", "number"
 		attribute "minHeatingSetpoint", "number"
 		attribute "deviceTemperatureUnit", "string"
@@ -43,13 +33,13 @@ multiAttributeTile(name:"thermostatFull", type:"thermostat", width:6, height:4) 
         tileAttribute("device.temperature", key: "PRIMARY_CONTROL") {
             attributeState("temperature", label:'${currentValue}', unit:"C", defaultState: true,
                         backgroundColors:[
-                                [value: 0, color: "#153591"],
-                                [value: 7, color: "#1e9cbb"],
-                                [value: 15, color: "#90d2a7"],
-                                [value: 23, color: "#44b621"],
-                                [value: 28, color: "#f1d801"],
-                                [value: 35, color: "#d04e00"],
-                                [value: 37, color: "#bc2323"],
+                                [value: 10, color: "#153591"],
+                                [value: 13, color: "#1e9cbb"],
+                                [value: 16, color: "#90d2a7"],
+                                [value: 19, color: "#44b621"],
+                                [value: 22, color: "#f1d801"],
+                                [value: 25, color: "#d04e00"],
+                                [value: 30, color: "#bc2323"],
                         ]        
             )
         }
@@ -58,8 +48,8 @@ multiAttributeTile(name:"thermostatFull", type:"thermostat", width:6, height:4) 
             attributeState("VALUE_DOWN", action:"lowerSetpoint", icon:"st.thermostat.thermostat-down")
         }
         tileAttribute("device.switch", key: "SECONDARY_CONTROL") {
-            attributeState("On", label:'On', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/Nefit Warm Water.png")
-            attributeState("Off", label:'Off', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/Nefit No Warm Water.png")
+            attributeState("On", label:'On', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/Nefit Warm Water.PNG")
+            attributeState("Off", label:'Off', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzblinds.src/Nefit No Warm Water.PNG")
         }
         tileAttribute("device.thermostatOperatingState", key: "OPERATING_STATE") {
             attributeState("idle", backgroundColor:"#00A0DC")
@@ -76,18 +66,28 @@ multiAttributeTile(name:"thermostatFull", type:"thermostat", width:6, height:4) 
             attributeState("heatingSetpoint", label:'${currentValue}', unit:"", defaultState: true)
         }
     }
+		childDeviceTile("sensorHumidity", "Relative Humidity Measurement", decoration: "flat", width: 2, height: 2, childTileName: "sensorHumidity")   
+		childDeviceTile("sensorBarometricPressure", "Barometric Pressure", decoration: "flat", width: 2, height: 2, childTileName: "sensorBarometricPressure")   
+		childDeviceTile("sensorPower", "Power Meter", decoration: "flat", width: 2, height: 2, childTileName: "sensorPower")   
+		childDeviceTile("sensorGas", "Gas Meter", decoration: "flat", width: 2, height: 2, childTileName: "sensorGas")   
+		childDeviceTile("sensorIlluminance", "Illuminance Measurement", decoration: "flat", width: 2, height: 2, childTileName: "sensorIlluminance")   
+		childDeviceTile("sensorAirQuality", "Air Quality Sensor", decoration: "flat", width: 2, height: 2, childTileName: "sensorAirQuality")   
+		childDeviceTile("sensorSound", "Sound Sensor", decoration: "flat", width: 2, height: 2, childTileName: "sensorSound")   
+		childDeviceTile("sensorTemperature", "Temperature Measurement", decoration: "flat", width: 2, height: 2, childTileName: "sensorTemperature")   
+		childDeviceTile("sensorSignalStrength", "Signal Strength", decoration: "flat", width: 2, height: 2, childTileName: "sensorSignalStrength")   
+		childDeviceTile("sensorBattery", "Battery", decoration: "flat", width: 2, height: 2, childTileName: "sensorBattery")   
 
-		valueTile("currentStatus", "device.thermostatStatus", height: 1, width: 2, decoration: "flat") {
-			state "thermostatStatus", label:'${currentValue}', backgroundColor:"#ffffff"
+		standardTile("refresh", "device.refresh", decoration: "flat", inactiveLabel: false,  width: 2, height: 2) {
+			state "default", action:"refresh.refresh", icon:"st.secondary.refresh"
 		}
         
 		main "thermostatFull"
-		details(["thermostatFull", "currentStatus"])
+		details(["thermostatFull", "sensorBattery", "sensorSignalStrength", "sensorHumidity", "sensorBarometricPressure", "sensorGas", "sensorPower", "sensorIlluminance", "sensorAirQuality", "sensorSound", "sensorTemperature", "refresh"])
 	
 
-	preferences {
-		input "holdType", "enum", title: "Hold Type", description: "When changing temperature, use Temporary (Until next transition) or Permanent hold (default)", required: false, options:["Temporary", "Permanent"]
-	}
+	//preferences {
+	//	input "holdType", "enum", title: "Hold Type", description: "When changing temperature, use Temporary (Until next transition) or Permanent hold (default)", required: false, options:["Temporary", "Permanent"]
+	//}
 }
 void setThermostatMode(setMode) {
 	sendEvent(name: "thermostatMode", value: setMode)
@@ -101,8 +101,14 @@ void setThermostatMode(setMode) {
     case "heat":
 		thermostatOperatingState = "heating"
     	break
+    case "emergency heat":
+		thermostatOperatingState = "heating"
+    	break
     case "auto":
 		thermostatOperatingState = "idle"
+    	break
+    case "dry":
+		thermostatOperatingState = "fan only"
     	break
      case "off":
 		thermostatOperatingState = "idle"
@@ -112,6 +118,7 @@ void setThermostatMode(setMode) {
     }
     sendEvent(name: "thermostatOperatingState", value: thermostatOperatingState)    	
 }
+
 void setThermostatFanMode(setMode) {
 	sendEvent(name: "thermostatFanMode", value: setMode)
     log.info "Fan Mode ${setMode} has been set"
@@ -138,7 +145,11 @@ def refresh() {
 }
 
 void poll() {
-	
+	log.debug "Executing poll()"
+
+    if (parent) {
+        parent.domoticz_poll(getIDXAddress())
+    }	
 }
 
 //return descriptionText to be shown on mobile activity feed
@@ -165,7 +176,7 @@ void setCoolingSetpoint(setpoint) {
 	log.debug "***cooling setpoint $setpoint for $last"
 	parent.domoticz_setpoint(last, setpoint)  
     sendEvent(name: "coolingSetpoint", value: setpoint)
-	sendEvent(name: "thermostatStatus", value:"Cooling to ${setpoint}", description:"Heating to ${setpoint}", displayed: true)  
+	//sendEvent(name: "thermostatStatus", value:"Cooling to ${setpoint}", description:"Heating to ${setpoint}", displayed: true)  
     sendEvent(name: "thermostatOperatingState", value: "cooling")
 
 
@@ -179,7 +190,7 @@ void setHeatingSetpoint(setpoint) {
     
 	parent.domoticz_setpoint(last, setpoint)  
     sendEvent(name: "heatingSetpoint", value: setpoint)
-	sendEvent(name: "thermostatStatus", value:"Heating to ${setpoint}", description:"Heating to ${setpoint}", displayed: true)    
+	//sendEvent(name: "thermostatStatus", value:"Heating to ${setpoint}", description:"Heating to ${setpoint}", displayed: true)    
     sendEvent(name: "thermostatOperatingState", value: "heating")
     
     return 
@@ -198,6 +209,7 @@ void raiseSetpoint() {
 	def currentSetpoint = device.currentValue("thermostatSetpoint") + 0.5  
     log.info currentSetpoint
     parent.domoticz_setpoint(getIDXAddress(), currentSetpoint)
+    sendEvent(name: "thermostatSetpoint", value: currentSetpoint)
 }
 
 //called by tile when user hit raise temperature button on UI
@@ -205,6 +217,7 @@ void lowerSetpoint() {
 	def currentSetpoint = device.currentValue("thermostatSetpoint") - 0.5  
     log.info currentSetpoint
     parent.domoticz_setpoint(getIDXAddress(), currentSetpoint)
+    sendEvent(name: "thermostatSetpoint", value: currentSetpoint)
 }
 
 def generateStatusEvent() {
@@ -234,7 +247,7 @@ def generateStatusEvent() {
 	}
 
 	log.debug "Generate Status Event = ${statusText}"
-	sendEvent("name":"thermostatStatus", "value":statusText, "description":statusText, displayed: true)
+	//sendEvent("name":"thermostatStatus", "value":statusText, "description":statusText, displayed: true)
 }
 
 def generateActivityFeedsEvent(notificationMessage) {
@@ -268,4 +281,74 @@ private getIDXAddress() {
     }
 
     return idx
+}
+
+def parse(Map message) {
+	
+    def capability
+    def evt = createEvent(message)
+    if (message.name.matches("humidity|power|gas|temperature|battery|rssi")) {
+
+    	switch (message.name) {
+        	case "airQuality":
+            capability = "Air Quality Sensor"
+            break
+        	case "illuminance":
+            capability = "Illuminance Measurement"
+            break
+        	case "temperature":
+            capability = "Temperature Measurement"
+            break
+        	case "soundPressureLevel":
+            capability = "Sound Sensor"
+            break
+        	case "barometricPressure":
+            capability = "Barometric Pressure"
+            break
+        	case "humidity":
+            capability = "Relative Humidity Measurement"
+            break
+        	case "power":
+            capability = "Power Meter"
+            break
+        	case "gas":
+            capability = "Gas Meter"
+            break
+        	case "battery":
+            capability = "Battery"
+            break
+        	case "rssi":
+            capability = "Signal Strength"
+            break
+        }
+        if (capability) {
+            getChildDevices().each { child ->
+                if (child.deviceNetworkId.split("-")[1] == capability) { 
+                	log.info "Capability : ${capability} Message : ${message}"
+                	child.sendEvent(message)
+                }
+            }
+        }
+    }
+    log.info message
+
+    return evt
+}
+
+def configure(type) {  
+    def children = getChildDevices()
+    def childExists = false
+
+    children.each { child ->
+        if (!childExists) childExists = child.deviceNetworkId.contains(type.toString())   	
+    }
+    
+    if (!childExists) {
+        log.info "Adding capability ${type}"
+        addChildDevice("domoticzSensor ${type}", 
+                       "${device.displayName}-${type}", 
+                       null, 
+                       [completedSetup: true, label: "${device.displayName}-${type}", isComponent: true, componentName: "${type}", componentLabel: "${type}"])
+	}                   
+
 }

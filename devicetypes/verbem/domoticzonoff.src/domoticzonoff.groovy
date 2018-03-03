@@ -4,24 +4,11 @@
  *  SmartDevice type for domoticz switches and dimmers.
  *  
  *
- *  Copyright (c) 2016 Martin Verbeek
- *
- *  This program is free software: you can redistribute it and/or modify it
- *  under the terms of the GNU General Public License as published by the Free
- *  Software Foundation, either version 3 of the License, or (at your option)
- *  any later version.
- *
- *  This program is distributed in the hope that it will be useful, but
- *  WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
- *  or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
- *  for more details.
- *
- *  You should have received a copy of the GNU General Public License along
- *  with this program.  If not, see <http://www.gnu.org/licenses/>.
- *
+ *  Copyright (c) 2018 Martin Verbeek
  *
  *  Revision History
  *  ----------------
+ *	2018-03-03 7.00 Component based, Graph, Mood, RSSI, BATTERY
  *	2018-01-28 6.00 Check state before issue on or off, dont with same state
  *	2017-12-31 5.02	Added power today and total to powerToday event, changed tile to display
  *	2017-12-15 5.00 implemented image graphs for power usage if available
@@ -32,11 +19,13 @@
  *  2017-01-25 3.09 Put in check for switch name in generateevent
  *	2017-01-18 3.08 get always an lowercase value for switch on/off in generateevent
  */
+ 
 import Calendar.*
 import groovy.time.*
 
 metadata {
     definition (name:"domoticzOnOff", namespace:"verbem", author:"Martin Verbeek") {
+    	capability "Configuration"
         capability "Actuator"
         capability "Sensor"
         capability "Color Control"
@@ -45,10 +34,8 @@ metadata {
         capability "Switch Level"
         capability "Refresh"
         capability "Polling"
-        capability "Signal Strength"
 		capability "Health Check"
         capability "Power Meter"
-        capability "Image Capture"
 
 		attribute "powerToday", "String"
 
@@ -59,8 +46,8 @@ metadata {
         command "month"
         command "year"
         
-        attribute "hour", "string"
-        attribute "graph", "string"
+        //attribute "hour", "string"
+        //attribute "graph", "string"
     }
 
     tiles(scale:2) {
@@ -76,6 +63,14 @@ metadata {
                 attributeState "ON", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#00a0dc", action:"off", nextState:"Turning Off"
                 attributeState "Set Level", label:'On', icon:"st.lights.philips.hue-single", backgroundColor:"#00a0dc", action:"off", nextState:"Turning Off"
                 attributeState "Turning On", label:'Turning On', icon:"st.lights.philips.hue-single", backgroundColor:"#00a0dc", nextState:"Turning Off"
+				//LightWaveRF Mood button states                
+                attributeState "Group Off", label:'Group Off', icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzonoffbutton.src/LigthWaveRFOff.png", backgroundColor:"#00a0dc", action:"off"
+                attributeState "Group Mood 1", label:'Mood 1', icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzonoffbutton.src/LightWaveRFMood.png", backgroundColor:"#00a0dc", action:"off"
+                attributeState "Group Mood 2", label:'Mood 2', icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzonoffbutton.src/LightWaveRFMood.png", backgroundColor:"#00a0dc", action:"off"
+                attributeState "Group Mood 3", label:'Mood 3', icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzonoffbutton.src/LightWaveRFMood.png", backgroundColor:"#00a0dc", action:"off"
+                attributeState "Group Mood 4", label:'Mood 4', icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzonoffbutton.src/LightWaveRFMood.png", backgroundColor:"#00a0dc", action:"off"
+                attributeState "Group Mood 5", label:'Mood 5', icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzonoffbutton.src/LightWaveRFMood.png", backgroundColor:"#00a0dc", action:"off"
+           
 				attributeState "Error", label:'Install Error', backgroundColor: "#bc2323"
                 
             }
@@ -90,45 +85,29 @@ metadata {
         		attributeState "color", action:"setColor"
             }
         }
-        
-        carouselTile("graph", "device.image", width: 6, height: 4)
-        
-        standardTile("HourLog", "device.hour", decoration: "flat", width: 1, height: 1) {
-        	state "Graph", label:'48 Hour Log', action: "hourLog", defaultState: true
-        	state "noGraph", label:'No 48 Hour Log', action: "hourLog"
-        }
-     
-        standardTile("day", "device.graph", decoration: "flat", width: 1, height: 1) {
-        	state "Graph", label:'Day Usage', action: "day", defaultState: true
-        	state "noGraph", label:'No Day Usage', action: "day"
-        }
-     
-        standardTile("week", "device.graph", decoration: "flat", width: 1, height: 1) {
-        	state "Graph", label:'Week Usage', action: "week", defaultState: true
-        	state "noGraph", label:'No Week Usage', action: "week"
-        }
-     
-        standardTile("month", "device.graph", decoration: "flat", width: 1, height: 1) {
-        	state "Graph", label:'Month Usage', action: "month", defaultState: true
-        	state "noGraph", label:'No Month Usage', action: "month"
-        }
-     
-        standardTile("year", "device.graph", decoration: "flat", width: 1, height: 1) {
-        	state "Graph", label:'Year Usage', action: "year", defaultState: true
-        	state "noGraph", label:'No Year Usage', action: "year"
-        }
-     
-		standardTile("rssi", "device.rssi", decoration: "flat", width: 1, height: 1) {
-			state "rssi", label:'Signal ${currentValue}', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzsensor.src/network-signal.png"
-		}
-        
-        standardTile("debug", "device.motion", decoration: "flat", width:1, height:1) {
+
+		standardTile("refresh", "device.motion", decoration: "flat", width:1, height:1) {
             state "default", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
         }
+        
+		childDeviceTile("Group Off", "Group Off", decoration: "flat", width: 2, height: 1, childTileName: "stateButton")
+		childDeviceTile("Group Mood 1", "Group Mood 1", decoration: "flat", width: 2, height: 1, childTileName: "stateButton")
+		childDeviceTile("Group Mood 2", "Group Mood 2", decoration: "flat", width: 2, height: 1, childTileName: "stateButton")
+		childDeviceTile("Group Mood 3", "Group Mood 3", decoration: "flat", width: 2, height: 1, childTileName: "stateButton")
+		childDeviceTile("Group Mood 4", "Group Mood 4", decoration: "flat", width: 2, height: 1, childTileName: "stateButton")
+		childDeviceTile("Group Mood 5", "Group Mood 5", decoration: "flat", width: 2, height: 1, childTileName: "stateButton")
+
+		childDeviceTile("sensorSignalStrength", "Signal Strength", decoration: "flat", width: 1, height: 1, childTileName: "sensorSignalStrength")   
+		childDeviceTile("sensorBattery", "Battery", decoration: "flat", width: 2, height: 2, childTileName: "sensorBattery")   
+
+		childDeviceTile("graph", "Graph", decoration: "flat", width: 6, height: 4, childTileName: "graph")   
+		childDeviceTile("day", "Graph", decoration: "flat", width: 1, height: 1, childTileName: "day")   
+		childDeviceTile("week", "Graph", decoration: "flat", width: 1, height: 1, childTileName: "week")   
+		childDeviceTile("month", "Graph", decoration: "flat", width: 1, height: 1, childTileName: "month")   
+		childDeviceTile("year", "Graph", decoration: "flat", width: 1, height: 1, childTileName: "year")   
 
         main(["richDomoticzOnOff"])
-        
-        details(["richDomoticzOnOff", "day", "week", "month", "year", "graph", "rssi", "debug"])
+        details(["richDomoticzOnOff", "Group Off", "Group Mood 1", "Group Mood 2", "Group Mood 3", "Group Mood 4", "Group Mood 5", "sensorSignalStrength", "sensorBattery", "day", "week", "month", "year", "graph", "refresh"])
     }
 }
 
@@ -232,6 +211,92 @@ def setColor(color) {
     }
 
 }
+
+def parse(Map message) {
+	log.info message
+    def children = getChildDevices()
+    
+    if (message.name == "button") {
+    	sendEvent(name: "switch", value: message.value)
+        children.each { child ->
+        	if (child.displayName.split("=")[1] == message.value) child.sendEvent(name: "button", value: "pushed", data: [buttonNumber: 1], descriptionText: "$device.displayName button $message.value was pushed", isStateChange: true)   	
+    	}
+    }
+
+    def capability
+    if (message.name.matches("rssi|battery")) {
+
+    	switch (message.name) {
+        	case "airQuality":
+            capability = "Air Quality Sensor"
+            break
+        	case "illuminance":
+            capability = "Illuminance Measurement"
+            break
+        	case "temperature":
+            capability = "Temperature Measurement"
+            break
+        	case "soundPressureLevel":
+            capability = "Sound Sensor"
+            break
+        	case "barometricPressure":
+            capability = "Barometric Pressure"
+            break
+        	case "humidity":
+            capability = "Relative Humidity Measurement"
+            break
+        	case "power":
+            capability = "Power Meter"
+            break
+        	case "battery":
+            capability = "Battery"
+            break
+        	case "rssi":
+            capability = "Signal Strength"
+            break
+        }
+        if (capability) {
+            children.each { child ->
+                if (child && child.displayName.split("=")[1] == capability) { 
+                	log.info "Capability : ${capability} Message : ${message}"
+                	child.sendEvent(message)
+                }
+            }
+        }
+    }
+    
+    return createEvent(message)   
+
+}
+
+//LIGHTWAVERF MOOD
+def callMood(moodCommand) {
+	sendEvent(name: "switch", value: moodCommand)
+	parent.domoticz_mood(getIDXAddress(), moodCommand)
+}
+//END LIGHTWAVERF
+
+def configure(type) {  
+
+    def children = getChildDevices()
+    def childExists = false
+    def devType = "domoticzOnOff"
+
+    children.each { child ->
+        if (!childExists) childExists = child.deviceNetworkId.contains(type.toString())   	
+    }
+    
+	if (type.toString().contains("Group")) type = "Button"
+	if (type.toString().matches("Signal Strength|Battery")) devType = "domoticzSensor "
+    if (!childExists) {
+        log.info "Adding capability ${type}"
+        addChildDevice("${devType}${type}", 
+                       "${device.displayName}=${type}", 
+                       null, 
+                       [completedSetup: true, label: "${device.displayName}=${type}", isComponent: true, componentName: "${type}", componentLabel: "${type}"])
+	}                   
+}
+
 
 private def TRACE(message) {
     log.debug message
@@ -351,6 +416,7 @@ private def sendPowerChartRequest(range) {
 }
 
 def handlerPowerChartRequest(evt) {
+
     def response = getResponse(evt)
 
 	if (response?.result == null) return
@@ -382,7 +448,10 @@ def handlerPowerChartRequest(evt) {
     state.chxl = state.chxl + "%7C"
 
 	state.chco = "0000FF"
-	take()
+
+    getChildDevices().each { child ->
+        if (child.deviceNetworkId.contains("Graph")) child.take([chd: state.chd, chxl:state.chxl, chco:state.chco, chtt:state.chtt])   	
+    }	
 }
 
 private def sendLightlogRequest() {
@@ -528,33 +597,6 @@ void handler48HourRequest(evt) {
 
 def take() {
 	log.debug "Take()"
-	def imageCharts = "https://image-charts.com/chart?"
-	def params = [uri: "${imageCharts}chs=720x480&chd=${state.chd}&cht=bvg&chds=a&chxt=x,y&chxl=${state.chxl}&chts=0000FF,20&chco=${state.chco}&chtt=${state.chtt}"]
-    
-    if (state.imgCount == null) state.imgCount = 0
- 
-    try {
-        httpGet(params) { response ->
-        	
-            if (response.status == 200 && response.headers.'Content-Type'.contains("image/png")) {
-                def imageBytes = response.data
-                if (imageBytes) {
-                    state.imgCount = state.imgCount + 1
-                    def name = "PowerUsage$state.imgCount"
-
-                    // the response data is already a ByteArrayInputStream, no need to convert
-                    try {
-                        storeImage(name, imageBytes, "image/png")
-                    } catch (e) {
-                        log.error "error storing image: $e"
-                    }
-                }
-            }
-        else log.error "wrong format of content"
-        }
-    } catch (err) {
-        log.error ("Error making request: $err")
-    }
 }
 
 def takeLightLog() {

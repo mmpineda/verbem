@@ -1,5 +1,5 @@
 /**
- *  domoticzSensor "Air Quality" component
+ *  domoticzSensor "Barometric Pressure" component
  *
  *  Copyright 2018 Martin Verbeek
  *
@@ -14,19 +14,19 @@
  *
  */
 metadata {
-	definition (name: "domoticzSensor Air Quality Sensor", namespace: "verbem", author: "Martin Verbeek") {
-		capability "Air Quality Sensor"
+	definition (name: "domoticzSensor Barometric Pressure", namespace: "verbem", author: "Martin Verbeek") {
 		capability "Sensor"
+		attribute "barometricPressure", "number"
 	}
 
 	tiles
     {
-		standardTile("sensorAirQuality", "device.airQuality", decoration: "flat", width: 2, height: 2) {
-			state "airQuality", label:'${currentValue} ppm', unit:"", icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzsensor-air-quality-sensor.src/airQuality.png"
+		standardTile("sensorBarometricPressure", "device.barometricPressure", decoration: "flat", width: 2, height: 2) {
+			state "sensorBarometricPressure", label: '${currentValue} hPa', icon:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzsensor.src/barometer-icon-png-5.png"
 			state "Error", label: "Install Error", backgroundColor: "#bc2323"
 		}        
-		main (["sensorAirQuality"])
-		details(["sensorAirQuality"])
+		main (["sensorBarometricPressure"])
+		details(["sensorBarometricPressure"])
 	}
 }
 
@@ -42,11 +42,11 @@ def initialize() {
 
     try {
     if (parent) {
-        sendEvent(name: "airQuality", value: 0)
+        sendEvent(name: "barometricPressure", value: 0)
     }
     else {
     	log.error "You cannot use this DTH without the related DTH domoticzSensor, the device needs to be a child of this DTH"
-        sendEvent(name: "airQuality", value: "Error", descriptionText: "$device.displayName You cannot use this DTH without the related domoticzSensor DTH", isStateChange: true)
+        sendEvent(name: "barometricPressure", value: "Error", descriptionText: "$device.displayName You cannot use this DTH without the related domoticzSensor DTH", isStateChange: true)
     }
   }
   catch (e) {
