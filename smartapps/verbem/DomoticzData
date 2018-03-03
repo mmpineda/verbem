@@ -1,3 +1,9 @@
+Version 7.00
+    Dynamic capabities and tiles add based upon what a device can do.
+    LightWaveRF Mood Groups
+    Work on Thermostat
+    general fixes, restructure og utility callback handler
+
 Version 6.17
     Fix for data flow Thermostat DZ to ST direction, setting of Notifications
     
