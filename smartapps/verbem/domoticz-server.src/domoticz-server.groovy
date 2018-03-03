@@ -21,6 +21,7 @@
     V6.17	Fix for data flow Thermostat DZ to ST direction, setting of Notifications
     V6.18	Move Blinds to windowShade capability
     V6.19	Added call to uCount to capture notifications that are for non-specific devices
+    V7.00	Restructured Sensor Component, Thermostat, Motion, OnOff, now very dynamic with adding new capabilities
  */
 
 import groovy.json.*
@@ -28,7 +29,7 @@ import groovy.time.*
 import java.Math.*
 
 private def cleanUpNeeded() {return true}
-private def runningVersion() {"6.19"}
+private def runningVersion() {"7.00"}
 private def textVersion() { return "Version ${runningVersion()}"}
 
 definition(
@@ -55,6 +56,7 @@ preferences {
     page name:"setupAddDevices"
     page name:"setupRefreshToken"
     page name:"setupCompositeSensors"
+    page name:"setupCompositeSensorsAssignment"
     page name:"setupSmartThingsToDomoticz"
 
 }
@@ -197,33 +199,99 @@ private def setupCompositeSensors() {
         }
         section {	
       		state.listSensors.sort().each { key, item ->
-        	if (item.type.matches("domoticzSensor|domoticzMotion|domoticzThermostat")) {
                 def iMap = item as Map
-                paragraph "Extend ${iMap.type.toUpperCase()}\n${iMap.name}"
-                
-                if (state.optionsPower) {input "idxPower[${key}]", "enum", title:"Add power usage?", options: state.optionsPower, required: false}
-                
-                if (state.optionsLux && iMap.type != "domoticzThermostat") {input "idxIlluminance[${key}]", "enum", title:"Add Lux measurement?", options: state.optionsLux, required: false}
-                
-                if (state.optionsTemperature && iMap.type != "domoticzSensor") input "idxTemperature[${key}]", "enum", title:"Add Temperature measurement?",options: state.optionsTemperature , required: false
-                
-                if (state.optionsMotion && (iMap.type != "domoticzMotion" || iMap.type != "domoticzThermostat")) input "idxMotion[${key}]", "enum", title:"Add motion detection?", options: state.optionsMotion, required: false
-                
-                if (state.optionsModes && iMap.type == "domoticzThermostat") {
-                	input "idxFanMode[${key}]", "enum", title:"Add Thermostat Fan modes?", options: state.optionsModes, required: false
-                	input "idxMode[${key}]", "enum", title:"Add Thermostat Operating modes?", options: state.optionsModes, required: false
-                }
-                
-                if (state.optionsGas && iMap.type == "domoticzThermostat") {
-                	input "idxGas[${key}]", "enum", title:"Add Gas Usage?", options: state.optionsGas, required: false
+                if (item.type.matches("domoticzSensor|domoticzMotion|domoticzThermostat") && state.devices[iMap.idx]) {
+                    if (item.type == "domoticzSensor") {
+                        paragraph "Extend ${iMap.type.toUpperCase()}\n${iMap.name}", image:"http://cdn.device-icons.smartthings.com/Weather/weather2-icn@2x.png"               
+                        href "setupCompositeSensorsAssignment", title:"Add capabilities", description:"Tap to open", params: iMap
+                    }
+                    if (item.type == "domoticzMotion") {
+                        paragraph "Extend ${iMap.type.toUpperCase()}\n${iMap.name}", image:"http://cdn.device-icons.smartthings.com/Health & Wellness/health12-icn@2x.png"               
+                        href "setupCompositeSensorsAssignment", title:"Add capabilities", description:"Tap to open", params: iMap
+                    }
+                    if (item.type == "domoticzThermostat") {
+                        paragraph "Extend ${iMap.type.toUpperCase()}\n${iMap.name}", image:"http://cdn.device-icons.smartthings.com/Home/home1-icn@2x.png"               
+                        href "setupCompositeSensorsAssignment", title:"Add capabilities", description:"Tap to open", params: iMap
+                    }
                 }
         	}
-        }
-      }
+      	}
     }
     
     sendThermostatModes()
 }
+
+private def setupCompositeSensorsAssignment(iMap) {
+    TRACE("[setupCompositeSensorsAssignment]")
+    
+    def pageProperties = [
+        name        : "setupCompositeSensorsAssignment",
+        title       : "Add Components(Capabilities) to ${iMap.name}",
+        nextPage    : "setupCompositeSensors",
+        install     : false,
+        uninstall   : false
+    ]
+    
+    return dynamicPage(pageProperties) {
+    	if (iMap.type == "domoticzSensor") {
+            section {           
+                paragraph image:"http://cdn.device-icons.smartthings.com/Weather/weather12-icn@2x.png", "Relative Humidity Measurement"
+                input "idxHumidity[${iMap.idx}]", "enum", options: state.optionsHumidity, required: false   
+
+                paragraph image:"http://cdn.device-icons.smartthings.com/Lighting/light11-icn@2x.png", "Illuminance Measurement"
+                input "idxIlluminance[${iMap.idx}]", "enum", options: state.optionsLux, required: false
+
+                paragraph image:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzsensor.src/barometer-icon-png-5.png", "Barometric Pressure"
+                input "idxPressure[${iMap.idx}]", "enum", options: state.optionsPressure, required: false
+
+                paragraph image:"http://cdn.device-icons.smartthings.com/Appliances/appliances17-icn@2x.png", "Power Meter"
+                input "idxPower[${iMap.idx}]", "enum", options: state.optionsPower, required: false
+
+                paragraph image:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/devicetypes/verbem/domoticzsensor-air-quality-sensor.src/airQuality.png", "Air Quality Sensor"
+                input "idxAirQuality[${iMap.idx}]", "enum", options: state.optionsAirQuality, required: false 
+
+                paragraph image:"http://cdn.device-icons.smartthings.com/Entertainment/entertainment3-icn@2x.png", "Sound Sensor"
+                input "idxSound[${iMap.idx}]", "enum", options: state.optionsSound, required: false 
+
+            }
+    	}
+    	if (iMap.type == "domoticzThermostat") {
+            section {           
+                paragraph image:"http://cdn.device-icons.smartthings.com/Weather/weather12-icn@2x.png", "Relative Humidity Measurement"
+                input "idxHumidity[${iMap.idx}]", "enum", options: state.optionsHumidity, required: false   
+
+                paragraph image:"http://cdn.device-icons.smartthings.com/Appliances/appliances17-icn@2x.png", "Power Meter"
+                input "idxPower[${iMap.idx}]", "enum", options: state.optionsPower, required: false
+             
+                paragraph image:"http://cdn.device-icons.smartthings.com/Weather/weather1-icn@2x.png", "Thermostat FanMode"
+                input "idxFanMode[${key}]", "enum", options: state.optionsModes, required: false
+                
+                paragraph image:"http://cdn.device-icons.smartthings.com/Weather/weather2-icn@2x.png", "Thermostat Mode"
+                input "idxMode[${key}]", "enum", options: state.optionsModes, required: false
+
+                paragraph image:"http://cdn.device-icons.smartthings.com/Home/home29-icn@2x.png", "Gas Meter"
+                input "idxGas[${iMap.idx}]", "enum", options: state.optionsGas, required: false
+            }
+    	}
+    	if (iMap.type == "domoticzMotion") {
+            section {           
+                paragraph image:"http://cdn.device-icons.smartthings.com/Weather/weather2-icn@2x.png", "Temperature Measurement"
+                input "idxTemperature[${iMap.idx}]", "enum", options: state.optionsTemperature, required: false 
+                
+                paragraph image:"http://cdn.device-icons.smartthings.com/Lighting/light11-icn@2x.png", "Illuminance Measurement"
+                input "idxIlluminance[${iMap.idx}]", "enum", options: state.optionsLux, required: false
+
+                paragraph image:"http://cdn.device-icons.smartthings.com/Appliances/appliances17-icn@2x.png", "Power Meter"
+                input "idxPower[${iMap.idx}]", "enum", options: state.optionsPower, required: false
+
+                paragraph image:"http://cdn.device-icons.smartthings.com/Entertainment/entertainment3-icn@2x.png", "Sound Sensor"
+                input "idxSound[${iMap.idx}]", "enum", options: state.optionsSound, required: false 
+
+            }
+    	}
+    }
+}
+
 /*-----------------------------------------------------------------------------------------*/
 /*		SET Up Configure Domoticz PAGE
 /*-----------------------------------------------------------------------------------------*/
@@ -364,7 +432,6 @@ private def setupSmartThingsToDomoticz() {
       		input "dzSensorsMotion", "capability.motionSensor", title:"Select motion sensors", multiple:true, required:false
       		input "dzSensorsTemp", "capability.temperatureMeasurement", title:"Select Temperature sensors", multiple:true, required:false
       		input "dzSensorsHum", "capability.relativeHumidityMeasurement", title:"Select Humidity sensors", multiple:true, required:false
-      		//input "dzSensorsPressure", "capability.relativeHumidityMeasurement", title:"Select Pressure sensors", multiple:true, required:false
       		input "dzSensorsIll", "capability.illuminanceMeasurement", title:"Select Illuminance sensors", multiple:true, required:false
         }
       }
@@ -561,7 +628,9 @@ private def initialize() {
     state.optionsGas 			= [:]
     state.optionsHumidity		= [:]
     state.optionsPressure		= [:]
-
+    state.optionsAirQuality		= [:]
+	state.optionsSound			= [:]
+    
     updateDeviceList()
 	addReportDevices()
     assignSensorToDevice()
@@ -627,32 +696,73 @@ private def clearAllNotifications() {
 }
 
 private def assignSensorToDevice() {
-	    
+    def idx 
+    def capability 
+    def component = null
+    def dni
+    def copyDevs = [:] << state.devices
+
+	//TODO remove all idxCapability settings from state.devices that do not have a idx defined to it anymore
+    copyDevs.each { key, dev ->
+    	//log.info "value is ${item} / ${k.length()} / ${k.startsWith("idx")} "
+        dev.each { k, item ->
+            if (k.length() > 3 && k.startsWith("idx")) {
+            	capability = settings?."${k}[${key}]"
+                if (!capability && k != "idxPower" || key == item) { // leave idxPower as it might be set automically, also leave capabilities that have same idx as device
+                    state.devices[key]."${k}" = null
+                }
+                if (k == "idxPower" && getChildDevice(dev.dni).hasCommand("configure")) {
+                    log.info "add GRAPH capability"
+                    getChildDevice(dev.dni).configure("Graph")
+                }
+         	}
+    	}
+    }
+
+	//set all assigned capabilities in state.devices
 	idxSettings().each { k, v ->    
-        	def idx = k.tokenize('[')[1]
-            idx = idx.tokenize(']')[0].toString()
-            
-            if (k.contains("idxPower")) {
-                state.devices[idx].idxPower = v
+        idx = k.tokenize('[')[1]
+        idx = idx.tokenize(']')[0].toString()
+        
+        capability = k.tokenize('[')[0]
+        component = null
+
+        
+        if (state.devices[idx]) {
+            state.devices[idx]."${capability}" = v
+            dni = state.devices[idx].dni
+            if (getChildDevice(dni).hasCommand("configure")) {
+                switch (capability) {
+                    case "idxHumidity": 
+                    component = "Relative Humidity Measurement"
+                    break;
+                    case "idxIlluminance":
+                    component = "Illuminance Measurement"
+                    break;
+                    case "idxPressure":
+                    component = "Barometric Pressure"
+                    break;
+                    case "idxPower":
+                    component = "Power Meter"
+                    break;
+                    case "idxGas":
+                    component = "Gas Meter"
+                    break;
+                    case "idxAirQuality":
+                    component = "Air Quality Sensor"
+                    break;
+                    case "idxSound":
+                    component = "Sound Sensor"
+                    break;
+                    case "idxTemperature":
+                    component = "Temperature Measurement"
+                    break;
+                }
+                if (component) {
+                	getChildDevice(dni).configure(component)
+                }
             }
-            if (k.contains("idxTemperature")) {
-                state.devices[idx].idxTemperature = v
-            }
-            if (k.contains("idxMotion")) {
-                state.devices[idx].idxMotion = v
-            }
-            if (k.contains("idxIlluminance")) {
-                state.devices[idx].idxIlluminance = v
-            }
-            if (k.contains("idxFanMode")) {
-                state.devices[idx].idxFanMode = v
-            }
-            if (k.contains("idxMode")) {
-                state.devices[idx].idxMode = v
-            }
-            if (k.contains("idxGas")) {
-                state.devices[idx].idxGas = v
-            }
+        }
     }
 }
 
@@ -819,13 +929,13 @@ private def getVirtualIdx(passed) {
     if (virtual) return virtual.key   
 }
 /*-----------------------------------------------------------------------------------------*/
-/*		Update the usage info on composite DZ devices that report on a utility
+/*		Update the usage info on composite DZ sensors that report on a utility
 /*		kWh, Lux etc...
 /*-----------------------------------------------------------------------------------------*/
 void callbackForUCount(evt) {
     def response = getResponse(evt)   
     if (response?.result == null)  return
-	TRACE("callbackForUCount")
+	//TRACE("callbackForUCount")
 
 	response.result.each { utility ->
 		// Power usage    
@@ -845,8 +955,11 @@ void callbackForUCount(evt) {
 			if (stateDevice) {
                 stateDevice = stateDevice.toString().split("=")[0]
                 def dni = state.devices[stateDevice].dni
-                getChildDevice(dni).sendEvent(name:"power", value: Float.parseFloat(utility.Usage.split(" ")[0]).round(1))
-                getChildDevice(dni).sendEvent(name:"powerToday", value: "Now  :${utility.Usage}\nToday:${utility.CounterToday} Total:${utility.Data}")
+                if (getChildDevice(dni).hasCommand("configure")) sendEvent(getChildDevice(dni), [name:"power", value: Float.parseFloat(utility.Usage.split()[0]).round(1)])
+                else {
+                    getChildDevice(dni).sendEvent(name:"power", value: Float.parseFloat(utility.Usage.split(" ")[0]).round(1))
+                    getChildDevice(dni).sendEvent(name:"powerToday", value: "Now  :${utility.Usage}\nToday:${utility.CounterToday} Total:${utility.Data}")
+ 				}               
             }
 			else {
                 stateDevice = state.devices.find {key, item -> 
@@ -858,26 +971,18 @@ void callbackForUCount(evt) {
                     def dni = state.devices[stateDevice].dni
                     getChildDevice(dni).sendEvent(name:"power", value: Float.parseFloat(utility.Usage.split(" ")[0]).round(1))
                     getChildDevice(dni).sendEvent(name:"powerToday", value: "Now  :${utility.Usage}\nToday:${utility.CounterToday} Total:${utility.Data}")
+                    if (getChildDevice(dni).hasCommand("configure")) sendEvent(getChildDevice(dni), [name:"power", value: Float.parseFloat(utility.Usage.split()[0]).round(1)])
+                    else {
+                        getChildDevice(dni).sendEvent(name:"power", value: Float.parseFloat(utility.Usage.split(" ")[0]).round(1))
+                        getChildDevice(dni).sendEvent(name:"powerToday", value: "Now  :${utility.Usage}\nToday:${utility.CounterToday} Total:${utility.Data}")
+                    }               
                 }
                 else {
                     TRACE("[callbackForUCount] Not found kWh ${utility.ID} ${utility.idx}")
             	}            
             }
         }
-        // Lux
-    	if (utility?.SubType == "Lux") {
-			def stateDevice = state.devices.find {key, item -> 
-		    	item.idxIlluminance == utility.idx
-    		}
-
-			if (stateDevice) {
-                stateDevice = stateDevice.toString().split("=")[0]
-                def dni = state.devices[stateDevice].dni
-                getChildDevice(dni).sendEvent(name:"illuminance", value:"${utility.Data.split()[0]}")
-
-            }
-        }
-		// Motion        
+        // Motion        
     	if (utility?.SwitchTypeVal == 8) {
 			def stateDevice = state.devices.find {key, item -> 
 		    	item.idxMotion == utility.idx
@@ -891,21 +996,64 @@ void callbackForUCount(evt) {
                 getChildDevice(dni).sendEvent(name:"motion", value:"${motion}")
             }
         }
+        // Gas
+    	if (utility?.SubType == "Gas") {
+        	doUtilityEvent([idx: utility.idx, idxName: "idxGas", name:"gas", value:utility.CounterToday.split()[0]])
+        }
+        // Lux
+    	if (utility?.SubType == "Lux") {
+        	doUtilityEvent([idx: utility.idx, idxName: "idxIlluminance", name:"illuminance", value:utility.Data.split()[0].toInteger()])
+        }
+        // Sound Level
+    	if (utility?.SubType == "Sound Level") {
+        	doUtilityEvent([idx: utility.idx, idxName: "idxSound", name:"soundPressureLevel", value:utility.Data.split()[0].toInteger()])
+        }	        
+        // Air Quality
+    	if (utility?.Type == "Air Quality") {
+        	doUtilityEvent([idx: utility.idx, idxName: "idxAirQuality", name:"airQuality", value:utility.Data.split()[0].toInteger()])
+        }	        
+        // Pressure
+    	if (utility?.Barometer) {
+        	doUtilityEvent([idx: utility.idx, idxName: "idxPressure", name:"barometricPressure", value: utility.Barometer.toInteger()])
+        }	        
+        // Humidity
+    	if (utility?.Humidity) {
+        	doUtilityEvent([idx: utility.idx, idxName: "idxHumidity", name:"humidity", value: utility.Humidity.toInteger()])
+        }		
  		// Temperature       
     	if (utility?.Temp) {
-			def stateDevice = state.devices.find {key, item -> 
-		    	item.idxTemperature == utility.idx
-    		}
-			
-			if (stateDevice) {
-                stateDevice = stateDevice.toString().split("=")[0]
-                def dni = state.devices[stateDevice].dni
-                float t = utility.Temp
-                t = t.round(1)
-                getChildDevice(dni).sendEvent(name:"temperature", value:"${t}")
-            }
+            float t = utility.Temp
+            t = t.round(1)
+            doUtilityEvent([idx: utility.idx, idxName: "idxTemperature", name:"temperature", value: t])
+        }
+ 		// Battery       
+    	if (utility?.BatteryLevel > 0 && utility?.BatteryLevel <= 100 ) {
+        	doUtilityEvent([idx: utility.idx, idxName: "idxBattery", name:"battery", value:utility.BatteryLevel])
+        }
+ 		// SignalStrength       
+    	if (utility?.SignalLevel > 0 && utility?.SignalLevel <= 10) {
+        	doUtilityEvent([idx: utility.idx, idxName: "idxSignalStrength", name:"rssi", value:utility.SignalLevel])
         }
 	}    
+}
+
+private def doUtilityEvent(evt) {
+    def stateDevice = state.devices.find {key, item -> 
+        item."${evt.idxName}" == evt.idx
+    }
+    
+    if (stateDevice) {
+        stateDevice = stateDevice.toString().split("=")[0]
+		def dni = state.devices[stateDevice].dni
+        
+        try { 
+            if (getChildDevice(dni).hasCommand("configure")) sendEvent(getChildDevice(dni), [name: evt.name, value: evt.value])
+            else getChildDevice(dni).sendEvent(name: evt.name, value: evt.value)
+        }
+        catch (MissingMethodException e) {
+        	log.debug "Catch in doUtilityEvent ${evt.name} with ${evt.value} " + e
+        }
+    }    
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -994,6 +1142,9 @@ private def callbackForDevices(statusrsp) {
             if (device?.Type.contains("Temp")) compareTypeVal = 99
             if (device?.SetPoint) compareTypeVal = 98
             if (device?.Type == "Humidity") compareTypeVal = 97
+            if (device?.Type == "Air Quality") compareTypeVal = 96
+            if (device?.SubType == "Sound Level") compareTypeVal = 95
+            
             if (compareTypeVal == null) compareTypeVal = 100
 			
             // REAL SmartThings devices that where defined in Domoticz as virtual devices
@@ -1140,16 +1291,29 @@ def callbackForEveryThing(evt) {
             if (it.Notifications == "false") socketSend([request : "Notification", idx : it.idx, type:0, action:"%24value"])
         }
         //HUMIDITY
-        if (it?.Type == "Humidity") {
+        if (it?.Humidity) {
         	state.optionsHumidity[it.idx] = "${it.idx} : ${it.Name}"
             if (it.Notifications == "false") socketSend([request : "SensorHumidityNotification", idx : it.idx])
         }
+        //SOUND
+        if (it?.SubType == "Sound Level") {
+        	state.optionsSound[it.idx] = "${it.idx} : ${it.Name}"
+            if (it.Notifications == "false") socketSend([request : "SensorSoundNotification", idx : it.idx])
+        }
+        //AIR QUAILTY
+        if (it?.Type == "Air Quality") {
+        	state.optionsAirQuality[it.idx] = "${it.idx} : ${it.Name}"
+            if (it.Notifications == "false") socketSend([request : "SensorAirQualityNotification", idx : it.idx])
+        }
+        //PRESSURE
+        if (it?.Barometer) {
+        	state.optionsPressure[it.idx] = "${it.idx} : ${it.Name}"
+            if (it.Notifications == "false") socketSend([request : "SensorPressureNotification", idx : it.idx])
+        }        
         //USAGE POWER
         if (it?.SubType == "kWh") {	
-        	state.optionsPower[it.idx] = "${it.idx} : ${it.Name}" 
-            
-            if (it.Notifications == "false") socketSend([request : "SensorKWHNotification", idx : it.idx])
-            
+        	state.optionsPower[it.idx] = "${it.idx} : ${it.Name}"             
+            if (it.Notifications == "false") socketSend([request : "SensorKWHNotification", idx : it.idx])            
             kwh = kwh + Float.parseFloat(it.Data.split()[0])
             watt = watt + Float.parseFloat(it.Usage.split()[0])
 			powerUnit = it.Data.split()[1]
@@ -1178,6 +1342,7 @@ def callbackForEveryThing(evt) {
 		//USAGE GAS
         if (it?.SubType == "Gas") {	
         	state.optionsGas[it.idx] = "${it.idx} : ${it.Name}"       
+			if (it.Notifications == "false") socketSend([request : "SensorGasNotification", idx : it.idx])
             gasTotal = gasTotal + Float.parseFloat(it.Counter)
             gasUsage = gasUsage + Float.parseFloat(it.CounterToday.split()[0])
             gasUnit = it.CounterToday.split()[1]
@@ -1380,7 +1545,7 @@ private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, pa
     }
     
     if (dev) {      
-        //TRACE("[addSwitch] Updating child device ${addr}, ${passedFile}, ${passedName}, ${passedStatus}")        
+        //TRACE("[addSwitch] Updating child device ${addr}, ${passedFile}, ${passedName}, ${passedDomoticzStatus}")        
  		if (!state.devices[addr]) {       
             state.devices[addr] = [
                     'dni' : newdni,
@@ -1401,7 +1566,32 @@ private def addSwitch(addr, passedFile, passedName, passedStatus, passedType, pa
         	dev.label = passedName
             dev.name = passedName
         }
- 
+        
+        // add base device Signal Strength and Battery components if applicable
+        if (dev.hasCommand("configure")) {
+        	if (passedDomoticzStatus?.Name.toUpperCase().contains("MOOD SWITCH") && passedDomoticzStatus?.SubType == "LightwaveRF") {
+                dev.configure("Group Off")
+                dev.configure("Group Mood 1")
+                dev.configure("Group Mood 2")
+                dev.configure("Group Mood 3")
+                dev.configure("Group Mood 4")
+                dev.configure("Group Mood 5")
+            }
+        	if (passedDomoticzStatus?.BatteryLevel > 0 && passedDomoticzStatus?.BatteryLevel <= 100) {
+            	if (!state.devices[addr].idxBattery) {
+                    log.trace "configure Battery component for ${dev}"
+                    dev.configure("Battery")
+                    state.devices[addr].idxBattery = addr
+                }
+            }
+        	if (passedDomoticzStatus?.SignalLevel > 0 && passedDomoticzStatus?.SignalLevel <= 10) {
+            	if (!state.devices[addr].idxSignalStrength) {
+                    log.trace "configure SignalLevel component for ${dev}"
+                    dev.configure("Signal Strength")
+                    state.devices[addr].idxSignalStrength = addr
+                }
+            }
+        }
     }
     else if ((state.listOfRoomPlanDevices?.contains(addr) && settings.domoticzRoomPlans == true) || settings.domoticzRoomPlans == false) {
         
@@ -1473,8 +1663,13 @@ private def generateEvent (dev, Map attributeList) {
         	if (value.toUpperCase() == "ON") v = "smoke"
         	if (value.toUpperCase() == "OFF") v = "clear"
         }
-
-        dev.sendEvent(name:"${name}", value:"${v}")
+		try {
+            if (dev.hasCommand("configure")) sendEvent(dev,[name:"${name}", value:"${v}"])
+            else dev.sendEvent(name:"${name}", value:"${v}")
+        }
+        catch (MissingMethodException e) {
+        	log.debug "Catch in GenerateEvent $name $v ${e}"
+        }
     }        
 }
 
@@ -1493,7 +1688,7 @@ private def createAttributes(domoticzDevice, domoticzStatus, addr) {
     	switch (k)
         {
         	case "BatteryLevel":
-            	if (domoticzDevice.hasAttribute("battery")) if (v == 255) attributeList.put('battery',100) else attributeList.put('battery',v)
+            	if (domoticzDevice.hasAttribute("battery")) if (v > 0 && v <= 100) attributeList.put('battery',v)
             	break;
             case "Level":
             	if (domoticzDevice.hasAttribute("level")) attributeList.put('level', v)
@@ -1517,19 +1712,18 @@ private def createAttributes(domoticzDevice, domoticzStatus, addr) {
 				if (domoticzDevice.hasAttribute("temperature")) attributeList.put('temperature', vd.round(1))
             	break;
             case "SetPoint":
-                //double sp= v
             	if (domoticzDevice.hasAttribute("thermostatSetpoint")) 	attributeList.put("thermostatSetpoint", v)
 				if (domoticzDevice.hasAttribute("coolingSetpoint"))		attributeList.put("coolingSetpoint", v)
                 if (domoticzDevice.hasAttribute("heatingSetpoint"))    	attributeList.put("heatingSetpoint", v)
                 break
             case "Barometer":
-				if (domoticzDevice.hasAttribute("pressure")) attributeList.put('pressure', v)
+				if (domoticzDevice.hasAttribute("barometricPressure")) attributeList.put('barometricPressure', v)
             	break;
             case "Humidity":
 				if (domoticzDevice.hasAttribute("humidity")) attributeList.put('humidity', v)
             	break;
             case "SignalLevel":
-				if (domoticzDevice.hasAttribute("rssi")) attributeList.put('rssi', v)
+				if (domoticzDevice.hasAttribute("rssi")) if (v > 0 && v <= 10) attributeList.put('rssi', v)
             	break;
             case "Status":
             	if (domoticzDevice.hasAttribute("motion")) attributeList.put('motion', v)
@@ -1541,11 +1735,9 @@ private def createAttributes(domoticzDevice, domoticzStatus, addr) {
                 }
             	if (domoticzDevice.hasAttribute("switch")) {
                 	if (v.contains("Level")) attributeList.put('switch', 'On') 
+                    else if (v.startsWith("Group")) attributeList.put('button', v)  
                     else attributeList.put('switch', v)
                 }
-            	break;
-            case "Notifications":
-				attributeList.put('NotificationsDefinedInDomoticz', v)
             	break;
             case "Type":
 				if (v == "RFY") attributeList.put('somfySupported', true)
@@ -1718,13 +1910,19 @@ private def TRACE(message) {
 /*-----------------------------------------------------------------------------------------*/
 /*		REGULAR DOMOTICZ COMMAND HANDLERS FOR THE DEVICES
 /*-----------------------------------------------------------------------------------------*/
+def domoticz_mood(nid, mood) {
+    socketSend([request : mood, idx : nid])
+}
+
 def domoticz_poll(nid) {
     socketSend([request : "status", idx : nid])
+    socketSend([request : "utilityCount", idx : nid])
     // also put out poll requests for composite parts of a device e.g. idxPower=idx, idxIlluminance
-    if (state.devices[nid]?.idxPower) 		socketSend([request : "utilityCount", idx : state.devices[nid].idxPower])
-    if (state.devices[nid]?.idxIlluminance) socketSend([request : "utilityCount", idx : state.devices[nid].idxIlluminance])
-    if (state.devices[nid]?.idxTemperature) socketSend([request : "utilityCount", idx : state.devices[nid].idxTemperature])
-    if (state.devices[nid]?.idxMotion) 		socketSend([request : "utilityCount", idx : state.devices[nid].idxMotion])
+    state.devices[nid].each { name, value ->
+    	if (name.startsWith("idx") && name.length() > 3 && value != nid) {
+        	socketSend([request : "utilityCount", idx : value])
+        }
+    }
 }
 
 def domoticz_scenepoll(nid) {
@@ -1866,8 +2064,9 @@ private def socketSend(passed) {
 			hubPath = "/json.htm?type=devices&rid=0"
             hubCallback = [callback: aliveResponse]
 			break;
-        case ["off","on","stop", "toggle"]:
-        	hubPath = "/json.htm?type=command&param=switchlight&idx=${passed.idx}&switchcmd=${passed.request.capitalize()}"
+        case ["off","on","stop", "toggle", "Group Off", "Group Mood 1", "Group Mood 2", "Group Mood 3", "Group Mood 4", "Group Mood 5"]:
+        	passed.request = passed.request.capitalize().replaceAll(" ","%20")
+        	hubPath = "/json.htm?type=command&param=switchlight&idx=${passed.idx}&switchcmd=${passed.request}"
             break;
         case "setlevel":
         	hubPath = "/json.htm?type=command&param=switchlight&idx=${passed.idx}&switchcmd=Set%20Level&level=${passed.level}"
@@ -1911,13 +2110,14 @@ private def socketSend(passed) {
             }
         	hubPath = "/json.htm?type=command&param=addnotification&idx=${passed.idx}&ttype=${passed.type}&twhen=${tWhen}&tvalue=${tValue}&tmsg=IDX%20${passed.idx}%20${passed.action}&tsystems=http&tpriority=0&tsendalways=false&trecovery=false"
             break;
-        case ["SensorKWHNotification", "SensorLuxNotification", "SensorHumidityNotification"]:         
+        case ["SensorKWHNotification", "SensorLuxNotification", "SensorHumidityNotification", "SensorAirQualityNotification","SensorPressureNotification", "SensorSoundNotification"]:         
             hubPath = "/json.htm?type=command&param=addnotification&idx=${passed.idx}&ttype=5&twhen=1&tvalue=0&tmsg=SENSOR%20${passed.idx}&tsystems=http&tpriority=0&tsendalways=false&trecovery=false"
-            log.info passed.request
+            break;         
+        case ["SensorGasNotification"]:       
+            hubPath = "/json.htm?type=command&param=addnotification&idx=${passed.idx}&ttype=14&twhen=0&tvalue=0&tmsg=SENSOR%20${passed.idx}&tsystems=http&tpriority=0&tsendalways=false&trecovery=false"
             break;         
         case "SensorTempNotification":         
             hubPath = "/json.htm?type=command&param=addnotification&idx=${passed.idx}&ttype=0&twhen=3&tvalue=-99&tmsg=IDX%20${passed.idx}%20%24value&tsystems=http&tpriority=0&tsendalways=false&trecovery=false"
-            log.info passed.request
             break;                
         case "ClearNotification":  
             hubPath = "/json.htm?type=command&param=clearnotifications&idx=${passed.idx}"
@@ -2152,19 +2352,28 @@ def eventDomoticz() {
             	break                
         }
         
-        if (attr) {
-            getChildDevice(dni).sendEvent(name: attr, value: status)
-            
-            if (level != "") {
-            	// multiselector switches will have a level in their custom notification
-            	getChildDevice(dni).sendEvent(name: "level", value: level)
-                domoticz_poll(idx)
-                }
+		if (!getChildDevice(dni)) { // device has been deleted and notifications still present.
+        	socketSend([request : "status", idx : idx])
         }
-        else {
-            socketSend([request : "status", idx : idx])
-            socketSend([request : "utilityCount", idx : idx])
-        } 
+        else {        
+            if (dni && getChildDevice(dni) && getChildDevice(dni).displayName.toUpperCase().contains("MOOD SWITCH")) {
+                attr = null
+            }
+
+            if (attr) {
+                getChildDevice(dni).sendEvent(name: attr, value: status)
+
+                if (level != "") {
+                    // multiselector switches will have a level in their custom notification
+                    getChildDevice(dni).sendEvent(name: "level", value: level)
+                    domoticz_poll(idx)
+                    }
+            }
+            else {
+                socketSend([request : "status", idx : idx])
+                socketSend([request : "utilityCount", idx : idx])
+            }
+    	}
     }
     else if (params.message.contains("SENSOR ") && params.message.split().size() >= 2) { 
             def idx = params.message.split()[1]
