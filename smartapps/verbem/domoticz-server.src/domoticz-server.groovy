@@ -22,6 +22,7 @@
     V6.18	Move Blinds to windowShade capability
     V6.19	Added call to uCount to capture notifications that are for non-specific devices
     V7.00	Restructured Sensor Component, Thermostat, Motion, OnOff, now very dynamic with adding new capabilities
+    V7.01	Push notification when customURL is invalid in Domoticz (access token was changed)
  */
 
 import groovy.json.*
@@ -969,8 +970,7 @@ void callbackForUCount(evt) {
                 if (stateDevice) {
                     stateDevice = stateDevice.toString().split("=")[0]
                     def dni = state.devices[stateDevice].dni
-                    getChildDevice(dni).sendEvent(name:"power", value: Float.parseFloat(utility.Usage.split(" ")[0]).round(1))
-                    getChildDevice(dni).sendEvent(name:"powerToday", value: "Now  :${utility.Usage}\nToday:${utility.CounterToday} Total:${utility.Data}")
+                    
                     if (getChildDevice(dni).hasCommand("configure")) sendEvent(getChildDevice(dni), [name:"power", value: Float.parseFloat(utility.Usage.split()[0]).round(1)])
                     else {
                         getChildDevice(dni).sendEvent(name:"power", value: Float.parseFloat(utility.Usage.split(" ")[0]).round(1))
@@ -1491,7 +1491,8 @@ def callbackForSettings(evt) {
     def decoded = response.HTTPURL.decodeBase64()
     def httpURL = new String(decoded)
     TRACE("[callbackForSettings] ${httpURL} ${httpURL.contains(state.urlCustomActionHttp)}")
-    state.validUrl = httpURL.contains(state.urlCustomActionHttp) 
+    state.validUrl = httpURL.contains(state.urlCustomActionHttp)
+    if (!state.validUrl) sendNotification("CustomUrl in Domoticz Notifications Settings is invalid", [method: "push"])
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -2353,6 +2354,7 @@ def eventDomoticz() {
         }
         
 		if (!getChildDevice(dni)) { // device has been deleted and notifications still present.
+        	TRACE("[eventDomoticz] IDX with no STATE ${params.message}")
         	socketSend([request : "status", idx : idx])
         }
         else {        
@@ -2361,6 +2363,7 @@ def eventDomoticz() {
             }
 
             if (attr) {
+        		TRACE("[eventDomoticz] IDX(${deviceType}) with STATE and Attr ${params.message}")
                 getChildDevice(dni).sendEvent(name: attr, value: status)
 
                 if (level != "") {
@@ -2370,12 +2373,14 @@ def eventDomoticz() {
                     }
             }
             else {
+            	TRACE("[eventDomoticz] IDX(${deviceType}) with STATE but no Attr ${params.message}")
                 socketSend([request : "status", idx : idx])
                 socketSend([request : "utilityCount", idx : idx])
             }
     	}
     }
-    else if (params.message.contains("SENSOR ") && params.message.split().size() >= 2) { 
+    else if (params.message.contains("SENSOR ") && params.message.split().size() >= 2) {
+    		TRACE("[eventDomoticz] SENSOR ${params.message}")
             def idx = params.message.split()[1]
             socketSend([request : "utilityCount", idx : idx])
     	}  
