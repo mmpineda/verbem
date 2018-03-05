@@ -132,14 +132,14 @@ def parse(Map message) {
         if (capability) {
             getChildDevices().each { child ->
                 if (child.deviceNetworkId.split("-")[1] == capability) { 
-                	log.info "Capability : ${capability} Message : ${message}"
+                	log.info "Component Capability : ${capability} Message : ${message}"
                 	child.sendEvent(message)
-                    evt = null
                 }
             }
         }
+        else log.info "Missing Component Capability : ${capability} Message : ${message}"
     }
-    else log.info message
+    else log.info "Native Capability Message : ${message}"
 
     return evt
 }

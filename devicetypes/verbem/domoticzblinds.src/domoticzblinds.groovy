@@ -204,7 +204,7 @@ def presetPosition() {
 }
 
 def handlerEod(data) {
-	sendEvent(name:'eodDone', value:true)
+	sendEvent(name:"eodDone", value: true)
     switch (data.eodAction) {
     case "Up":
     	open()	
@@ -294,7 +294,7 @@ def eodRunOnce(tempTime) {
     
     def tempEodAction = device.currentValue("eodAction")
     runOnce(tempTime, handlerEod, [overwrite: false, data: ["eodAction": tempEodAction]])
-    sendEvent(name:'eodDone', value:false)
+    sendEvent(name:"eodDone", value:false)
 }
 
 private def createComponent() {

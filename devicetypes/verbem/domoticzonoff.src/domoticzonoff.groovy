@@ -213,7 +213,7 @@ def setColor(color) {
 }
 
 def parse(Map message) {
-	log.info message
+	def evt = createEvent(message)
     def children = getChildDevices()
     
     if (message.name == "button") {
@@ -258,14 +258,16 @@ def parse(Map message) {
         if (capability) {
             children.each { child ->
                 if (child && child.displayName.split("=")[1] == capability) { 
-                	log.info "Capability : ${capability} Message : ${message}"
+                	log.info "Component Capability : ${capability} Message : ${message}"
                 	child.sendEvent(message)
                 }
             }
         }
+        else log.info "Missing Component Capability : ${capability} Message : ${message}"
     }
+	else log.info "Native Capability Message : ${message}"
     
-    return createEvent(message)   
+    return evt   
 
 }
 

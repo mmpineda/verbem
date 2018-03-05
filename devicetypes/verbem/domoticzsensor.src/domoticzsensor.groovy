@@ -61,9 +61,9 @@ metadata {
 	}
 }
 def parse(Map message) {
-
+	def evt = createEvent(message)
     def capability
-    if (message.name.matches("airQuality|illuminance|soundPressureLevel|barometricPressure|humidity|temperature")) {
+    if (message.name.matches("airQuality|illuminance|soundPressureLevel|barometricPressure|humidity|battery|rssi")) {
 
     	switch (message.name) {
         	case "airQuality":
@@ -97,13 +97,16 @@ def parse(Map message) {
         if (capability) {
             getChildDevices().each { child ->
                 if (child.deviceNetworkId.split("-")[1] == capability) { 
-                	log.info "Capability : ${capability} Message : ${message}"
+                	log.info "Component Capability : ${capability} Message : ${message}"
                 	child.sendEvent(message)
                 }
             }
         }
+        else log.info "Missing Component Capability : ${capability} Message : ${message}"
     }
-    else return createEvent(message)   
+	else log.info "Native Capability Message : ${message}"
+    
+    return evt 
 }
 
 def refresh() {
