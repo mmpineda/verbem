@@ -577,7 +577,7 @@ def handleCheckDevices(physicalgraph.device.HubResponse hubResponse) {
 }
 
 def handlePoll(physicalgraph.device.HubResponse hubResponse) {
-
+	TRACE("[handlePoll] entering")
     def parsedEvent = parseEventMessage(hubResponse.description)
     def mac = parsedEvent.mac.substring(6)
     def motionCount = 0
@@ -589,6 +589,7 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
     settings.z_Bridges.each { bridge ->
     	if (bridge.currentValue("serialNumber").indexOf(mac) != -1) hostIP = bridge.currentValue("networkAddress")
     }
+    TRACE("[handlePoll] hostIP ${hostIP}")
 
 
     if (hubResponse?.json?.error) {
@@ -645,6 +646,8 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
 		}
 		
         if (settings.z_Sensors) {
+            TRACE("[handlePoll] sensor type ${sensor.type}")
+
             if ((sensor.type == "ZGPSwitch" && settings.z_Sensors.contains("Hue Tap")) || (sensor.type == "ZLLPresence" && settings.z_Sensors.contains("Hue Motion")) || (sensor.type == "ZLLSwitch"  && settings.z_Sensors.contains("Hue Switch Dimmer")) ) {
                 def dni = mac + "/sensor/" + item
                 def sensorDev = getChildDevice(dni)
@@ -662,6 +665,7 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
                             devType = "Hue Switch"
                             break  
                     }
+            		TRACE("[handlePoll] sensor type ${devType}")
                     if (devType != null) {
                         TRACE("[handlePoll] Add Sensor ${dni} ${sensor.type} ${devType} ${sensor.name} ${getMac(sensor.uniqueid)}")
 
@@ -688,6 +692,7 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
 
                 else 
                 {
+                    TRACE("[handlePoll] sensor child found ${sensorDev}")
                     
                     if ((sensor?.config?.reachable == false || sensor?.config?.on == false) && (sensorDev?.currentValue("DeviceWatch-DeviceStatus") == "online")) sensorDev.sendEvent(name: "DeviceWatch-DeviceStatus", value: "offline", displayed: false, isStateChange: true)
                     else if ((sensor?.config?.reachable == null && sensor?.config?.on == true ) && (sensorDev?.currentValue("DeviceWatch-DeviceStatus") != "online")) sensorDev.sendEvent(name: "DeviceWatch-DeviceStatus", value: "online", displayed: false, isStateChange: true)
