@@ -302,20 +302,25 @@ def pollTheSensors(data) {
 		
 		def serialNumber = dev.currentValue("serialNumber")
         if (dev.currentValue("username")) {
+        	TRACE("[pollTheSensors] username present")
         	serialNumber = serialNumber.substring(6)	// Hue B
         }
         
         def networkAddress = dev.currentValue("networkAddress")
-
+        
+		TRACE("[pollTheSensors] dev.currentValue networkAddress ${networkAddress}")
+        
 		if (settings."z_BridgesUsernameAPI_${serialNumber}") {
         	pollRooms(networkAddress, settings."z_BridgesUsernameAPI_${serialNumber}")         
             
             if (state.pollSensors) {
                 if (!data.elevatedPolling) {
+                	TRACE("[pollTheSensors] call to poll")
                     state.elevatedPolling = false
                     poll(networkAddress, settings."z_BridgesUsernameAPI_${serialNumber}")
                 }
                 else {
+                	TRACE("[pollTheSensors] schedule elevated polls")
                     if (data?.dni == null) state.elevatedPolling = true
                     def i = 0
                     for (i = 0; i < 60; i = i + interval) {
@@ -323,6 +328,7 @@ def pollTheSensors(data) {
                     }
                 }
         	}
+            else TRACE("[pollTheSensors] pollSensor is false")
         }
         else {
         	TRACE("[pollTheSensors] no bridge yet mac ${serialNumber} IP ${networkAddress}")
