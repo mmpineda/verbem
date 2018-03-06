@@ -1,3 +1,6 @@
+Version 1.17
+  set state.pollSensor in pageBridges before pollSensors is called
+
 Version 1.16 
   hyperpoll a single sensor 5 times for 5 seconds to get subsequent pushes faster when an event is detected
 
