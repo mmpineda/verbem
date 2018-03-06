@@ -31,6 +31,7 @@
  *	1.14 made code more efficient in the pollsensor for elevated polling and poll more evenly in a minute 
  *	1.15 added the option of autodefine room type groups that exists on the bridges, device is domoticzOnOff. Added TRACE switch
  *	1.16 hyperpoll a single sensor 5 times for 5 seconds to get subsequent pushes faster when an event is detected
+ *	1.17 state.pollSensors set to true if not present
  */
 
 
@@ -44,7 +45,7 @@ definition(
 		iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Partner/hue@2x.png",
 		singleInstance: true
 )
-private def runningVersion() 	{"1.16"}
+private def runningVersion() 	{"1.17"}
 
 preferences {
 	page(name:pageMain)
@@ -77,6 +78,7 @@ def pageBridges() {
         }
         if (canPoll) {
             TRACE("[pageBridges] bridges present canPoll!}")
+            if (!state.pollSensors) state.state.pollSensors = true
         	pollTheSensors(data:[elevatedPolling:false])
        	}
     }
