@@ -78,7 +78,7 @@ def pageBridges() {
         }
         if (canPoll) {
             TRACE("[pageBridges] bridges present canPoll!}")
-            if (!state.pollSensors) state.state.pollSensors = true
+            //if (!state.pollSensors) state.state.pollSensors = true
         	pollTheSensors(data:[elevatedPolling:false])
        	}
     }
@@ -122,7 +122,7 @@ def pageBridges() {
                     def networkAddress = dev.currentValue("networkAddress")
                     def username = dev.currentValue("username") // HUE B Attribute  
                     if (username) {
-                    	serialNumber = serialNumber.substring(6) // HUE B Attribute 
+                    	serialNumber = serialNumber.substring(6).toUpperCase() // HUE B Attribute 
                     }
                     
                     section("Bridge ${dev}, Serial:${serialNumber}, IP:${networkAddress}, username for API is in device in IDE", hideable:true) {
