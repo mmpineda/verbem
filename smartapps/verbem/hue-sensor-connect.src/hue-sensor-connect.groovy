@@ -587,6 +587,7 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
     def i = 0 
     
     settings.z_Bridges.each { bridge ->
+    	TRACE("[handlePoll] bridge ${bridge.currentValue('serialNumber')} mac ${mac} ixof ${bridge.currentValue('serialNumber').indexOf(mac)} network: ${bridge.currentValue('networkAddress')}")
     	if (bridge.currentValue("serialNumber").indexOf(mac) != -1) hostIP = bridge.currentValue("networkAddress")
     }
     TRACE("[handlePoll] hostIP ${hostIP}")
