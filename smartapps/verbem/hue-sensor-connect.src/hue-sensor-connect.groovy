@@ -587,11 +587,10 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
     def i = 0 
     
     settings.z_Bridges.each { bridge ->
-    	TRACE("[handlePoll] bridge ${bridge.currentValue('serialNumber')} mac ${mac} ixof ${bridge.currentValue('serialNumber').toUpperCase().indexOf(mac)} network: ${bridge.currentValue('networkAddress')}")
     	if (bridge.currentValue("serialNumber").toUpperCase().indexOf(mac) != -1) hostIP = bridge.currentValue("networkAddress")
     }
-    TRACE("[handlePoll] hostIP ${hostIP}")
-
+    
+    TRACE("[handlePoll] ${hubResponse?.json}")
 
     if (hubResponse?.json?.error) {
     	log.error "[handlePoll] Error in ${mac} ${hubResponse.json.error}"	
@@ -601,7 +600,7 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
 	def body = hubResponse.json
 
     body.each { item, sensor ->
-
+		TRACE("[handlePoll] ${item} - ${sensor}")
     	if (sensor.type == "ZLLLightLevel") {
         	if (sensor.state.lightlevel) {
             
@@ -647,7 +646,7 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
 		}
 		
         if (settings.z_Sensors) {
-            TRACE("[handlePoll] sensor type ${sensor.type}")
+            //TRACE("[handlePoll] sensor type ${sensor.type}")
 
             if ((sensor.type == "ZGPSwitch" && settings.z_Sensors.contains("Hue Tap")) || (sensor.type == "ZLLPresence" && settings.z_Sensors.contains("Hue Motion")) || (sensor.type == "ZLLSwitch"  && settings.z_Sensors.contains("Hue Switch Dimmer")) ) {
                 def dni = mac + "/sensor/" + item
