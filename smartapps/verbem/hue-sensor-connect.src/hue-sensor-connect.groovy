@@ -122,7 +122,7 @@ def pageBridges() {
                     def networkAddress = dev.currentValue("networkAddress")
                     def username = dev.currentValue("username") // HUE B Attribute  
                     if (username) {
-                    	serialNumber = serialNumber.substring(6).toUpperCase() // HUE B Attribute 
+                    	serialNumber = serialNumber.substring(6) // HUE B Attribute 
                     }
                     
                     section("Bridge ${dev}, Serial:${serialNumber}, IP:${networkAddress}, username for API is in device in IDE", hideable:true) {
@@ -587,8 +587,8 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
     def i = 0 
     
     settings.z_Bridges.each { bridge ->
-    	TRACE("[handlePoll] bridge ${bridge.currentValue('serialNumber')} mac ${mac} ixof ${bridge.currentValue('serialNumber').indexOf(mac)} network: ${bridge.currentValue('networkAddress')}")
-    	if (bridge.currentValue("serialNumber").indexOf(mac) != -1) hostIP = bridge.currentValue("networkAddress")
+    	TRACE("[handlePoll] bridge ${bridge.currentValue('serialNumber')} mac ${mac} ixof ${bridge.currentValue('serialNumber').toUpperCase().indexOf(mac)} network: ${bridge.currentValue('networkAddress')}")
+    	if (bridge.currentValue("serialNumber").toUpperCase().indexOf(mac) != -1) hostIP = bridge.currentValue("networkAddress")
     }
     TRACE("[handlePoll] hostIP ${hostIP}")
 
