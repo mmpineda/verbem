@@ -578,6 +578,8 @@ def handleCheckDevices(physicalgraph.device.HubResponse hubResponse) {
 
 def handlePoll(physicalgraph.device.HubResponse hubResponse) {
 	TRACE("[handlePoll] entering")
+    // check for encoded body....
+    
     def parsedEvent = parseEventMessage(hubResponse.description)
     def mac = parsedEvent.mac.substring(6)
     def motionCount = 0
@@ -589,11 +591,6 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
     settings.z_Bridges.each { bridge ->
     	if (bridge.currentValue("serialNumber").toUpperCase().indexOf(mac) != -1) hostIP = bridge.currentValue("networkAddress")
     }
-    
-    TRACE("[handlePoll] HR ${hubResponse}")
-    TRACE("[handlePoll] PE ${parsedEvent}")
-    
-    TRACE("[handlePoll] JSON ${hubResponse?.json}")
 
     if (hubResponse?.json?.error) {
     	log.error "[handlePoll] Error in ${mac} ${hubResponse.json.error}"	
@@ -788,7 +785,7 @@ private poll(hostIP, usernameAPI) {
 
     def hubAction = new physicalgraph.device.HubAction(
         method: "GET",
-        path: "/api/${usernameAPI}/sensors/",
+        path: "/api/${usernameAPI.trim()}/sensors/",
         headers: [HOST: "${hostIP}"],
         null,
         [callback: handlePoll] )
@@ -812,7 +809,7 @@ def checkDevices() {
 
         def hubAction = new physicalgraph.device.HubAction(
             method: "GET",
-            path: "/api/" + settings."z_BridgesUsernameAPI_${serialNumber}" + "/sensors/",
+            path: "/api/" + settings."z_BridgesUsernameAPI_${serialNumber}".trim() + "/sensors/",
             headers: [HOST: "${hostIP}"],
             null,
             [callback: handleCheckDevices] )
@@ -829,7 +826,7 @@ def pollSensor(data) {
 
     def hubAction = new physicalgraph.device.HubAction(
         method: "GET",
-        path: "/api/${data.usernameAPI}/sensors/${data.sensor}",
+        path: "/api/${data.usernameAPI.trim()}/sensors/${data.sensor}",
         headers: [HOST: "${data.hostIP}"],
         null,
         [callback: handlePollSensor] )
@@ -844,7 +841,7 @@ private pollRooms(hostIP, usernameAPI) {
 
 	def hubAction = new physicalgraph.device.HubAction(
         method: "GET",
-        path: "/api/${usernameAPI}/groups/",
+        path: "/api/${usernameAPI.trim()}/groups/",
         headers: [HOST: "${hostIP}"],
         null,
         [callback: handleRooms] )
@@ -923,7 +920,7 @@ void groupCommand(attr) {
        
     def hubAction = new physicalgraph.device.HubAction(
         method: "PUT",
-        path: "/api/${usernameAPI}/groups/${group}/action",
+        path: "/api/${usernameAPI.trim()}/groups/${group}/action",
         headers: [HOST: "${hostIP}"],
         null,
         body: apiGroupActionBody,
