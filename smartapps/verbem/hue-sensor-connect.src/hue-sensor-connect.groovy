@@ -792,7 +792,7 @@ private poll(hostIP, usernameAPI) {
         headers: [HOST: "${hostIP}"],
         null,
         [callback: handlePoll] )
-	TRACE(${hubAction})
+	TRACE("${hubAction}")
     
     sendHubCommand(hubAction)
 }
