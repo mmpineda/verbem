@@ -590,7 +590,10 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
     	if (bridge.currentValue("serialNumber").toUpperCase().indexOf(mac) != -1) hostIP = bridge.currentValue("networkAddress")
     }
     
-    TRACE("[handlePoll] ${hubResponse?.json}")
+    TRACE("[handlePoll] HR ${hubResponse}")
+    TRACE("[handlePoll] PE ${parsedEvent}")
+    
+    TRACE("[handlePoll] JSON ${hubResponse?.json}")
 
     if (hubResponse?.json?.error) {
     	log.error "[handlePoll] Error in ${mac} ${hubResponse.json.error}"	
