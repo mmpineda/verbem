@@ -130,13 +130,10 @@ def pageBridges() {
                         	href(name: "${dev.id}", title: "IDE Bridge device",required: false, style: "external", url: "${getApiServerUrl()}/device/show/${dev.id}", description: "tap to view device in IDE")
                             input "z_BridgesUsernameAPI_${serialNumber}", "text", required:true, title:"Username for API", submitOnChange:true
                         }
-                        else {
-                          
+                        else {                         
                         	paragraph username
                         	input "z_BridgesUsernameAPI_${serialNumber}", "text", required:true, title:"Username for API", submitOnChange:true, description:username
-                        }
-                    	
-                        
+                        }                        
                     }
                     
                 }
@@ -302,25 +299,20 @@ def pollTheSensors(data) {
 		
 		def serialNumber = dev.currentValue("serialNumber")
         if (dev.currentValue("username")) {
-        	TRACE("[pollTheSensors] username present")
         	serialNumber = serialNumber.substring(6)	// Hue B
         }
         
         def networkAddress = dev.currentValue("networkAddress")
-        
-		TRACE("[pollTheSensors] dev.currentValue networkAddress ${networkAddress}")
-        
+               
 		if (settings."z_BridgesUsernameAPI_${serialNumber}") {
         	pollRooms(networkAddress, settings."z_BridgesUsernameAPI_${serialNumber}")         
             
             if (state.pollSensors) {
                 if (!data.elevatedPolling) {
-                	TRACE("[pollTheSensors] call to poll")
                     state.elevatedPolling = false
                     poll(networkAddress, settings."z_BridgesUsernameAPI_${serialNumber}")
                 }
                 else {
-                	TRACE("[pollTheSensors] schedule elevated polls")
                     if (data?.dni == null) state.elevatedPolling = true
                     def i = 0
                     for (i = 0; i < 60; i = i + interval) {
@@ -545,7 +537,7 @@ def handleRoomPut(physicalgraph.device.HubResponse hubResponse) {
     def parsedEvent = parseEventMessage(hubResponse.description)
     def mac = parsedEvent.mac.substring(6)
     
-	TRACE("[handleRoomPut] mac ${mac} JSON ${hubResponse.json} ")
+	//TRACE("[handleRoomPut] mac ${mac} JSON ${hubResponse.json} ")
     hubResponse.json.each { key ->
     	key.success.each { item, value ->
         	def dni = mac + "/group/" + item.split("/")[2]
@@ -600,7 +592,7 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
 	def body = hubResponse.json
 
     body.each { item, sensor ->
-		TRACE("[handlePoll] ${item} - ${sensor}")
+		//TRACE("[handlePoll] ${item} - ${sensor}")
     	if (sensor.type == "ZLLLightLevel") {
         	if (sensor.state.lightlevel) {
             
@@ -628,6 +620,11 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
 		if (sensor.type == "ZLLTemperature") {
         	if (sensor.state.temperature) {
                 def temp = (sensor.state.temperature / 100).toInteger()
+                def tempScale = location.temperatureScale
+                
+                if (tempScale == "F") {
+                	temp = (temp * 1.8 + 32).toInteger()
+                }
                 def dni  = findStateDeviceWithUniqueId(getMac(sensor.uniqueid))
                 if (state.devices[dni]) {
                     def sensorDev = getChildDevice(dni)
@@ -665,7 +662,7 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
                             devType = "Hue Switch"
                             break  
                     }
-            		TRACE("[handlePoll] sensor type ${devType}")
+
                     if (devType != null) {
                         TRACE("[handlePoll] Add Sensor ${dni} ${sensor.type} ${devType} ${sensor.name} ${getMac(sensor.uniqueid)}")
 
