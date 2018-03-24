@@ -53,7 +53,7 @@ metadata {
 		}
         
 		standardTile("temperature", "device.temperature", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
-			state "temperature", label:'${currentValue} C', unit:"C"
+			state "temperature", label:'${currentValue}', unit: ""
 		}
 
         standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat", width:2, height:2) {
@@ -73,7 +73,7 @@ def parse(String description) {
 }
 
 def refresh() {
-
+	parent.pollTheSensors(data:[elevatedPolling:false])
 }
 
 def installed() {
