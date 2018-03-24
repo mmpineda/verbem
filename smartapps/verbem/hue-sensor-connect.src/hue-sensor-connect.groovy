@@ -632,11 +632,11 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
 
                     if (!state.devices[dni].temperatureLastupdated) {
                         state.devices[dni].temperatureLastupdated = sensor.state.lastupdated
-                        if (sensorDev) sensorDev.sendEvent(name: "temperature", value: temp)
+                        if (sensorDev) sensorDev.sendEvent(name: "temperature", value: temp, unit: tempScale)
                     }
                     else if (state.devices[dni].temperatureLastupdated != sensor.state.lastupdated) {
                         state.devices[dni].temperatureLastupdated = sensor.state.lastupdated
-                        if (sensorDev) sensorDev.sendEvent(name: "temperature", value: temp)
+                        if (sensorDev) sensorDev.sendEvent(name: "temperature", value: temp, unit: tempScale)
                     }
             	}
 			}
