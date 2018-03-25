@@ -1,36 +1,31 @@
 /**
  *  Smart Screens
  *
- *  Copyright 2015 Martin Verbeek
- *
- *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
- *  in compliance with the License. You may obtain a copy of the License at:
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
- *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
- *  for the specific language governing permissions and limitations under the License.
- *
- *
- *	App is using forecast.io to get conditions for your location, you need to get an APIKEY
- * 	from developer.forecast.io and your longitude and latitude is being pulled from the location object
- *  position of the sun is calculated in this app, thanks to the formaula´s of Mourner at suncalc github
- *
- *	Select the blinds you want to configure (it will use commands Open/Stop/Close) so they need to be on the device.
- *  Select the position they are facing (North-East-South-West) or multiple...these are the positions that they will need protection from wind or sun
- *  WindForce protection Select condition to Close or to Open (Shutters you may want to close when lots of wind, sunscreens you may want to Open
- *  cloudCover percentage is the condition to Close (Sun is shining into your room)
- *  Select interval to check conditions
- * 
- *	V2	Add subscription to device refresh, this will execute the latest info back to the devices
- 	V3.00 move to windowShade capability, and issue createchild command to create related component device for smart screens
+ *  Copyright 2018 Martin Verbeek
  
- */
+ 	App is using forecast.io to get conditions for your location, you need to get an APIKEY
+  	from developer.forecast.io and your longitude and latitude is being pulled from the location object
+ 	position of the sun is calculated in this app, thanks to the formaula´s of Mourner at suncalc github
+ 
+ 	Select the blinds you want to configure (it will use commands Open/Stop/Close) so they need to be on the device.
+   	Select the position they are facing (North-East-South-West) or multiple...these are the positions that they will need protection from wind or sun
+ 	WindForce protection Select condition to Close or to Open (Shutters you may want to close when lots of wind, sunscreens you may want to Open
+   	cloudCover percentage is the condition to Close (Sun is shining into your room)
+   	Select interval to check conditions
+  
+ 
+ 	V2.00	Add subscription to device refresh, this will execute the latest info back to the devices
+ 	V3.00	Move to windowShade capability, and issue createchild command to create related component device for smart screens
+    V3.10	Add off season definition, change pause setting to pause switch, pause switch prevails off season
+ 
+*/
 
 
 import groovy.json.*
 import java.Math.*
+import Calendar.*
+import groovy.time.*
+
 private def runningVersion() 	{"3.00"}
 
 definition(
@@ -64,6 +59,11 @@ preferences {
 
 def pageSetupForecastIO() {
     TRACE("pageSetupForecastIO()")
+    
+    def dni = "SmartScreens Pause Switch"
+    def dev = getChildDevice(dni)
+    if (!dev) dev = addChildDevice("verbem", "domoticzOnOff", dni, getHubID(), [name:dni, label:dni, completedSetup: true])
+    pause 5
 
     def pageSetupLatitude = location.latitude.toString()
     def pageSetupLongitude = location.longitude.toString()
@@ -121,13 +121,23 @@ def pageSetupForecastIO() {
     ]
 
         def inputPause = [
-        name:       "z_Pause",
-        type:       "bool",
+        name:       "z_PauseSwitch",
+        type:       "capability.switch",
         default:	false,
         title:      "Pause all scheduling",
         multiple:   false,
-        required:   true
+        required:   false
     ]
+    
+    def inputDayStart28 = [name: "z_inputDayStart", type: "number", title: "Start day", range: "1..28", required:true]
+    def inputDayStart30 = [name: "z_inputDayStart", type: "number", title: "Start day", range: "1..30", required:true]
+    def inputDayStart31 = [name: "z_inputDayStart", type: "number", title: "Start day", range: "1..31", required:true]
+    def inputMonthStart = [name: "z_inputMonthStart", type: "enum", title: "Start month", options: [1:"January", 2:"February", 3:"March", 4:"April", 5:"May", 6:"June", 7:"July", 8:"August", 9:"September", 10:"October", 11:"November", 12:"December" ], required:false, submitOnChange: true]
+    
+    def inputDayEnd28 = [name: "z_inputDayEnd", type: "number", title: "End Day", range: "1..28", required:true]
+    def inputDayEnd30 = [name: "z_inputDayEnd", type: "number", title: "End Day", range: "1..30", required:true]
+    def inputDayEnd31 = [name: "z_inputDayEnd", type: "number", title: "End Day", range: "1..31", required:true]
+	def inputMonthEnd = [name: "z_inputMonthEnd", type: "enum", title: "End month", options: [1:"January", 2:"February", 3:"March", 4:"April", 5:"May", 6:"June", 7:"July", 8:"August", 9:"September", 10:"October", 11:"November", 12:"December" ], required:true, submitOnChange: true]    
     
     def inputSensors = [
         name:       "z_sensors",
@@ -200,6 +210,21 @@ def pageSetupForecastIO() {
             label title:"Assign a name", required:false
             input inputTRACE
             input inputPause
+            input 
+            
+            paragraph "Off Season between below dates"
+            
+            input inputMonthStart
+            if (z_inputMonthStart) {
+            	if (z_inputMonthStart.toString() == "2") input inputDayStart28
+                else if (z_inputMonthStart.toString().matches("1|3|5|7|8|10|12")) input inputDayStart31
+                else input inputDayStart30
+            	
+            	input inputMonthEnd
+            	if (z_inputMonthEnd.toString() == "2") input inputDayEnd28
+                else if (z_inputMonthEnd.toString().matches("1|3|5|7|8|10|12")) input inputDayEnd31
+                else input inputDayEnd30
+           	}
         }
     }
 }
@@ -320,25 +345,17 @@ def updated() {
 }
 
 def initialize() {
-	
+
     state.sunBearing = ""
     state.windBearing = ""
     state.night = false
     state.windSpeed = 0
     state.cloudCover = 100
         
-	subscribe(location, "sunsetTime", sunsetTimeHandler)
 	subscribe(location, "sunset", stopSunpath,  [filterEvents:true])
     subscribe(location, "sunrise", startSunpath,  [filterEvents:true])
     
     schedule("2015-01-09T12:00:00.000-0600", notifyNewVersion)
-
-	def blindParams = [:]
-    settings.z_blinds.each {
-    	blindParams = fillBlindParams(it.id)
-        if (blindParams.sunsetOffset == "") {settings."z_sunsetOffset_${it.id}" = 0} 
-        scheduleTurnOn(location.currentValue("sunsetTime"), it, settings."z_sunsetOffset_${it.id}", blindParams.eodAction)
-		}	
   
     subscribe(z_sensors, "WindStrength", eventNetatmo)
     
@@ -359,6 +376,9 @@ def initialize() {
     runEvery30Minutes(checkForSun)
     runEvery1Hour(checkForClouds)
     runEvery10Minutes(checkForWind)
+    
+    if (z_PauseSwitch) subscribe(z_PauseSwitch, "switch", pauseHandler)
+    state.pause = offSeason()
 }
 
 def eventDoorClosed(evt) {
@@ -366,6 +386,18 @@ def eventDoorClosed(evt) {
  	
     if (state.night == false) checkForSun()
 
+}
+
+def pauseHandler(evt) {
+
+	if (evt.value == "on" && state.pause == false) {
+    	state.pause = true
+		TRACE("[pauseHandler] ${evt.device} ${evt.value} state.pause -> ${state.pause}") 
+    }
+    if (evt.value == "off" && state.pause == true) {
+    	state.pause = false
+		TRACE("[pauseHandler] ${evt.device} ${evt.value} state.pause -> ${state.pause}") 
+    }
 }
 /*-----------------------------------------------------------------------------------------*/
 /*	This routine will get information relating to the weather at location and current time
@@ -479,7 +511,7 @@ def getSunpath() {
 /*-----------------------------------------------------------------------------------------*/
 def checkForSun(evt) {
 
-if (settings.z_Pause) return
+if (state.pause) return
 
 TRACE("[checkForSun]")
 state.sunBearing = getSunpath()
@@ -501,19 +533,19 @@ settings.z_blinds.each {
     /*			this is only needed if direction of wind is on the screens
     /*	 
     /*-----------------------------------------------------------------------------------------*/                 
-    TRACE("[checkForSun] ${it} has ${blindParams.blindsOrientation.contains(state.sunBearing)} sun orientation, DOOR ${dev} is ${devStatus}, EOD ${eodDone}, ACTION to take ${blindParams.closeMaxAction}")
+    TRACE("[checkForSun] ${it} has ${state.sunBearing.matches(blindParams.blindsOrientation)} sun orientation(${state.sunBearing}), DOOR ${dev} is ${devStatus}, EOD ${eodDone}, ACTION to take ${blindParams.closeMaxAction}")
     
-    if(blindParams.blindsOrientation.contains(state.sunBearing) && devStatus == "Closed" && eodDone == 'false' ) 
+    if(state.sunBearing.matches(blindParams.blindsOrientation) && devStatus == "Closed" && eodDone == 'false' ) 
     {
     	TRACE("[checkForSun] ${it} Forecast is ${state.cloudCover.toInteger()}% cloud, BLINDPARAMS is ${blindParams.cloudCover.toInteger()}%")
         
         if(state.cloudCover.toInteger() <= blindParams.cloudCover.toInteger()) 
         {           
-            TRACE("[checkForSun] ${it} Forecasted ${state.windSpeed.toInteger()} < ${blindParams.windForceCloseMax.toInteger()}, wind orientation ${blindParams.blindsOrientation.contains(state.windBearing)}, Type is ${blindParams.blindsType}")
+            TRACE("[checkForSun] ${it} Forecasted ${state.windSpeed.toInteger()} < ${blindParams.windForceCloseMax.toInteger()}, wind orientation ${state.windBearing.matches(blindParams.blindsOrientation)}, Type is ${blindParams.blindsType}")
             
                 	if (blindParams.blindsType == "Screen")                     
                 		{
-                        if((state.windSpeed.toInteger() < blindParams.windForceCloseMax.toInteger() && blindParams.blindsOrientation.contains(state.windBearing)) || blindParams.blindsOrientation.contains(state.windBearing) == false )
+                        if((state.windSpeed.toInteger() < blindParams.windForceCloseMax.toInteger() && state.windBearing.matches(blindParams.blindsOrientation)) || state.windBearing.matches(blindParams.blindsOrientation) == false )
                    	    	{
                             if (blindParams.closeMaxAction == "Down") 	{it.close()}
                     	    if (blindParams.closeMaxAction == "Up") 	{it.open()}
@@ -539,7 +571,7 @@ return null
 /*-----------------------------------------------------------------------------------------*/
 def checkForClouds() {
 
-if (settings.z_Pause) return
+if (state.pause) return
 
 TRACE("[checkForClouds] ${params}")
 state.sunBearing = getSunpath()
@@ -554,7 +586,7 @@ settings.z_blinds.each {
     /*			this is only needed if direction of wind is on the screens
     /*	 
     /*-----------------------------------------------------------------------------------------*/                 
-    if(blindParams.blindsOrientation.contains(state.sunBearing)) 
+    if(state.sunBearing.matches(blindParams.blindsOrientation)) 
     {
         if(state.cloudCover.toInteger() > blindParams.cloudCover.toInteger() && blindParams.blindsType == "Screen") 
         {
@@ -612,15 +644,18 @@ def checkForWind(evt) {
         state.cloudCover = windParms.cloudCover
     }
 
-    settings.z_blinds.each {
-        it.generateEvent(["windBearing": state.windBearing, "windSpeed": state.windSpeed, "cloudCover": state.cloudCover, "sunBearing": state.sunBearing])
+    settings.z_blinds.each { dev ->
+        sendEvent(dev, [name:"windBearing", value:state.windBearing])
+        sendEvent(dev, [name:"windSpeed", value:state.windSpeed])
+        sendEvent(dev, [name:"cloudCover", value:state.cloudCover])
+        sendEvent(dev, [name:"sunBearing", value:state.sunBearing])
     }
-
-    if (settings.z_Pause) return
+        
+    if (state.pause) return
 
     TRACE("[checkForWind]")
 
-    settings.z_blinds.each {
+	settings.z_blinds.each {
 
         def blindParams = fillBlindParams(it.id)
         def dev = blindParams.blindsOpenSensor
@@ -632,7 +667,7 @@ def checkForWind(evt) {
         /*-----------------------------------------------------------------------------------------*/
         /*	WIND determine if we need to close (or OPEN if wind speed is above allowed max for blind)
         /*-----------------------------------------------------------------------------------------*/      
-        if(blindParams.blindsOrientation.contains(state.windBearing) && devStatus == "Closed") {
+        if(state.windBearing.matches(blindParams.blindsOrientation) && devStatus == "Closed") {   
             if(state.windSpeed.toInteger() > blindParams.windForceCloseMin.toInteger() && blindParams.blindsType == "Shutter") {
                 if (blindParams.closeMinAction == "Down") it.close()
                 if (blindParams.closeMinAction == "Up") it.open()
@@ -684,7 +719,9 @@ def stopSunpath(evt) {
 def startSunpath(evt) {
 	TRACE("[startSunpath] Start Scheduling")
     state.night = false
+    state.pause = offSeason()
     pause 5
+      
 	runEvery30Minutes(checkForSun)
     runEvery3Hours(checkForClouds)
     runEvery10Minutes(checkForWind)
@@ -692,24 +729,16 @@ def startSunpath(evt) {
     z_blinds.each {
     	subscribeToCommand(it, "refresh", eventRefresh)
         }
+        
+	scheduleTurnOn()
     
 	return null
-}
-
-def sunsetTimeHandler(evt) {
-
-    def blindParams = [:]
-	settings.z_blinds.each {
-        String findID = it.id
-    	blindParams = fillBlindParams(findID)
-        scheduleTurnOn(evt.value, it, blindParams.sunsetOffset, blindParams.eodAction)     
-	}
 }
 
 private def fillBlindParams(findID) {
 
 	def blindParams = [:]
-    blindParams.blindsOrientation = settings?."z_blindsOrientation_${findID}"
+    blindParams.blindsOrientation = settings?."z_blindsOrientation_${findID}".join('|').replaceAll('\"','')
     blindParams.windForceCloseMax = settings?."z_windForceCloseMax_${findID}"
     blindParams.windForceCloseMin = settings?."z_windForceCloseMin_${findID}"
     blindParams.cloudCover = settings?."z_cloudCover_${findID}"
@@ -723,20 +752,32 @@ private def fillBlindParams(findID) {
 	return blindParams
 }
 
-def scheduleTurnOn(sunsetString, eodDevice, offset, eodAction) {
-    if (offset == "" || offset == null) {offset = 0}
+def scheduleTurnOn() {
+
+	def blindParams = [:]
+    def offset
+    def sunsetString = location.currentValue("sunsetTime")
+    def eodAction
     
-    def sunsetTime = Date.parse("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", sunsetString)
-    log.trace "${sunsetTime} / ${eodDevice} / ${offset}"
+    settings.z_blinds.each {
+    	blindParams = fillBlindParams(it.id)
+        eodAction = blindParams.eodAction
+        
+        if (blindParams.sunsetOffset == "") {settings."z_sunsetOffset_${it.id}" = 0} 
+        offset = settings."z_sunsetOffset_${it.id}"
 
+        if (offset == "" || offset == null) {offset = 0}
 
-    offset = offset * 60 * 1000
-    def timeBeforeSunset = new Date(sunsetTime.time + offset)
+        def sunsetTime = Date.parse("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", sunsetString)
+        log.trace "${sunsetTime} / ${it} / ${offset}"
 
-	eodDevice.generateEvent(["eodAction" : eodAction, "eodTime" : new Date(sunsetTime.time + offset)]) 
-    pause 5
-    eodDevice.eodRunOnce(timeBeforeSunset)
+        offset = offset * 60 * 1000
+        sendEvent(it, [name: "eodAction", value: eodAction])
+        sendEvent(it, [name: "eodTime", value: new Date(sunsetTime.time + offset)])
 
+        def timeBeforeSunset = new Date(sunsetTime.time + offset)
+        it.eodRunOnce(timeBeforeSunset)
+    }	
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -783,6 +824,45 @@ private def TRACE(message) {
 if(settings.z_TRACE) {log.trace message}
 
 }
+
+private def offSeason() {
+    def pauseReturn = false
+    def date = new Date()
+    def M = date[Calendar.MONTH]+1
+    def D = date[Calendar.DATE]
+    def Y = date[Calendar.YEAR]
+    def YS = Y
+    def YE = Y
+    def dS
+    def dE
+    def justNow = "${D}-${M}-${Y}"    
+    def df = "dd-MM-yyyy"
+    
+    if (settings.z_inputMonthStart) {
+        
+        if (settings.z_inputMonthEnd.toInteger() < settings.z_inputMonthStart.toInteger() && M.toInteger() >= settings.z_inputMonthStart.toInteger()) YE = Y+1
+        if (settings.z_inputMonthEnd.toInteger() < settings.z_inputMonthStart.toInteger() && M.toInteger() <= settings.z_inputMonthEnd.toInteger()) YS = Y-1
+        if (settings.z_inputMonthEnd.toInteger() < settings.z_inputMonthStart.toInteger() && M.toInteger() > settings.z_inputMonthEnd.toInteger() && M.toInteger() < settings.z_inputMonthStart.toInteger()) YE = Y+1
+		
+        dS = "${settings.z_inputDayStart}-${settings.z_inputMonthStart}-${YS}"
+        dE = "${settings.z_inputDayEnd}-${settings.z_inputMonthEnd}-${YE}"
+        def dateTimeS = new Date().parse(df, dS)
+        def dateTimeE = new Date().parse(df, dE)
+        def dateTimeN = new Date().parse(df, justNow)
+        log.info "S " + dateTimeS
+        log.info "E " + dateTimeE
+        log.info "N " + dateTimeN
+        if (dateTimeN >= dateTimeS && dateTimeN <= dateTimeE) {
+        	log.trace "Off SEASON, set pause switch device ON"
+            def dev = getChildDevice("Smart Screen Pause Switch")
+            if (dev) dev.sendEvent(name: "switch", value: "on")
+            pauseReturn = true
+        }
+    }
+    
+    return pauseReturn
+}
+
 /*-----------------------------------------------------------------------------------------*/
 /*	Return Sun Azimuth and Alitude for current Time
 /*-----------------------------------------------------------------------------------------*/
@@ -886,6 +966,14 @@ def J1970() { return 2440588}
 def J2000() { return 2451545}
 def rad() { return  Math.PI / 180}
 def e() { return  rad() * 23.4397}
+
+private def getHubID(){
+    TRACE("[getHubID]")
+    def hubID
+    def hubs = location.hubs.findAll{ it.type == physicalgraph.device.HubType.PHYSICAL } 
+    if (hubs.size() == 1) hubID = hubs[0].id 
+    return hubID
+}
 
 /*-----------------------------------------------------------------------------------------*/
 /*	Version Control
