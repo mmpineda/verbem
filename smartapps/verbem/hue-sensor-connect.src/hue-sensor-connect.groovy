@@ -32,6 +32,7 @@
  *	1.15 added the option of autodefine room type groups that exists on the bridges, device is domoticzOnOff. Added TRACE switch
  *	1.16 hyperpoll a single sensor 5 times for 5 seconds to get subsequent pushes faster when an event is detected
  *	1.17 state.pollSensors set to true if not present
+ *	1.20 Add special mode that configs off Motion sensors in HUE, and back when it changges mode to not special
  */
 
 
@@ -150,6 +151,13 @@ def pageBridges() {
                         }
                     }
                     else section("No sensors found yet, wait a minute or so, or tap Done and reenter App")
+                }
+                if (z_Sensors) {
+                    if (state.devices) {
+                        section("Config Off Motion Sensors during mode below") {
+                            input "z_modeConfig", "mode", title: "select special mode", multiple: false, required: false
+                        }
+                    }
                 }
 			}
 		}
@@ -482,6 +490,9 @@ def handleChangeMode(evt) {
         state.pollSensors = false
     	runEvery1Minute("pollTheSensors", [data: [elevatedPolling: false]])
     }
+    
+    if (z_modeConfig && z_modeConfig == evtMode) configHueMotion([action: false])
+	else configHueMotion([action: true])   
 }
 
 def handleRooms(physicalgraph.device.HubResponse hubResponse) {
@@ -553,6 +564,12 @@ def handleRoomPut(physicalgraph.device.HubResponse hubResponse) {
         }
     }
     
+}
+    
+def handleConfigPut(physicalgraph.device.HubResponse hubResponse) {
+	def parsedEvent = parseEventMessage(hubResponse.description)
+    
+    log.info parsedEvent
 }
     
 def handleCheckDevices(physicalgraph.device.HubResponse hubResponse) {
@@ -689,12 +706,26 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
 
                 else 
                 {
-                    TRACE("[handlePoll] sensor child found ${sensorDev}")
                     
                     if ((sensor?.config?.reachable == false || sensor?.config?.on == false) && (sensorDev?.currentValue("DeviceWatch-DeviceStatus") == "online")) sensorDev.sendEvent(name: "DeviceWatch-DeviceStatus", value: "offline", displayed: false, isStateChange: true)
                     else if ((sensor?.config?.reachable == null && sensor?.config?.on == true ) && (sensorDev?.currentValue("DeviceWatch-DeviceStatus") != "online")) sensorDev.sendEvent(name: "DeviceWatch-DeviceStatus", value: "online", displayed: false, isStateChange: true)
                    	else if ((sensor?.config?.reachable == true && sensor?.config?.on == true ) && (sensorDev?.currentValue("DeviceWatch-DeviceStatus") != "online")) sensorDev.sendEvent(name: "DeviceWatch-DeviceStatus", value: "online", displayed: false, isStateChange: true)
-                    
+
+					if (!state.devices[dni]) {                   
+                        state.devices[dni] = [
+                            'lastUpdated'	: sensor.state.lastupdated, 
+                            'mac'			: mac, 
+                            'item'			: item, 
+                            'dni'			: dni,
+                            'name'			: sensor.name,
+                            'uniqueId'		: getMac(sensor.uniqueid),
+                            'type'			: sensor.type,
+                            'monitorTap'	: false,	
+                            'id'			: sensorDev.id
+                            ]
+                        pause 2
+                    }
+                   
                     if (state.devices[dni]?.name != sensor.name) {
                         state.devices[dni].name = sensor.name
                         sensorDev.name = sensor.name
@@ -786,9 +817,37 @@ private poll(hostIP, usernameAPI) {
         headers: [HOST: "${hostIP}"],
         null,
         [callback: handlePoll] )
-	TRACE("${hubAction}")
     
     sendHubCommand(hubAction)
+}
+
+private def configHueMotion(call) {
+	def configAction = call.action
+    
+	state.devices.each { dni, dev ->
+    	if (dev.type == "ZLLPresence") {
+        
+			def sensor = dni.split("/")[2] 
+            def serialNumber = dni.split("/")[0]
+            def hostIP
+            settings.z_Bridges.each { bridge ->
+     		   def match = bridge.currentValue("serialNumber").indexOf(serialNumber)
+                if (match != -1) {
+                    hostIP = bridge.currentValue("networkAddress") 
+                    if(hostIP.indexOf(":") == -1) hostIP = hostIP + ":80" // Hue B
+                }
+            }
+            def hubAction = new physicalgraph.device.HubAction(
+                method: "PUT",
+                path: "/api/${settings."z_BridgesUsernameAPI_${serialNumber}"}/sensors/${sensor}/config",
+                headers: [HOST: "${hostIP}"],
+                null,
+                body: ["on": configAction],
+                [callback: handleConfigPut] )
+			log.info "Config " +  configAction
+            sendHubCommand(hubAction)
+        }
+    }
 }
 
 def checkDevices() {
