@@ -1,3 +1,6 @@
+Version 1.20
+  Add special mode that configs off Motion sensors in HUE, and back when it changges mode to not special
+
 Version 1.17
   set state.pollSensor in pageBridges before pollSensors is called
 
