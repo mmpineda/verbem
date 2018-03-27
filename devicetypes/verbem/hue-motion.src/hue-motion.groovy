@@ -61,9 +61,14 @@ metadata {
         standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat", width:2, height:2) {
             state "default", label:'', action:"refresh.refresh", icon:"st.secondary.refresh"
         }
+        
+        standardTile("switch", "device.switch", inactiveLabel: false, decoration: "flat", width:2, height:2) {
+            state "on", label:'Hue Config True', action: "off"
+            state "off", label: 'Hue Config False', action: "on"
+        }
 
 		main "hueMotion"
-		details(["hueMotion", "illiminance", "temperature", "battery", "refresh"])
+		details(["hueMotion", "illiminance", "temperature", "battery", "switch", "refresh"])
 	}
 }
 
@@ -88,10 +93,12 @@ def updated() {
 
 def on() {
 	parent.configHueMotion([action: true, sensor:device.deviceNetworkId])
+    sendEvent(name:"switch", value: "on")
 }
 
 def off() {
 	parent.configHueMotion([action: false, sensor:device.deviceNetworkId])
+    sendEvent(name:"switch", value: "off")
 }
 
 def initialize() {
