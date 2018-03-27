@@ -34,6 +34,7 @@
  *	1.17 state.pollSensors set to true if not present
  *	1.20 Add special mode that configs off Motion sensors in HUE, and back when it changges mode to not special
  *	1.21 hostIP routine and on/off config as a command from DTH Hue Motion
+ *	1.22 sendEvent from response on config...
  *	
  */
 
@@ -48,7 +49,7 @@ definition(
 		iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Partner/hue@2x.png",
 		singleInstance: true
 )
-private def runningVersion() 	{"1.20"}
+private def runningVersion() 	{"1.22"}
 
 preferences {
 	page(name:pageMain)
@@ -535,9 +536,6 @@ def handleRooms(physicalgraph.device.HubResponse hubResponse) {
             if (group?.action?.sat) {
             	groupDev.sendEvent(name:"saturation", value: Math.round(group.action.sat*100/254))
             }
-            //if (group?.action?.ct) {
-            //	groupDev.sendEvent(name:"colorTemperature", value: Math.round(1000000/group.action.ct))           
-            //}
         }
    	}
 }
@@ -568,6 +566,16 @@ def handleRoomPut(physicalgraph.device.HubResponse hubResponse) {
     
 def handleConfigPut(physicalgraph.device.HubResponse hubResponse) {
 	def parsedEvent = parseEventMessage(hubResponse.description)
+    def mac = parsedEvent.mac.substring(6)
+    def response = hubResponse?.json.success
+    if (response) {
+    	def sensor = response.toString().split("/")[2]
+        def config 
+        if (response.toString().contains("true")) config = "on" else config = "off"
+
+        def dni = "${mac}/sensor/${sensor}"
+        getChildDevice(dni).sendEvent(name: "switch", value: config)
+	}    
 }
     
 def handleCheckDevices(physicalgraph.device.HubResponse hubResponse) {
@@ -794,6 +802,8 @@ def handlePollSensor(physicalgraph.device.HubResponse hubResponse) {
         case "ZLLPresence":
             if (body.state.presence) 	sensorDev.sendEvent(name: "motion", value: "active", descriptionText: "$sensorDev motion detected", isStateChange: true)
             else 						sensorDev.sendEvent(name: "motion", value: "inactive", descriptionText: "$sensorDev motion detected", isStateChange: true)
+            if (body.config.on)  		sensorDev.sendEvent(name: "switch", value: "on", descriptionText: "$sensorDev config on True", isStateChange: true)
+            else						sensorDev.sendEvent(name: "switch", value: "off", descriptionText: "$sensorDev config on False", isStateChange: true)
             break
         case "ZLLSwitch":
             TRACE("[handlePoll] Dimmer Switch ${dni} ${body.state.buttonevent}")
