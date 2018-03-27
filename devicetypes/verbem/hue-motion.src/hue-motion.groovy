@@ -93,12 +93,10 @@ def updated() {
 
 def on() {
 	parent.configHueMotion([action: true, sensor:device.deviceNetworkId])
-    sendEvent(name:"switch", value: "on")
 }
 
 def off() {
 	parent.configHueMotion([action: false, sensor:device.deviceNetworkId])
-    sendEvent(name:"switch", value: "off")
 }
 
 def initialize() {
