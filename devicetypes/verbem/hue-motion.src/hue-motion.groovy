@@ -16,10 +16,12 @@
  *  ----------------
  *  2017-07-10 1.00 Initial Release
  *	1.01 Initialize with motion is inactive
+ *	1.02 add switch capability to set HUE CONFIG On or OFF!!
  */
 metadata {
 	definition (name: "Hue Motion", namespace: "verbem", author: "Martin Verbeek") {
 		capability "Motion Sensor"
+        capability "Switch"
 		capability "Sensor"
 		capability "Battery"
 		capability "Actuator"
@@ -53,7 +55,7 @@ metadata {
 		}
         
 		standardTile("temperature", "device.temperature", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
-			state "temperature", label:'${currentValue}', unit: ""
+			state "temperature", label: '${currentValue}' , unit: ""
 		}
 
         standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat", width:2, height:2) {
@@ -82,6 +84,14 @@ def installed() {
 
 def updated() {
 	initialize()
+}
+
+def on() {
+	parent.configHueMotion([action: true, sensor:device.deviceNetworkId])
+}
+
+def off() {
+	parent.configHueMotion([action: false, sensor:device.deviceNetworkId])
 }
 
 def initialize() {
