@@ -33,6 +33,8 @@
  *	1.16 hyperpoll a single sensor 5 times for 5 seconds to get subsequent pushes faster when an event is detected
  *	1.17 state.pollSensors set to true if not present
  *	1.20 Add special mode that configs off Motion sensors in HUE, and back when it changges mode to not special
+ *	1.21 hostIP routine and on/off config as a command from DTH Hue Motion
+ *	
  */
 
 
@@ -285,9 +287,7 @@ def elevatedDeviceCall(deviceId) {
                 runIn(i, pollSensor, [data: [hostIP: hostIP, usernameAPI: usernameAPI, sensor: sensor], overwrite: false])
             }         
         }
-    }
-    
-                      
+    }                      
 }
 
 def pollTheSensors(data) {
@@ -568,8 +568,6 @@ def handleRoomPut(physicalgraph.device.HubResponse hubResponse) {
     
 def handleConfigPut(physicalgraph.device.HubResponse hubResponse) {
 	def parsedEvent = parseEventMessage(hubResponse.description)
-    
-    log.info parsedEvent
 }
     
 def handleCheckDevices(physicalgraph.device.HubResponse hubResponse) {
@@ -821,33 +819,49 @@ private poll(hostIP, usernameAPI) {
     sendHubCommand(hubAction)
 }
 
-private def configHueMotion(call) {
-	def configAction = call.action
+private def getAPI(mac) {
+	def hostIP
+    def usernameAPI = settings."z_BridgesUsernameAPI_${mac}"
     
-	state.devices.each { dni, dev ->
-    	if (dev.type == "ZLLPresence") {
-        
-			def sensor = dni.split("/")[2] 
-            def serialNumber = dni.split("/")[0]
-            def hostIP
-            settings.z_Bridges.each { bridge ->
-     		   def match = bridge.currentValue("serialNumber").indexOf(serialNumber)
-                if (match != -1) {
-                    hostIP = bridge.currentValue("networkAddress") 
-                    if(hostIP.indexOf(":") == -1) hostIP = hostIP + ":80" // Hue B
-                }
-            }
-            def hubAction = new physicalgraph.device.HubAction(
-                method: "PUT",
-                path: "/api/${settings."z_BridgesUsernameAPI_${serialNumber}"}/sensors/${sensor}/config",
-                headers: [HOST: "${hostIP}"],
-                null,
-                body: ["on": configAction],
-                [callback: handleConfigPut] )
-			log.info "Config " +  configAction
-            sendHubCommand(hubAction)
-        }
+    settings.z_Bridges.each { bridge ->
+    	if (bridge.currentValue("serialNumber").toUpperCase().indexOf(mac) != -1) hostIP = bridge.currentValue("networkAddress")
     }
+    
+	if (hostIP.indexOf(":") == -1) hostIP = hostIP + ":80"
+    
+	usernameAPI = usernameAPI.trim()
+    
+	return [username: usernameAPI, hostIP: hostIP]
+}
+
+def configHueMotion(call) {
+	def configAction = call.action
+
+    state.devices.each { dni, dev ->
+        if (dev.type == "ZLLPresence") {
+			if (!call.sensor || (call?.sensor == dni)) {
+                def sensor = dni.split("/")[2] 
+                def serialNumber = dni.split("/")[0]
+                def hostIP
+                settings.z_Bridges.each { bridge ->
+                    def match = bridge.currentValue("serialNumber").indexOf(serialNumber)
+                    if (match != -1) {
+                        hostIP = bridge.currentValue("networkAddress") 
+                        if(hostIP.indexOf(":") == -1) hostIP = hostIP + ":80" // Hue B
+                    }
+                }
+                def hubAction = new physicalgraph.device.HubAction(
+                    method: "PUT",
+                    path: "/api/${settings."z_BridgesUsernameAPI_${serialNumber}"}/sensors/${sensor}/config",
+                    headers: [HOST: "${hostIP}"],
+                    null,
+                    body: ["on": configAction],
+                    [callback: handleConfigPut] )
+                log.info "Config " +  configAction
+                sendHubCommand(hubAction)
+	        }
+		}
+	}
 }
 
 def checkDevices() {
