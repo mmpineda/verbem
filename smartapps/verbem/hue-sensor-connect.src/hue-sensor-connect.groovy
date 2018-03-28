@@ -3,16 +3,8 @@
  *
  *  Author: Martin Verbeek 
  *
- *  Copyright 2017 Martin Verbeek
+ *  Copyright 2018 Martin Verbeek
  *
- *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
- *  in compliance with the License. You may obtain a copy of the License at:
- *
- *  http://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing, software distributed under the License is distributed
- *  on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
- *  for the specific language governing permissions and limitations under the License.
  *
  *	1.00 Initial Release, thanks to Anthony S for version control
  *	1.01 Support for Hue B bridges or bridges that support username as an attribute
@@ -35,6 +27,7 @@
  *	1.20 Add special mode that configs off Motion sensors in HUE, and back when it changges mode to not special
  *	1.21 hostIP routine and on/off config as a command from DTH Hue Motion
  *	1.22 sendEvent from response on config...
+ *	1.23 routine to add buttons for HUE effect:colorloop, effect:none, alert:none, alert:select, alert:lselect
  *	
  */
 
@@ -49,7 +42,7 @@ definition(
 		iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Partner/hue@2x.png",
 		singleInstance: true
 )
-private def runningVersion() 	{"1.22"}
+private def runningVersion() 	{"1.23"}
 
 preferences {
 	page(name:pageMain)
@@ -516,12 +509,13 @@ def handleRooms(physicalgraph.device.HubResponse hubResponse) {
             	TRACE("[handleRooms] add room ${dni} ${group.name}")
             	groupDev = addChildDevice("verbem", "domoticzOnOff", dni, null, [name:group.name, label:group.name, completedSetup:true])
            	}
-            	else {
-                	if (group.name != groupDev.name) {
-                    	groupDev.name = group.name
-                        groupDev.label = group.name
-                    }
+            else {
+                if (group.name != groupDev.name) {
+                    groupDev.name = group.name
+                    groupDev.label = group.name
                 }
+                addEffectAlert(groupDev)
+            }
             //sendEvents...
             
             if (group?.state?.all_on || group?.state?.any_on) groupDev.sendEvent(name: "switch", value: "on")
@@ -577,7 +571,11 @@ def handleConfigPut(physicalgraph.device.HubResponse hubResponse) {
         getChildDevice(dni).sendEvent(name: "switch", value: config)
 	}    
 }
-    
+ 
+def handleEffect(physicalgraph.device.HubResponse hubResponse) {
+	log.info hubResponse?.json
+}
+
 def handleCheckDevices(physicalgraph.device.HubResponse hubResponse) {
 
     def parsedEvent = parseEventMessage(hubResponse.description)
@@ -842,6 +840,42 @@ private def getAPI(mac) {
 	usernameAPI = usernameAPI.trim()
     
 	return [username: usernameAPI, hostIP: hostIP]
+}
+
+def addEffectAlert(dev) {
+    if (dev.hasCommand("configure")) {
+        dev.configure("Effect None")
+        dev.configure("Effect Colorloop")
+        dev.configure("Alert None")
+        dev.configure("Alert Select")
+        dev.configure("Alert Lselect")
+    }
+}
+
+def configHueRoomEffects(call) {
+	//CHECK!!!!!! call.effect = [effect: none, alert:none] call.dni = mac/group/roomnumber
+    
+    def room = call.dni.split("/")[2] 
+    def serialNumber = call.dni.split("/")[0]
+    def hostIP
+    settings.z_Bridges.each { bridge ->
+        def match = bridge.currentValue("serialNumber").indexOf(serialNumber)
+        if (match != -1) {
+            hostIP = bridge.currentValue("networkAddress") 
+            if(hostIP.indexOf(":") == -1) hostIP = hostIP + ":80" // Hue B
+        }
+    }
+    def hubAction = new physicalgraph.device.HubAction(
+        method: "PUT",
+        path: "/api/${settings."z_BridgesUsernameAPI_${serialNumber}"}/groups/${room}/action",
+        headers: [HOST: "${hostIP}"],
+        null,
+        body: call.effect,
+        [callback: handleEffect] )
+        
+    log.info call.effect
+    sendHubCommand(hubAction)
+
 }
 
 def configHueMotion(call) {
