@@ -28,6 +28,7 @@
  *	1.21 hostIP routine and on/off config as a command from DTH Hue Motion
  *	1.22 sendEvent from response on config...
  *	1.23 routine to add buttons for HUE effect:colorloop, effect:none, alert:none, alert:select, alert:lselect
+ *	1.24 send tempScale attribute
  *	
  */
 
@@ -42,7 +43,7 @@ definition(
 		iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Partner/hue@2x.png",
 		singleInstance: true
 )
-private def runningVersion() 	{"1.23"}
+private def runningVersion() 	{"1.24"}
 
 preferences {
 	page(name:pageMain)
@@ -653,11 +654,17 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
 
                     if (!state.devices[dni].temperatureLastupdated) {
                         state.devices[dni].temperatureLastupdated = sensor.state.lastupdated
-                        if (sensorDev) sensorDev.sendEvent(name: "temperature", value: "${temp} ${tempScale}", unit: tempScale)
+                        if (sensorDev) {
+                        	sensorDev.sendEvent(name: "temperature", value: temp , unit: tempScale)
+                        	sensorDev.sendEvent(name: "tempScale", value: "${temp} ${tempScale}")
+                        }
                     }
                     else if (state.devices[dni].temperatureLastupdated != sensor.state.lastupdated) {
                         state.devices[dni].temperatureLastupdated = sensor.state.lastupdated
-                        if (sensorDev) sensorDev.sendEvent(name: "temperature", value: "${temp} ${tempScale}", unit: tempScale)
+                        if (sensorDev) {
+                        	sensorDev.sendEvent(name: "temperature", value: temp , unit: tempScale)
+                        	sensorDev.sendEvent(name: "tempScale", value: "${temp} ${tempScale}")
+                        }
                     }
             	}
 			}
