@@ -17,6 +17,7 @@
  *  2017-07-10 1.00 Initial Release
  *	1.01 Initialize with motion is inactive
  *	1.02 add switch capability to set HUE CONFIG On or OFF!!
+ *	1.24 add custom attribute tempScale
  */
 metadata {
 	definition (name: "Hue Motion", namespace: "verbem", author: "Martin Verbeek") {
@@ -29,6 +30,8 @@ metadata {
         capability "Illuminance Measurement"
         capability "Temperature Measurement"
 		capability "Health Check"
+        
+        attribute "tempScale", "string"
         }
 
 	tiles(scale: 2) {
@@ -54,8 +57,8 @@ metadata {
 			state "illuminance", label:'${currentValue} Lux', unit:"Lux"
 		}
         
-		standardTile("temperature", "device.temperature", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
-			state "temperature", label: '${currentValue}' , unit: ""
+		standardTile("temperature", "device.tempScale", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
+			state "tempScale", label: '${currentValue}' , unit: ""
 		}
 
         standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat", width:2, height:2) {
