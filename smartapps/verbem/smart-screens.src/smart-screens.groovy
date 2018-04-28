@@ -35,9 +35,9 @@ definition(
     description: "Automate Up and Down of Sun Screens, Blinds and Shutters based on Weather Conditions",
     category: "Convenience",
     oauth: true,
-    iconUrl: "https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/Smart%20Screens.jpg",
-    iconX2Url: "https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/Smart%20Screens.jpg",
-    iconX3Url: "https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/Smart%20Screens.jpg")
+    iconUrl: "https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/RollerShutter.png",
+    iconX2Url: "https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/RollerShutter.png",
+    iconX3Url: "https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/RollerShutter.png")
 
 {
 	appSetting "clientId"
@@ -57,7 +57,7 @@ preferences {
     page name:"pageForecastIO"
 }
 
-def pageSetupForecastIO() {
+	def pageSetupForecastIO() {
     TRACE("pageSetupForecastIO()")
     
     def dni = "SmartScreens Pause Switch"
@@ -148,84 +148,70 @@ def pageSetupForecastIO() {
         required:   false
     ] 
     
-    return dynamicPage(pageProperties) {
-		
+    return dynamicPage(pageProperties) {		
         section("Darksky.net, WeatherUndergound or OpenWeatherMap API Key and Website") {
-        	input inputWeather
-        	
+            input inputWeather
+
             if (z_weatherAPI) {
                 input pageSetupAPI
 
-				if (z_weatherAPI == "Darksky") {
+                if (z_weatherAPI == "Darksky") {
                     href(name: "hrefNotRequired",
-                     title: "Darksky.net page",
-                     required: false,
-                     style: "external",
-                     url: "https://darksky.net/dev/",
-                     description: "tap to view Darksky website in mobile browser")
-                    }
-
-				if (z_weatherAPI == "WeatherUnderground" || z_weatherAPI == "WeatherUnderground-NoPWS") {
-                    href(name: "hrefNotRequired",
-                     title: "WeatherUnderground page",
-                     required: false,
-                     style: "external",
-                     url: "https://www.wunderground.com/weather/api/d/pricing.html",
-                     description: "tap to view WU website in mobile browser")
-                    }
-
-				if (z_weatherAPI == "OpenWeatherMap") {
-                    href(name: "hrefNotRequired",
-                     title: "OpenWeatherMap page",
-                     required: false,
-                     style: "external",
-                     url: "https://home.openweathermap.org/users/sign_in",
-                     description: "tap to view OWM website in mobile browser")
-                     }
-			}
-            
-        }
-
-        section("Netatmo Interface") {  
-        	input inputSensors
-		}
-        
-        section("Setup Menu") {
-        	input inputWindForceMetric		// more intelligent
-            input inputBlinds
-
-            if(inputBlinds) {
-            	z_blinds.each {
-                    href "pageConfigureBlinds", title:"Configure ${it.name}", description:"Tap to open", params: it
+                         title: "Darksky.net page",
+                         required: false,
+                         style: "external",
+                         url: "https://darksky.net/dev/",
+                         description: "tap to view Darksky website in mobile browser")
                 }
-           	}
-        }
-        
-        section("Info Page") {
 
-              href "pageForecastIO", title:"Environment Info", description:"Tap to open"
-              
-        }
+                if (z_weatherAPI == "WeatherUnderground" || z_weatherAPI == "WeatherUnderground-NoPWS") {
+                    href(name: "hrefNotRequired",
+                         title: "WeatherUnderground page",
+                         required: false,
+                         style: "external",
+                         url: "https://www.wunderground.com/weather/api/d/pricing.html",
+                         description: "tap to view WU website in mobile browser")
+                }
 
-        section([title:"Options", mobileOnly:true]) {
-            label title:"Assign a name", required:false
-            input inputTRACE
-            input inputPause
-            
-            paragraph "Off Season between below dates"
-            
+                if (z_weatherAPI == "OpenWeatherMap") {
+                    href(name: "hrefNotRequired",
+                         title: "OpenWeatherMap page",
+                         required: false,
+                         style: "external",
+                         url: "https://home.openweathermap.org/users/sign_in",
+                         description: "tap to view OWM website in mobile browser")
+                }
+            }            
+        }
+        section("Netatmo Interface") {  
+            input inputSensors
+        }        
+        section("Setup Menu") {
+            input inputWindForceMetric		// make more intelligent
+            input inputBlinds
+            if (inputBlinds) z_blinds.each {href "pageConfigureBlinds", title:"Configure ${it.name}", description:"Tap to open", params: it}
+        }        
+        section("Off Season between below dates") {           
             input inputMonthStart
             if (z_inputMonthStart) {
-            	if (z_inputMonthStart.toString() == "2") input inputDayStart28
+                if (z_inputMonthStart.toString() == "2") input inputDayStart28
                 else if (z_inputMonthStart.toString().matches("1|3|5|7|8|10|12")) input inputDayStart31
                 else input inputDayStart30
-            	
-            	input inputMonthEnd
-            	if (z_inputMonthEnd.toString() == "2") input inputDayEnd28
+
+                input inputMonthEnd
+                if (z_inputMonthEnd.toString() == "2") input inputDayEnd28
                 else if (z_inputMonthEnd.toString().matches("1|3|5|7|8|10|12")) input inputDayEnd31
                 else input inputDayEnd30
            	}
         }
+        section("Info Page") {
+            href "pageForecastIO", title:"Environment Info", description:"Tap to open"
+        }
+        section("Options") {
+            label title:"Assign a name", required:false
+            input inputTRACE
+            input inputPause
+        }    
     }
 }
 
@@ -245,58 +231,57 @@ def pageConfigureBlinds(dev) {
 
     return dynamicPage(pageProperties) {
         z_blinds.each {
-        if (it.name == dev.name) {
-        	def devId = it.id
-            def devType = it.typeName
-            def blindOptions = ["Down", "Up"]
-            
-            if (it.hasCommand("presetPosition")) blindOptions.add("Preset")
-            if (it.hasCommand("stop")) blindOptions.add("Stop")
-            
-            def blind = it.currentValue("somfySupported")
-            if (blind == 'true') {blind = true}
-            	else {blind = false}
-                
-            section(it.name) 
-            	{ 
-                paragraph "General"
-                input	"z_blindType_${devId}", "enum", options:["Screen","Shutter"], title:"(sun)Screen or (roller)Shutter", required:true, multiple:false, submitOnChange:true
-                input 	"z_blindsOrientation_${devId}", "enum", options:["N", "NW", "W", "SW", "S", "SE", "E", "NE"],title:"Select Orientation",multiple:true,required:true
+            if (it.name == dev.name) {
+                def devId = it.id
+                def devType = it.typeName
+                def blindOptions = ["Down", "Up"]
+
+                if (it.hasCommand("presetPosition")) blindOptions.add("Preset")
+                if (it.hasCommand("stop")) blindOptions.add("Stop")
+
+                def blind = it.currentValue("somfySupported")
+                if (blind == 'true') {blind = true}
+                    else {blind = false}
+
+                section(it.name) {
+                    paragraph "General"
+                    input	"z_blindType_${devId}", "enum", options:["Screen","Shutter"], title:"(sun)Screen or (roller)Shutter", required:true, multiple:false, submitOnChange:true
+                    input 	"z_blindsOrientation_${devId}", "enum", options:["N", "NW", "W", "SW", "S", "SE", "E", "NE"],title:"Select Orientation",multiple:true,required:true
 
 
-                if (settings."z_blindType_${devId}" == "Screen") {
-                	paragraph image:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/Sun.png", "Sun Protection"
-                    input	"z_closeMaxAction_${devId}","enum",title:"Action to take", options: blindOptions
-                    input 	"z_cloudCover_${devId}","enum",title:"Protect until what cloudcover% (0=clear sky)", options:	["10","20","30","40","50","60","70","80","90","100"],multiple:false,required:false,default:30                
-                    
-                    paragraph image:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/NotSoMuchWind.png", "Sun Protection Only Below Windforce"
-                    input	"z_windForceCloseMax_${devId}","number",title:"Below Windspeed ${z_windForceMetric}",multiple:false,required:false,default:0                 
+                    if (settings."z_blindType_${devId}" == "Screen") {
+                        paragraph image:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/Sun.png", "Sun Protection"
+                        input	"z_closeMaxAction_${devId}","enum",title:"Action to take", options: blindOptions
+                        input 	"z_cloudCover_${devId}","enum",title:"Protect until what cloudcover% (0=clear sky)", options:	["10","20","30","40","50","60","70","80","90","100"],multiple:false,required:false,default:30                
+
+                        paragraph image:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/NotSoMuchWind.png", "Sun Protection Only Below Windforce"
+                        input	"z_windForceCloseMax_${devId}","number",title:"Below Windspeed ${z_windForceMetric}",multiple:false,required:false,default:0                 
+                    }
+
+                    if (settings."z_blindType_${devId}" == "Shutter") {
+                        paragraph image:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/Sun.png", "Sun Protection"
+                        input	"z_closeMaxAction_${devId}","enum",title:"Action to take", options: blindOptions
+                        input 	"z_cloudCover_${devId}","enum",title:"Protect until what cloudcover% (0=clear sky)", options:	["10","20","30","40","50","60","70","80","90","100"],multiple:false,required:false,default:30
+
+                        paragraph image:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/LotsOfWind.png", "Wind Protection"
+                        input	"z_closeMinAction_${devId}","enum",title:"Action to take", options: blindOptions
+                        input 	"z_windForceCloseMin_${devId}","number",title:"Above windspeed ${z_windForceMetric}",multiple:false,required:false,default:999                     
+                    }
+
+                    paragraph image:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/RollerShutter.png", "End of Day operation"
+                    if (devType == "domoticzBlinds") {
+
+                        if (blind) 	{input	"z_eodAction_${devId}","enum",title:"EOD action", options: blindOptions }
+                        else if (settings."z_blindType_${devId}" == "Shutter")	{input	"z_eodAction_${devId}","enum",title:"EOD action", options: ["Down","Up"], default:"Down" }
+                                else {input	"z_eodAction_${devId}","enum",title:"EOD action", options: ["Down","Up"], default:"Up" }
+
+                        input	"z_sunsetOffset_${devId}","number",title:"Sunset +/- offset",multiple:false,required:false,default:0                 
+                    }    
+                    paragraph image:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/WindowBlind.png", "Is there a related Door/Window"
+                    input "z_blindsOpenSensor_${devId}", "capability.contactSensor", required:false, multiple:false, title:"No operation when open"
+
                 }
-
-                if (settings."z_blindType_${devId}" == "Shutter") {
-                	paragraph image:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/Sun.png", "Sun Protection"
-					input	"z_closeMaxAction_${devId}","enum",title:"Action to take", options: blindOptions
-                	input 	"z_cloudCover_${devId}","enum",title:"Protect until what cloudcover% (0=clear sky)", options:	["10","20","30","40","50","60","70","80","90","100"],multiple:false,required:false,default:30
-                    
-                    paragraph image:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/LotsOfWind.png", "Wind Protection"
-                    input	"z_closeMinAction_${devId}","enum",title:"Action to take", options: blindOptions
-                    input 	"z_windForceCloseMin_${devId}","number",title:"Above windspeed ${z_windForceMetric}",multiple:false,required:false,default:999                     
-				}
-				
-				paragraph image:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/RollerShutter.png", "End of Day operation"
-                if (devType == "domoticzBlinds") {
-
-                    if (blind) 	{input	"z_eodAction_${devId}","enum",title:"EOD action", options: blindOptions }
-                    else if (settings."z_blindType_${devId}" == "Shutter")	{input	"z_eodAction_${devId}","enum",title:"EOD action", options: ["Down","Up"], default:"Down" }
-                            else {input	"z_eodAction_${devId}","enum",title:"EOD action", options: ["Down","Up"], default:"Up" }
-                            
-                    input	"z_sunsetOffset_${devId}","number",title:"Sunset +/- offset",multiple:false,required:false,default:0                 
-                }    
-                paragraph image:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/WindowBlind.png", "Is there a related Door/Window"
-               	input "z_blindsOpenSensor_${devId}", "capability.contactSensor", required:false, multiple:false, title:"No operation when open"
-
-        	}
-        }
+            }
         }
     }
 }
