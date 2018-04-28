@@ -26,7 +26,7 @@ import java.Math.*
 import Calendar.*
 import groovy.time.*
 
-private def runningVersion() 	{"3.00"}
+private def runningVersion() 	{"3.10"}
 
 definition(
     name: "Smart Screens",
@@ -91,6 +91,7 @@ def pageSetupForecastIO() {
         type:       "capability.windowShade",
         title:      "Which blinds/screens/shutters?",
         multiple:   true,
+        submitOnChange: true,
         required:   false
     ] 
     
@@ -185,19 +186,19 @@ def pageSetupForecastIO() {
             
         }
 
-
-
         section("Netatmo Interface") {  
         	input inputSensors
 		}
         
         section("Setup Menu") {
+        	input inputWindForceMetric		// more intelligent
             input inputBlinds
 
             if(inputBlinds) {
-                    href "pageConfigureBlinds", title:"Configure Blinds", description:"Tap to open"
-                    input inputWindForceMetric
+            	z_blinds.each {
+                    href "pageConfigureBlinds", title:"Configure ${it.name}", description:"Tap to open", params: it
                 }
+           	}
         }
         
         section("Info Page") {
@@ -210,7 +211,6 @@ def pageSetupForecastIO() {
             label title:"Assign a name", required:false
             input inputTRACE
             input inputPause
-            input 
             
             paragraph "Off Season between below dates"
             
@@ -233,60 +233,70 @@ def pageSetupForecastIO() {
 // Show Configure Blinds Page
 /*-----------------------------------------------------------------------*/
 
-def pageConfigureBlinds() {
-    TRACE("pageConfigureBlinds()")
+def pageConfigureBlinds(dev) {
+    TRACE("pageConfigureBlinds() ${dev.name}")
 
-def pageProperties = [
-        name:       "pageConfigureBlinds",
-        title:      "Configure Blinds",
-        nextPage:   "pageSetupForecastIO",
-        uninstall:  false
-    ]
+    def pageProperties = [
+            name:       "pageConfigureBlinds",
+            title:      "Configure for ${dev.name}",
+            nextPage:   "pageSetupForecastIO",
+            uninstall:  false
+        ]
 
     return dynamicPage(pageProperties) {
         z_blinds.each {
+        if (it.name == dev.name) {
         	def devId = it.id
+            def devType = it.typeName
+            def blindOptions = ["Down", "Up"]
+            
+            if (it.hasCommand("presetPosition")) blindOptions.add("Preset")
+            if (it.hasCommand("stop")) blindOptions.add("Stop")
+            
             def blind = it.currentValue("somfySupported")
             if (blind == 'true') {blind = true}
             	else {blind = false}
                 
             section(it.name) 
-            	{           	
-                input 	"z_blindsOrientation_${devId}", "enum", options:["N", "NW", "W", "SW", "S", "SE", "E", "NE"],title:"Select Relevent Orientation",multiple:true,required:true
+            	{ 
+                paragraph "General"
                 input	"z_blindType_${devId}", "enum", options:["Screen","Shutter"], title:"(sun)Screen or (roller)Shutter", required:true, multiple:false, submitOnChange:true
-                
+                input 	"z_blindsOrientation_${devId}", "enum", options:["N", "NW", "W", "SW", "S", "SE", "E", "NE"],title:"Select Orientation",multiple:true,required:true
+
+
                 if (settings."z_blindType_${devId}" == "Screen") {
-                    input	"z_windForceCloseMax_${devId}","number",title:"Allow Operation below under which windforce ${z_windForceMetric}",multiple:false,required:false,default:0                 
-
-                    if (blind) 	{input	"z_closeMaxAction_${devId}","enum",title:"", options: ["Down","Up","Preset","Dynamic"], default:"Preset" }
-                    else 		{input	"z_closeMaxAction_${devId}","enum",title:"", options: ["Down","Up","Dynamic"], default:"Up" }
-					}
-
-					if (settings."z_blindType_${devId}" == "Shutter") {
-
-                    if (blind) 	{input	"z_closeMaxAction_${devId}","enum",title:"Action for Sun protection", options: ["Down","Up","Preset","Dynamic"], default:"Preset" }
-                    else 		{input	"z_closeMaxAction_${devId}","enum",title:"Action for Sun protection", options: ["Down","Up","Dynamic"], default:"Up" }
-					}
-
-                input 	"z_cloudCover_${devId}","enum",title:"Protect until what cloudcover% (0=clear sky)", options:	["10","20","30","40","50","60","70","80","90","100"],multiple:false,required:false,default:30                
-
-				if (settings."z_blindType_${devId}" == "Shutter") {
-                    input 	"z_windForceCloseMin_${devId}","number",title:"Force Operation below above which windforce ${z_windForceMetric}",multiple:false,required:false,default:999                     
-
-                    if (blind) 	{input	"z_closeMinAction_${devId}","enum",title:"", options: ["Down","Up","Preset"], default:"Preset" }
-                    else 		{input	"z_closeMinAction_${devId}","enum",title:"", options: ["Down","Up"], default:"Up" }
-                	}
-                
-                input	"z_sunsetOffset_${devId}","number",title:"Operation below at Sunset +/- offset",multiple:false,required:false,default:0                 
-                
-                if (blind) 	{input	"z_eodAction_${devId}","enum",title:"", options: ["Down","Up","Preset"], default:"Preset" }
-                else if (settings."z_blindType_${devId}" == "Shutter")	{input	"z_eodAction_${devId}","enum",title:"", options: ["Down","Up"], default:"Down" }
-                		else {input	"z_eodAction_${devId}","enum",title:"", options: ["Down","Up"], default:"Up" }
-                
+                	paragraph image:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/Sun.png", "Sun Protection"
+                    input	"z_closeMaxAction_${devId}","enum",title:"Action to take", options: blindOptions
+                    input 	"z_cloudCover_${devId}","enum",title:"Protect until what cloudcover% (0=clear sky)", options:	["10","20","30","40","50","60","70","80","90","100"],multiple:false,required:false,default:30                
                     
+                    paragraph image:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/NotSoMuchWind.png", "Sun Protection Only Below Windforce"
+                    input	"z_windForceCloseMax_${devId}","number",title:"Below Windspeed ${z_windForceMetric}",multiple:false,required:false,default:0                 
+                }
+
+                if (settings."z_blindType_${devId}" == "Shutter") {
+                	paragraph image:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/Sun.png", "Sun Protection"
+					input	"z_closeMaxAction_${devId}","enum",title:"Action to take", options: blindOptions
+                	input 	"z_cloudCover_${devId}","enum",title:"Protect until what cloudcover% (0=clear sky)", options:	["10","20","30","40","50","60","70","80","90","100"],multiple:false,required:false,default:30
+                    
+                    paragraph image:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/LotsOfWind.png", "Wind Protection"
+                    input	"z_closeMinAction_${devId}","enum",title:"Action to take", options: blindOptions
+                    input 	"z_windForceCloseMin_${devId}","number",title:"Above windspeed ${z_windForceMetric}",multiple:false,required:false,default:999                     
+				}
+				
+				paragraph image:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/RollerShutter.png", "End of Day operation"
+                if (devType == "domoticzBlinds") {
+
+                    if (blind) 	{input	"z_eodAction_${devId}","enum",title:"EOD action", options: blindOptions }
+                    else if (settings."z_blindType_${devId}" == "Shutter")	{input	"z_eodAction_${devId}","enum",title:"EOD action", options: ["Down","Up"], default:"Down" }
+                            else {input	"z_eodAction_${devId}","enum",title:"EOD action", options: ["Down","Up"], default:"Up" }
+                            
+                    input	"z_sunsetOffset_${devId}","number",title:"Sunset +/- offset",multiple:false,required:false,default:0                 
+                }    
+                paragraph image:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/WindowBlind.png", "Is there a related Door/Window"
                	input "z_blindsOpenSensor_${devId}", "capability.contactSensor", required:false, multiple:false, title:"No operation when open"
 
         	}
+        }
         }
     }
 }
@@ -339,9 +349,10 @@ def installed() {
 
 def updated() {
 	TRACE("Updated with settings: ${settings}")
-
+	
 	unsubscribe()
 	initialize()
+	    scheduleTurnOn()
 }
 
 def initialize() {
@@ -524,7 +535,11 @@ settings.z_blinds.each {
     if (dev) {
     	devStatus = dev.currentValue("contact")
     	}
-    def eodDone = it.currentValue("eodDone")
+    def eodDone = false
+    if (it.typeName == "domoticzBlinds") eodDone = it.currentValue("sleeping")
+    log.info eodDone
+    if (eodDone == 'sleeping') eodDone = true
+    if (eodDone == 'not sleeping') eodDone = false
 
 	/*-----------------------------------------------------------------------------------------*/
     /*	SUN determine if we need to close or open again if cloudcover above defined
@@ -535,7 +550,7 @@ settings.z_blinds.each {
     /*-----------------------------------------------------------------------------------------*/                 
     TRACE("[checkForSun] ${it} has ${state.sunBearing.matches(blindParams.blindsOrientation)} sun orientation(${state.sunBearing}), DOOR ${dev} is ${devStatus}, EOD ${eodDone}, ACTION to take ${blindParams.closeMaxAction}")
     
-    if(state.sunBearing.matches(blindParams.blindsOrientation) && devStatus == "Closed" && eodDone == 'false' ) 
+    if(state.sunBearing.matches(blindParams.blindsOrientation) && devStatus == "Closed" && eodDone == false ) 
     {
     	TRACE("[checkForSun] ${it} Forecast is ${state.cloudCover.toInteger()}% cloud, BLINDPARAMS is ${blindParams.cloudCover.toInteger()}%")
         
@@ -550,6 +565,7 @@ settings.z_blinds.each {
                             if (blindParams.closeMaxAction == "Down") 	{it.close()}
                     	    if (blindParams.closeMaxAction == "Up") 	{it.open()}
                         	if (blindParams.closeMaxAction == "Preset") {it.presetPosition()}
+                        	if (blindParams.closeMaxAction == "Stop") {it.stop()}
                            	}
                         }
                 	else // shutter
@@ -557,6 +573,7 @@ settings.z_blinds.each {
                     	if (blindParams.closeMaxAction == "Down") 	{it.close()}
                     	if (blindParams.closeMaxAction == "Up") 	{it.open()}
                     	if (blindParams.closeMaxAction == "Preset") {it.presetPosition()}
+                    	if (blindParams.closeMaxAction == "Stop") {it.stop()}
                     	}
         }
     }
@@ -593,12 +610,14 @@ settings.z_blinds.each {
 			if (blindParams.closeMaxAction == "Down") it.open()
             if (blindParams.closeMaxAction == "Up") it.close()
             if (blindParams.closeMaxAction == "Preset") it.open()
+            if (blindParams.closeMaxAction == "Stop") it.stop()
         }
         if(state.cloudCover.toInteger() > blindParams.cloudCover.toInteger() && blindParams.blindsType == "Shutter") 
         {
 			if (blindParams.closeMaxAction == "Down") it.open()
             if (blindParams.closeMaxAction == "Up") it.close()
             if (blindParams.closeMaxAction == "Preset") it.presetPosition()
+            if (blindParams.closeMaxAction == "Stop") it.stop()
         }
     }
 }
@@ -672,12 +691,14 @@ def checkForWind(evt) {
                 if (blindParams.closeMinAction == "Down") it.close()
                 if (blindParams.closeMinAction == "Up") it.open()
                 if (blindParams.closeMinAction == "Preset") it.presetPosition()
+                if (blindParams.closeMinAction == "Stop") it.stop()
             }
             if(state.windSpeed.toInteger() > blindParams.windForceCloseMax.toInteger() && blindParams.blindsType == "Screen") {
                 //reverse the defined MaxAction
                 if (blindParams.closeMaxAction == "Down") it.open()
                 if (blindParams.closeMaxAction == "Up") it.close()
                 if (blindParams.closeMaxAction == "Preset") it.open()
+                if (blindParams.closeMaxAction == "Stop") it.stop()
             }
         }
     }
@@ -776,7 +797,8 @@ def scheduleTurnOn() {
         sendEvent(it, [name: "eodTime", value: new Date(sunsetTime.time + offset)])
 
         def timeBeforeSunset = new Date(sunsetTime.time + offset)
-        it.eodRunOnce(timeBeforeSunset)
+        //it.eodRunOnce(timeBeforeSunset)
+        if (it.typeName == "domoticzBlinds") it.configure(eodRunOnce : [time : timeBeforeSunset])
     }	
 }
 
