@@ -29,6 +29,7 @@
  *	1.22 sendEvent from response on config...
  *	1.23 routine to add buttons for HUE effect:colorloop, effect:none, alert:none, alert:select, alert:lselect
  *	1.24 send tempScale attribute
+ *	1.25 duplicate childs for tap an switch solved
  *	
  */
 
@@ -43,7 +44,7 @@ definition(
 		iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Partner/hue@2x.png",
 		singleInstance: true
 )
-private def runningVersion() 	{"1.24"}
+private def runningVersion() 	{"1.25"}
 
 preferences {
 	page(name:pageMain)
@@ -431,7 +432,6 @@ private updateSensorState(messageBody, mac) {
     	state.devices.remove(dni)
         pause 2
     }
-
 }
 
 def parse(childDevice, description) {
@@ -591,7 +591,7 @@ def handleCheckDevices(physicalgraph.device.HubResponse hubResponse) {
 }
 
 def handlePoll(physicalgraph.device.HubResponse hubResponse) {
-	TRACE("[handlePoll] entering")
+	//TRACE("[handlePoll] entering")
     // check for encoded body....
     
     def parsedEvent = parseEventMessage(hubResponse.description)
@@ -672,10 +672,11 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
 		
         if (settings.z_Sensors) {
             //TRACE("[handlePoll] sensor type ${sensor.type}")
-
+            def dni = mac + "/sensor/" + item
+            def sensorDev = getChildDevice(dni)
+                
             if ((sensor.type == "ZGPSwitch" && settings.z_Sensors.contains("Hue Tap")) || (sensor.type == "ZLLPresence" && settings.z_Sensors.contains("Hue Motion")) || (sensor.type == "ZLLSwitch"  && settings.z_Sensors.contains("Hue Switch Dimmer")) ) {
-                def dni = mac + "/sensor/" + item
-                def sensorDev = getChildDevice(dni)
+
                 if (!sensorDev) {
                     def devType
                     devType = null
@@ -694,12 +695,8 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
                     if (devType != null) {
                         TRACE("[handlePoll] Add Sensor ${dni} ${sensor.type} ${devType} ${sensor.name} ${getMac(sensor.uniqueid)}")
 
-						try {
-                            sensorDev = addChildDevice("verbem", devType, dni, null, [name:sensor.name, label:sensor.name, completedSetup:true])
-                     	}
-                        catch (ex) {
-                        	log.error "[handlePoll] error ${ex} during add of child ${dni},${sensor.name}"
-                        }
+                        sensorDev = addChildDevice("verbem", devType, dni, null, [name:sensor.name, label:sensor.name, completedSetup:true])
+
                         state.devices[dni] = [
                             'lastUpdated'	: sensor.state.lastupdated, 
                             'mac'			: mac, 
@@ -918,24 +915,27 @@ def configHueMotion(call) {
 def checkDevices() {
 
     settings.z_Bridges.each { dev ->
-		
-		def serialNumber = dev.currentValue("serialNumber")
-		
-        if (dev.currentValue("username")) {
-        	serialNumber = serialNumber.substring(6)	// Hue B
-        }
-        
-        def hostIP = dev.currentValue("networkAddress")
-		if(hostIP.indexOf(":") == -1) hostIP = hostIP + ":80"	// Hue B
+		if (dev.currentValue("status").toUpperCase() == "ONLINE") {
+        	TRACE("[checkDevices] check devices")
+            def serialNumber = dev.currentValue("serialNumber")
 
-        def hubAction = new physicalgraph.device.HubAction(
-            method: "GET",
-            path: "/api/" + settings."z_BridgesUsernameAPI_${serialNumber}".trim() + "/sensors/",
-            headers: [HOST: "${hostIP}"],
-            null,
-            [callback: handleCheckDevices] )
+            if (dev.currentValue("username")) {
+                serialNumber = serialNumber.substring(6)	// Hue B
+            }
 
-        sendHubCommand(hubAction)
+            def hostIP = dev.currentValue("networkAddress")
+            if(hostIP.indexOf(":") == -1) hostIP = hostIP + ":80"	// Hue B
+
+            def hubAction = new physicalgraph.device.HubAction(
+                method: "GET",
+                path: "/api/" + settings."z_BridgesUsernameAPI_${serialNumber}".trim() + "/sensors/",
+                headers: [HOST: "${hostIP}"],
+                null,
+                [callback: handleCheckDevices] )
+
+            sendHubCommand(hubAction)
+            pause 10
+    	}
 	}
 }
 
