@@ -17,6 +17,7 @@
  	V2.00	Add subscription to device refresh, this will execute the latest info back to the devices
  	V3.00	Move to windowShade capability, and issue createchild command to create related component device for smart screens
     V3.10	Add off season definition, change pause setting to pause switch, pause switch prevails off season
+    V3.11	Bug in check for wind , send event to non custom dth (domoticzBlinds)
  
 */
 
@@ -26,7 +27,7 @@ import java.Math.*
 import Calendar.*
 import groovy.time.*
 
-private def runningVersion() 	{"3.10"}
+private def runningVersion() 	{"3.11"}
 
 definition(
     name: "Smart Screens",
@@ -649,10 +650,12 @@ def checkForWind(evt) {
     }
 
     settings.z_blinds.each { dev ->
-        sendEvent(dev, [name:"windBearing", value:state.windBearing])
-        sendEvent(dev, [name:"windSpeed", value:state.windSpeed])
-        sendEvent(dev, [name:"cloudCover", value:state.cloudCover])
-        sendEvent(dev, [name:"sunBearing", value:state.sunBearing])
+    	if (it.typeName == "domoticzBlinds") {
+            sendEvent(dev, [name:"windBearing", value:state.windBearing])
+            sendEvent(dev, [name:"windSpeed", value:state.windSpeed])
+            sendEvent(dev, [name:"cloudCover", value:state.cloudCover])
+            sendEvent(dev, [name:"sunBearing", value:state.sunBearing])
+        }
     }
         
     if (state.pause) return
@@ -733,7 +736,7 @@ def startSunpath(evt) {
     runEvery10Minutes(checkForWind)
     
     z_blinds.each {
-    	subscribeToCommand(it, "refresh", eventRefresh)
+    	if (it.hasCommand("refresh")) subscribeToCommand(it, "refresh", eventRefresh)
         }
         
 	scheduleTurnOn()
@@ -778,11 +781,13 @@ def scheduleTurnOn() {
         log.trace "${sunsetTime} / ${it} / ${offset}"
 
         offset = offset * 60 * 1000
-        sendEvent(it, [name: "eodAction", value: eodAction])
-        sendEvent(it, [name: "eodTime", value: new Date(sunsetTime.time + offset)])
+        if (it.typeName == "domoticzBlinds") {
+            sendEvent(it, [name: "eodAction", value: eodAction])
+            sendEvent(it, [name: "eodTime", value: new Date(sunsetTime.time + offset)])
+        }
 
         def timeBeforeSunset = new Date(sunsetTime.time + offset)
-        //it.eodRunOnce(timeBeforeSunset)
+    
         if (it.typeName == "domoticzBlinds") it.configure(eodRunOnce : [time : timeBeforeSunset])
     }	
 }
