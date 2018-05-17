@@ -18,6 +18,7 @@
  	V3.00	Move to windowShade capability, and issue createchild command to create related component device for smart screens
     V3.10	Add off season definition, change pause setting to pause switch, pause switch prevails off season
     V3.11	Bug in check for wind , send event to non custom dth (domoticzBlinds)
+    V3.12	Bug in windcheck, should have replaced dev by it
  
 */
 
@@ -27,7 +28,7 @@ import java.Math.*
 import Calendar.*
 import groovy.time.*
 
-private def runningVersion() 	{"3.11"}
+private def runningVersion() 	{"3.12"}
 
 definition(
     name: "Smart Screens",
@@ -518,11 +519,12 @@ settings.z_blinds.each {
     def blindParams = fillBlindParams(it.id)
 	def dev = blindParams.blindsOpenSensor
     def devStatus = "Closed"
+    def devType = it.typeName
     if (dev) {
     	devStatus = dev.currentValue("contact")
     	}
     def eodDone = false
-    if (it.typeName == "domoticzBlinds") eodDone = it.currentValue("sleeping")
+    if (devType == "domoticzBlinds") eodDone = it.currentValue("sleeping")
     log.info eodDone
     if (eodDone == 'sleeping') eodDone = true
     if (eodDone == 'not sleeping') eodDone = false
@@ -650,7 +652,7 @@ def checkForWind(evt) {
     }
 
     settings.z_blinds.each { dev ->
-    	if (it.typeName == "domoticzBlinds") {
+    	if (dev.typeName == "domoticzBlinds") {
             sendEvent(dev, [name:"windBearing", value:state.windBearing])
             sendEvent(dev, [name:"windSpeed", value:state.windSpeed])
             sendEvent(dev, [name:"cloudCover", value:state.cloudCover])
