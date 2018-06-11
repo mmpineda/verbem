@@ -23,6 +23,7 @@
     V4.00	Add outside/inside temperature as an option for screencontrol, also control when Airco is turned on in Cool mode
     		For windspeed/bearing it will look in the next forecasted hour as well to see if bad wether is coming, a setting will
             enable to pick the highest speeds as actor
+	V4.01	bug in cool processing, state.devices was reset in EOD processing
  
 */
 
@@ -31,7 +32,7 @@ import java.Math.*
 import Calendar.*
 import groovy.time.*
 
-private def runningVersion() 	{"4.00"}
+private def runningVersion() 	{"4.01"}
 
 definition(
     name: "Smart Screens",
@@ -675,7 +676,7 @@ def checkForSun(evt) {
     settings.z_blinds.each {
         def blindParams = fillBlindParams(it.id)
    
-        if (blindParams.cool != true && state.sunBearing.matches(blindParams.blindsOrientation) && blindParams.eodDone == false ) {
+        if (!blindParams.cool && state.sunBearing.matches(blindParams.blindsOrientation) && blindParams.eodDone == false ) {
 			if (actionTemperature(blindParams) == true) {
                     if (blindParams.blindsType == "Screen") {                    
                         if((state.windSpeed.toInteger() < blindParams.windForceCloseMax && state.windBearing.matches(blindParams.blindsOrientation)) || state.windBearing.matches(blindParams.blindsOrientation) == false ) {
@@ -716,7 +717,7 @@ def checkForClouds() {
 
     settings.z_blinds.each {
         def blindParams = fillBlindParams(it.id)
-        if (blindParams.cool != true && state.sunBearing.matches(blindParams.blindsOrientation) && blindParams.eodDone == false ) {
+        if (!blindParams.cool && state.sunBearing.matches(blindParams.blindsOrientation) && blindParams.eodDone == false ) {
             if (actionTemperature(blindParams) == true) {
                 operateBlind([requestor: "Temperature from Clouds", device:it, action: blindParams.extTempAction, reverse:false])
             }
@@ -945,7 +946,7 @@ private def fillBlindParams(findID) {
 }
 
 def scheduleEOD() {
-    state.devices = [:]   
+    if (!state.devices) state.devices = [:]   
 	def blindParams = [:]
     def offset
     def sunsetString = location.currentValue("sunsetTime")
