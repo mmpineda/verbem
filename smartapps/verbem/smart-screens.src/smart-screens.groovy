@@ -25,6 +25,7 @@
             enable to pick the highest speeds as actor
 	V4.01	bug in cool processing, state.devices was reset in EOD processing
     V4.02	Reset SOD a little after midnight
+    V4.03 	nulls during clean setup fixed
  
 */
 
@@ -35,7 +36,7 @@ import Calendar.*
 import groovy.time.*
 
 
-private def runningVersion() 	{"4.02"}
+private def runningVersion() 	{"4.03"}
 
 definition(
     name: "Smart Screens",
@@ -289,12 +290,12 @@ def pageConfigureBlinds(dev) {
 
                 if (it.hasCommand("presetPosition")) blindOptions.add("Preset")
                 if (it.hasCommand("stop")) blindOptions.add("Stop")
-                /*if (it.typeName == "domoticzBlinds" && it.hasCapability("Switch Level")) {
+                if (it.typeName == "domoticzBlinds" && it.hasCapability("Switch Level")) {
                 	//log.error it.state?.blindClosingTime
                 	blindOptions.add("Down 25%")
                 	blindOptions.add("Down 50%")
                 	blindOptions.add("Down 75%")
-				} */
+				}
                 
                 def blind = it.currentValue("somfySupported")
                 if (blind == 'true') {blind = true}
@@ -786,12 +787,6 @@ def test(evt) {
 /*	and will check the blinds if they need to be closed or can be opened
 /*-----------------------------------------------------------------------------------------*/
 def checkForWind(evt) {
-	def toDay = new Date()
-    int offsetHours = toDay.format("Z",location.timeZone).toInteger()
-    offsetHours = offsetHours/100i
-    toDay.set(hourOfDay: 00i - offsetHours)
-    toDay.set(minute: 10i)
-	runOnce(toDay, test)	
     
     state.sunBearing = getSunpath()
     def windParms = [:]
@@ -987,8 +982,9 @@ private def actionTemperature(blindParams) {
 
 private def fillBlindParams(findID) {
 	def blindParams = [:]
-    blindParams.blindsOrientation 	= settings?."z_blindsOrientation_${findID}".join('|').replaceAll('\"','')
-    if (blindParams.blindsOrientation == null) blindParams.blindsOrientation = "NA|NA"
+    //blindParams.blindsOrientation 	= settings?."z_blindsOrientation_${findID}"
+    if (settings?."z_blindsOrientation_${findID}" == null) blindParams.blindsOrientation = "NA|NA"
+    else blindParams.blindsOrientation = settings?."z_blindsOrientation_${findID}".join('|').replaceAll('\"','')
     blindParams.windForceCloseMax 	= settings?."z_windForceCloseMax_${findID}"
     if (blindParams.windForceCloseMax) blindParams.windForceCloseMax = blindParams.windForceCloseMax.toInteger() else blindParams.windForceCloseMax = -1
     blindParams.windForceCloseMin 	= settings?."z_windForceCloseMin_${findID}"
@@ -1028,7 +1024,7 @@ private def fillBlindParams(findID) {
     if (settings.z_EnableTemp == true) blindParams.actOnTemp = state.devices[findID]?.actOnTemp ?: false else blindParams.actOnTemp = false
     if (blindParams.intTempSensor) blindParams.devTemp = blindParams.intTempSensor.currentValue("temperature").toDouble().round(0).toInteger()
     if (blindParams.blindsOpenSensor) blindParams.openContact = blindParams.blindsOpenSensor.currentValue("contact") ?: "Closed"
-	if (!blindParams.intTemp) blindParams.intTemp = settings?.z_defaultIntTemp.toInteger() else blindParams.intTemp = blindParams.intTemp.toInteger()
+	if (!blindParams.intTemp) blindParams.intTemp = settings?.z_defaultIntTemp ?: 200 else blindParams.intTemp = blindParams.intTemp.toInteger()
     
 	return blindParams
 }
@@ -1053,7 +1049,7 @@ def scheduleEOD() {
         sunsetTime = Date.parse("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", sunsetString)
         timeBeforeSunset = new Date(sunsetTime.time + offset)
         runOnce(timeBeforeSunset, eodProcessing, [data: [blindId : blind.id], overwrite:false])
-        
+        if (!state.devices[blind.id]) state.devices[blind.id] = [:]
 		state.devices[blind.id].eodDone = false
 		state.devices[blind.id].blindName = blindParams.blindDev.displayName
     }	   
