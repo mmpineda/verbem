@@ -26,6 +26,7 @@
 	V4.01	bug in cool processing, state.devices was reset in EOD processing
     V4.02	Reset SOD a little after midnight
     V4.03 	nulls during clean setup fixed
+    V4.04	Small Pause in Operateblinds, when muliple screen it might skip some commands
  
 */
 
@@ -36,7 +37,7 @@ import Calendar.*
 import groovy.time.*
 
 
-private def runningVersion() 	{"4.03"}
+private def runningVersion() 	{"4.04"}
 
 definition(
     name: "Smart Screens",
@@ -290,11 +291,14 @@ def pageConfigureBlinds(dev) {
 
                 if (it.hasCommand("presetPosition")) blindOptions.add("Preset")
                 if (it.hasCommand("stop")) blindOptions.add("Stop")
-                if (it.typeName == "domoticzBlinds" && it.hasCapability("Switch Level")) {
-                	//log.error it.state?.blindClosingTime
-                	blindOptions.add("Down 25%")
-                	blindOptions.add("Down 50%")
-                	blindOptions.add("Down 75%")
+                def completionTime
+                if (it.completionTimeState?.value) completionTime = Date.parseToStringDate(it.completionTimeState.value).format('ss').toInteger()
+                if (it.typeName == "domoticzBlinds" && it.hasAttribute("completionTime")) {
+                	if (completionTime > 0) {
+                        blindOptions.add("Down 25%")
+                        blindOptions.add("Down 50%")
+                        blindOptions.add("Down 75%")
+                    }
 				}
                 
                 def blind = it.currentValue("somfySupported")
@@ -677,7 +681,6 @@ def getForecast() {
             	}
             TRACE("[getForecast] Get hourly conditions")
             httpGet(httpGetHourly) { resp ->
-            	log.info resp.data
             	if (resp.data.hourly_forecast.size() > 0) if (state.units == "metric") returnList.put('nextWindSpeed', resp.data.hourly_forecast[0].wspd.metric.toDouble()) else returnList.put('nextWindSpeed', resp.data.hourly_forecast[0].wspd.english.toDouble())
             	if (resp.data.hourly_forecast.size() > 0) returnList.put('nextWindBearing', calcBearing(resp.data.hourly_forecast[0].wdir.degrees))
           	}
@@ -946,14 +949,21 @@ private def operateBlind(blind) {
             if (blind.action == "Up") blind.device.close()
             if (blind.action == "Preset") blind.device.open()
             if (blind.action == "Stop") blind.device.open()
-        }
+            if (blind.action == "Down 25%") blind.device.open()
+            if (blind.action == "Down 50%") blind.device.open()
+            if (blind.action == "Down 75%") blind.device.open()
+       }
         else {
             if (blind.action == "Down") blind.device.close()
             if (blind.action == "Up") blind.device.open()
             if (blind.action == "Preset") blind.device.presetPosition()
             if (blind.action == "Stop") blind.device.stop()
+            if (blind.action == "Down 25%") blind.device.setLevel(25)
+            if (blind.action == "Down 50%") blind.device.setLevel(50)
+            if (blind.action == "Down 75%") blind.device.setLevel(75)
         }
     	sendEvent(blind.device, [name: "operateBlind", value: blind])
+        pause 10
     }
 	else sendEvent(blind.device, [name: "TEST operateBlind", value: blind])
 }
