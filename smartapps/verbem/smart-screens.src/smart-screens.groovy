@@ -27,6 +27,7 @@
     V4.02	Reset SOD a little after midnight
     V4.03 	nulls during clean setup fixed
     V4.04	Small Pause in Operateblinds, when muliple screen it might skip some commands
+    V4.05	Bug in SOD execution, was skipped for non screen types
  
 */
 
@@ -37,7 +38,7 @@ import Calendar.*
 import groovy.time.*
 
 
-private def runningVersion() 	{"4.04"}
+private def runningVersion() 	{"4.05"}
 
 definition(
     name: "Smart Screens",
@@ -87,41 +88,13 @@ preferences {
         multiple:   false,
         required:   true
     	]
-
-	def inputWeather = [
-        name:       "z_weatherAPI",
-        type:       "enum",
-        options:	["Darksky", "OpenWeatherMap", "WeatherUnderground", "WeatherUnderground-NoPWS"],
-        title:      "Select Weather API",
-        multiple:   false,
-        submitOnChange: true,
-        required:   true
-        ]
-              
-    def inputBlinds = [
-        name:       "z_blinds",
-        type:       "capability.windowShade",
-        title:      "",
-        multiple:   true,
-        submitOnChange: true,
-        required:   false
-    ] 
-    
+   
    	def pageProperties = [
         name:       "pageSetupForecastIO",
         //title:      "Status",
         nextPage:   null,
         install:    true,
         uninstall:  true
-    ]
-
-    def inputTRACE = [
-        name:       "z_TRACE",
-        type:       "bool",
-        default:	false,
-        title:      "Put out trace log",
-        multiple:   false,
-        required:   true
     ]
     
     def inputEnableTemp = [
@@ -144,14 +117,6 @@ preferences {
 		required:   true
     ]
 
-    def inputPause = [
-        name:       "z_PauseSwitch",
-        type:       "capability.switch",
-        default:	false,
-        title:      "Pause all scheduling",
-        multiple:   false,
-        required:   false
-    ]
     
     def inputDayStart28 = [name: "z_inputDayStart", type: "number", title: "Start day", range: "1..28", required:true]
     def inputDayStart30 = [name: "z_inputDayStart", type: "number", title: "Start day", range: "1..30", required:true]
@@ -173,7 +138,8 @@ preferences {
     
     return dynamicPage(pageProperties) {		
         section("Darksky.net, WeatherUndergound or OpenWeatherMap API Key and Website") {
-            input inputWeather
+        
+			input "z_weatherAPI", "enum", options:["Darksky", "OpenWeatherMap", "WeatherUnderground", "WeatherUnderground-NoPWS"], title: "Select Weather API",multiple:false, submitOnChange: true, required:true       
 
             if (z_weatherAPI) {
 
@@ -236,10 +202,10 @@ preferences {
         section("Shades Control", hideable:true) {
                         
 			paragraph image:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/RollerShutter.png", "Select Window Shades"
-            input inputBlinds
+            input "z_blinds", "capability.windowShade", multiple:true, submitOnChange: true, required:false
             
 			paragraph image:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/Settings.png", "Configure Window Shades"
-            if (inputBlinds) z_blinds.each {href "pageConfigureBlinds", title:"${it.name}", description:"", params: it}
+            if (settings.z_blinds) z_blinds.each {href "pageConfigureBlinds", title:"${it.name}", description:"", params: it}
         }   
         
         section("Off Season between below dates", hideable:true, hidden:true) {           
@@ -260,8 +226,9 @@ preferences {
         }
         section("Options", hideable:true, hidden:true) {
             label title:"Assign a name", required:false
-            input inputTRACE
-            input inputPause
+            input "z_TRACE", "bool", default: false, title: "Put out trace log", multiple: false, required: true
+            input "z_PauseSwitch", "capability.switch", default:false, title:"Switch that Pauses all scheduling", multiple: false, required:false
+
         }    
     }
 }
@@ -375,7 +342,7 @@ def pageConfigureBlinds(dev) {
 }
 
 /*-----------------------------------------------------------------------*/
-// Show Sun/Wind ForecastIO API last output Page
+// Show Sun/Wind ForecastIO API last output Page 2018-06-22 5:20:44.006 AM CEST
 /*-----------------------------------------------------------------------*/
 
 def pageForecastIO() {
@@ -396,8 +363,9 @@ def pageForecastIO() {
         section("Wind") {
         	paragraph "Next hour forecasted windspeed can be used ${settings.z_EnableNextWindSpeed}"
         	paragraph "Speed ${state.windSpeed} from direction ${state.windBearing}" 
-            z_sensors.each {
-            	paragraph "${it.displayName} speed ${it.currentValue("WindStrength")} from direction ${calcBearing(it.currentValue("WindAngle"))}"
+            settings.z_sensors.each {
+            	if (it.currentValue("WindAngle") && it.currentValue("WindStrength")) paragraph "${it.displayName} speed ${it.currentValue("WindStrength")} from direction ${calcBearing(it.currentValue("WindAngle"))}"
+                else paragraph "Invalid data from ${it}"
             }
 		}
         
@@ -441,6 +409,7 @@ def installed() {
 def updated() {
 	unsubscribe()
 	initialize()
+    //resetSOD()
 	TRACE("Updated with settings: ${settings}")
 }
 
@@ -456,10 +425,16 @@ def initialize() {
 	subscribe(location, "sunset", stopSunpath,  [filterEvents:true])
     subscribe(location, "sunrise", startSunpath,  [filterEvents:true])
 
-	def aroundMidnight = "00:10"
-    state.sodTime = Date.parse("HH:mm", aroundMidnight)
+    def offset
+    def sunriseString = location.currentValue("sunriseTime")
+    def sunriseTime
+    def timeBeforeSunset
     
-    schedule(state.sodTime, notifyNewVersion)
+    offset = 30 * 60 * 1000
+    sunriseTime = Date.parse("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", sunriseString)
+    timeBeforeSunset = new Date(sunriseTime.time - offset)
+    
+    schedule(timeBeforeSunset, notifyNewVersion)
   
     subscribe(z_sensors, "WindStrength", eventNetatmo)
     
@@ -716,7 +691,7 @@ def checkForSun(evt) {
     settings.z_blinds.each {
         def blindParams = fillBlindParams(it.id)
    
-        if (!blindParams.cool && state.sunBearing.matches(blindParams.blindsOrientation) && blindParams.eodDone == false ) {
+        if (!blindParams.cool && state.sunBearing.matches(blindParams.blindsOrientation)) {
 			if (actionTemperature(blindParams) == true) {
                     if (blindParams.blindsType == "Screen") {                    
                         if((state.windSpeed.toInteger() < blindParams.windForceCloseMax && state.windBearing.matches(blindParams.blindsOrientation)) || state.windBearing.matches(blindParams.blindsOrientation) == false ) {
@@ -728,7 +703,7 @@ def checkForSun(evt) {
                     }
             }
             else {
-                TRACE("[checkForSun] ${it} Forecast is ${state.cloudCover.toInteger()}% cloud, BLINDPARAMS is ${blindParams.cloudCover}%")
+                TRACE("[checkForSun] ${it} Forecast is ${state.cloudCover.toInteger()}% cloud, definition on shade is ${blindParams.cloudCover}%")
                 if(state.cloudCover.toInteger() <= blindParams.cloudCover) 
                 {                      
                     TRACE("[checkForSun] ${blindParams.blindsType} ${it} Forecasted ${state.windSpeed.toInteger()} < ${blindParams.windForceCloseMax}, wind orientation ${state.windBearing.matches(blindParams.blindsOrientation)}")
@@ -746,7 +721,7 @@ def checkForSun(evt) {
         	}
         }
         // reverse action when Sun not on Window
-        if (!blindParams.cool && !state.sunBearing.matches(blindParams.blindsOrientation) && !blindParams.eodDone && blindParams.firstSunAction ) {
+        if (!blindParams.cool && !state.sunBearing.matches(blindParams.blindsOrientation) && blindParams.firstSunAction ) {
         	TRACE("[checkForSun] Sun not on window reverse action ${blindParams.blindDev}")
             if (blindParams.blindsType == "Screen") {                    
                 if((state.windSpeed.toInteger() < blindParams.windForceCloseMax && state.windBearing.matches(blindParams.blindsOrientation)) || state.windBearing.matches(blindParams.blindsOrientation) == false ) {
@@ -771,7 +746,7 @@ def checkForClouds() {
 
     settings.z_blinds.each {
         def blindParams = fillBlindParams(it.id)
-        if (!blindParams.cool && state.sunBearing.matches(blindParams.blindsOrientation) && blindParams.eodDone == false ) {
+        if (!blindParams.cool && state.sunBearing.matches(blindParams.blindsOrientation)) {
             if (actionTemperature(blindParams) == true) {
                 operateBlind([requestor: "Temperature from Clouds", device:it, action: blindParams.extTempAction, reverse:false])
             }
@@ -814,7 +789,7 @@ def checkForWind(evt) {
         state.extTemp = windParms.temperature
     }
 
-    if (state.netatmo) TRACE("[checkForWind] Netetmo data is used!")
+    if (state.netatmo) TRACE("[checkForWind] Netatmo data is used!")
     
     settings.z_blinds.each { dev ->
     	if (dev.typeName == "domoticzBlinds") {
@@ -825,7 +800,7 @@ def checkForWind(evt) {
         }
     }
         
-    if (state.pause) return
+    if (state.pause || state.night) return
 
     TRACE("[checkForWind]")
     def sunriseTime
@@ -847,7 +822,8 @@ def checkForWind(evt) {
             	TRACE("[checkForWind] Perform actions, reset sodDone for ${it}, check wind for Screen types")
                 if(state.windSpeed.toInteger() <= blindParams.windForceCloseMax && blindParams.blindsType == "Screen") {
                     if (blindParams.sodAction) operateBlind([requestor: "SOD", device:it, action: blindParams.sodAction, reverse:false, t:thisMinutes, s:sunriseMinutes])
-                }                                
+                } 
+                else if (blindParams.sodAction) operateBlind([requestor: "SOD", device:it, action: blindParams.sodAction, reverse:false, t:thisMinutes, s:sunriseMinutes])
                 state.devices[it.id].sodDone = true
         	}
         }
@@ -894,7 +870,7 @@ def stopSunpath(evt) {
     pause 5
 	unschedule(checkForSun)
     unschedule(checkForClouds)
-    unschedule(checkForWind)
+    //unschedule(checkForWind)
     unsubscribe(eventRefresh)    
 	return null
 }
@@ -908,15 +884,20 @@ def startSunpath(evt) {
     state.pause = offSeason()
     pause 5
 	scheduleEOD() 
-	runEvery30Minutes(checkForSun)
-    runEvery3Hours(checkForClouds)
-    runEvery10Minutes(checkForWind)
+
+    //runEvery10Minutes(checkForWind)
+    runIn(60, startScheduling)
     
     z_blinds.each {
     	if (it.hasCommand("refresh")) subscribeToCommand(it, "refresh", eventRefresh)
         }
            
 	return null
+}
+
+def startScheduling() {
+    runEvery3Hours(checkForClouds)    
+    runEvery30Minutes(checkForSun)
 }
 
 private def operateBlind(blind) {
@@ -940,9 +921,15 @@ private def operateBlind(blind) {
     }
     
 	if (blindParams.sunriseTime != null && blindParams.sodDone == false && blind.requestor != "SOD") {
-    	TRACE("[operateBlind] SOD not done yet for ${blindParams.blindDev}, no action")
+    	TRACE("[operateBlind] StartOfDay time not passed yet for ${blindParams.blindDev}, no action")
         return
     }
+    
+	if (blindParams.eodDone == true) {
+    	TRACE("[operateBlind] EndofDay time passed for ${blindParams.blindDev}, no action")
+        return
+    }
+    
 	if (!blindParams.test) {        
         if (blind.reverse == true) {
             if (blind.action == "Down") blind.device.open()
@@ -1039,6 +1026,12 @@ private def fillBlindParams(findID) {
 	return blindParams
 }
 
+private def resetSOD() {
+	settings.z_blinds.each { blind ->
+    	if (state.devices[blind.id].sodDone) state.devices[blind.id].sodDone = false
+    }
+}
+
 def scheduleEOD() {
     if (!state.devices) state.devices = [:]   
 	def blindParams = [:]
@@ -1047,7 +1040,7 @@ def scheduleEOD() {
     def eodAction
     def sunsetTime
     def timeBeforeSunset
-    
+      
     settings.z_blinds.each { blind ->
     	blindParams = fillBlindParams(blind.id)
        
@@ -1059,9 +1052,12 @@ def scheduleEOD() {
         sunsetTime = Date.parse("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", sunsetString)
         timeBeforeSunset = new Date(sunsetTime.time + offset)
         runOnce(timeBeforeSunset, eodProcessing, [data: [blindId : blind.id], overwrite:false])
-        if (!state.devices[blind.id]) state.devices[blind.id] = [:]
-		state.devices[blind.id].eodDone = false
-		state.devices[blind.id].blindName = blindParams.blindDev.displayName
+        if (!state.devices[blind.id]) { 
+        	state.devices[blind.id] = [:]
+            state.devices[blind.id].eodDone = false
+            state.devices[blind.id].blindName = blindParams.blindDev.displayName
+        }
+        else if (!state.night) state.devices[blind.id].eodDone = false
     }	   
 }
 
