@@ -40,7 +40,7 @@ import Calendar.*
 import groovy.time.*
 
 
-private def runningVersion() 	{"4.06"}
+private def runningVersion() 	{"4.07"}
 
 definition(
     name: "Smart Screens",
@@ -964,6 +964,7 @@ private def operateBlind(blind) {
     	sendEvent([name: "operateBlind", value: blind])
     }
 	else sendEvent([name: "TEST operateBlind", value: blind])
+    pause 20
 }
 
 private def actionTemperature(blindParams) {
