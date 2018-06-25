@@ -28,6 +28,7 @@
     V4.03 	nulls during clean setup fixed
     V4.04	Small Pause in Operateblinds, when muliple screen it might skip some commands
     V4.05	Bug in SOD execution, was skipped for non screen types
+    V4.06	ability to start SoD before sunrise
  
 */
 
@@ -38,7 +39,7 @@ import Calendar.*
 import groovy.time.*
 
 
-private def runningVersion() 	{"4.05"}
+private def runningVersion() 	{"4.06"}
 
 definition(
     name: "Smart Screens",
@@ -430,7 +431,7 @@ def initialize() {
     def sunriseTime
     def timeBeforeSunset
     
-    offset = 30 * 60 * 1000
+    offset = 120 * 60 * 1000
     sunriseTime = Date.parse("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", sunriseString)
     timeBeforeSunset = new Date(sunriseTime.time - offset)
     
@@ -800,7 +801,7 @@ def checkForWind(evt) {
         }
     }
         
-    if (state.pause || state.night) return
+    if (state.pause) return
 
     TRACE("[checkForWind]")
     def sunriseTime
