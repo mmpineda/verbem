@@ -29,6 +29,7 @@
     V4.04	Small Pause in Operateblinds, when muliple screen it might skip some commands
     V4.05	Bug in SOD execution, was skipped for non screen types
     V4.06	ability to start SoD before sunrise
+    V4.07	Proper offset to sunrise, direct events to app, not to device 
  
 */
 
@@ -334,6 +335,7 @@ def pageConfigureBlinds(dev) {
                     
 					paragraph image:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/Sunrise.png", "Start of Day operation"
                     input	"z_sunriseTime_${devId}","time",title:"Start Time of operations", multiple:false, required:false
+                    input	"z_sunriseOffset_${devId}","number",title:"Sunrise +/- offset (max 100)", multiple:false, required:false, range: "-100..100" 
                     input	"z_sodAction_${devId}","enum",title:"Start of day action", options: blindOptions, required:false
                     
                 }
@@ -804,6 +806,8 @@ def checkForWind(evt) {
     if (state.pause) return
 
     TRACE("[checkForWind]")
+    def sunriseString = location.currentValue("sunriseTime")
+    def offset
     def sunriseTime
     def sunriseMinutes
     Date thisDate = new Date()
@@ -815,7 +819,14 @@ def checkForWind(evt) {
         /*-----------------------------------------------------------------------------------------*/
         /* Look for Start of Day times if defined and start performing actions only after that time has passed
         /* This is just a convenient place as it gets done every 10 minutes.
+        /* if an offset to sunrise exists it will prevail above sunriseTime
         /*-----------------------------------------------------------------------------------------*/
+        if (blindParams?.sunriseOffset != null && blindParams.sodDone == false) {
+            offset = blindParams.sunriseOffset * 60 * 1000
+            sunriseTime = Date.parse("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", sunriseString)
+            blindParams.sunriseTime = new Date(sunriseTime.time + offset) 
+        }
+        
         if (blindParams.sunriseTime != null) {
             sunriseTime = Date.parse("yyyy-MM-dd'T'HH:mm:ss.SSSZ", blindParams.sunriseTime).format("HH:mm", location.timeZone)
             sunriseMinutes = sunriseTime.split(":")[0].toInteger()*60 + sunriseTime.split(":")[1].toInteger()
@@ -950,10 +961,9 @@ private def operateBlind(blind) {
             if (blind.action == "Down 50%") blind.device.setLevel(50)
             if (blind.action == "Down 75%") blind.device.setLevel(75)
         }
-    	sendEvent(blind.device, [name: "operateBlind", value: blind])
-        pause 10
+    	sendEvent([name: "operateBlind", value: blind])
     }
-	else sendEvent(blind.device, [name: "TEST operateBlind", value: blind])
+	else sendEvent([name: "TEST operateBlind", value: blind])
 }
 
 private def actionTemperature(blindParams) {
@@ -996,7 +1006,8 @@ private def fillBlindParams(findID) {
     blindParams.openContact			= "Closed"
 	blindParams.sunsetOffset 		= settings?."z_sunsetOffset_${findID}"
     blindParams.eodAction 			= settings?."z_eodAction_${findID}"
-    blindParams.sunriseTime			= settings?."z_sunriseTime_${findID}"
+    blindParams.sunriseTime			= settings?."z_sunriseOffset_${findID}"
+   	blindParams.sunriseTime			= settings?."z_sunriseTime_${findID}"
     blindParams.sodAction 			= settings?."z_sodAction_${findID}"
     blindParams.eodDone 			= state.devices[findID]?.eodDone
     blindParams.sodDone 			= state.devices[findID]?.sodDone
