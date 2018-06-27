@@ -31,6 +31,7 @@
     V4.06	ability to start SoD before sunrise
     V4.07	direct events to app, not to device 
     V4.08	implement SOD as offset to sunrise
+    V4.09 	typo...inHouse InHouse
  
 */
 
@@ -41,7 +42,7 @@ import Calendar.*
 import groovy.time.*
 
 
-private def runningVersion() 	{"4.08"}
+private def runningVersion() 	{"4.09"}
 
 definition(
     name: "Smart Screens",
@@ -413,7 +414,6 @@ def installed() {
 def updated() {
 	unsubscribe()
 	initialize()
-    //resetSOD()
 	TRACE("Updated with settings: ${settings}")
 }
 
@@ -702,7 +702,7 @@ def checkForSun(evt) {
                             operateBlind([requestor: "Temperature from Sun", device:it, action: blindParams.extTempAction, reverse:false])
                         }
                     }
-                    if (blindParams.blindsType == "Shutter" || blindParams.blindsType == "inHouse Screen") {
+                    if (blindParams.blindsType == "Shutter" || blindParams.blindsType == "InHouse Screen") {
                         operateBlind([requestor: "Temperature from Sun", device:it, action: blindParams.extTempAction, reverse:false])
                     }
             }
@@ -717,7 +717,7 @@ def checkForSun(evt) {
                             if (!blindParams.firstSunAction) state.devices[it.id].firstSunAction = true
                         }
                     }
-                    if (blindParams.blindsType == "Shutter" || blindParams.blindsType == "inHouse Screen") {
+                    if (blindParams.blindsType == "Shutter" || blindParams.blindsType == "InHouse Screen") {
                         operateBlind([requestor: "Sun", device:it, action: blindParams.closeMaxAction, reverse:false])
                         if (!blindParams.firstSunAction) state.devices[it.id].firstSunAction = true
                     }
@@ -732,7 +732,7 @@ def checkForSun(evt) {
                     operateBlind([requestor: "Sun", device:it, action: blindParams.closeMaxAction, reverse:true])
                 }
             }
-            if (blindParams.blindsType == "Shutter" || blindParams.blindsType == "inHouse Screen") {
+            if (blindParams.blindsType == "Shutter" || blindParams.blindsType == "InHouse Screen") {
                 operateBlind([requestor: "Sun", device:it, action: blindParams.closeMaxAction, reverse:true])
             }
         }
@@ -751,19 +751,14 @@ def checkForClouds() {
     settings.z_blinds.each {
         def blindParams = fillBlindParams(it.id)
         if (!blindParams.cool && state.sunBearing.matches(blindParams.blindsOrientation)) {
-            if (actionTemperature(blindParams) == true) {
-                operateBlind([requestor: "Temperature from Clouds", device:it, action: blindParams.extTempAction, reverse:false])
-            }
-            else if(state.cloudCover.toInteger() > blindParams.cloudCover) {
+			if (state.cloudCover.toInteger() > blindParams.cloudCover) {
                 operateBlind([requestor: "Clouds", device:it, action: blindParams.closeMaxAction, reverse:true]) 
             }
     	}
     }
 	return null
 }
-def test(evt) {
 
-}
 /*-----------------------------------------------------------------------------------------*/
 /*	This is a scheduled event that will get latest WIND related info on position
 /*	and will check the blinds if they need to be closed or can be opened
@@ -841,18 +836,20 @@ def checkForWind(evt) {
             if (sunriseMinutes && thisMinutes >= sunriseMinutes) {
                 TRACE("[checkForWind] Perform actions, reset sodDone for ${it}, check wind for Screen types")
                 if	(blindParams.blindsType == "Screen") {
-                    if (state.windSpeed.toInteger() <= blindParams.windForceCloseMax && blindParams.sodAction) operateBlind([requestor: "SOD", device:it, action: blindParams.sodAction, reverse:false, t:thisMinutes, s:sunriseMinutes])
+                    if (state.windSpeed.toInteger() <= blindParams.windForceCloseMax && blindParams.sodAction) 
+                    	operateBlind([requestor: "SOD", device:it, action: blindParams.sodAction, reverse:false, t:thisMinutes, s:sunriseMinutes])
                 } 
                 else if (blindParams.sodAction) operateBlind([requestor: "SOD", device:it, action: blindParams.sodAction, reverse:false, t:thisMinutes, s:sunriseMinutes])
                 state.devices[it.id].sodDone = true
             }
         }
+        
 		/*-----------------------------------------------------------------------------------------*/
         /*	WIND determine if we need to close (or OPEN if wind speed is above allowed max for blind)
         /*-----------------------------------------------------------------------------------------*/ 
         if (state.windBearing) {
             if(state.windBearing.matches(blindParams.blindsOrientation)) {   
-                if(state.windSpeed.toInteger() > blindParams.windForceCloseMin && (blindParams.blindsType == "Shutter" || blindParams.blindsType == "inHouse Screen")) {
+                if(state.windSpeed.toInteger() > blindParams.windForceCloseMin && (blindParams.blindsType == "Shutter" || blindParams.blindsType == "InHouse Screen")) {
                     operateBlind([requestor: "Wind", device:it, action: blindParams.closeMinAction, reverse:false])
                 }
                 if(state.windSpeed.toInteger() > blindParams.windForceCloseMax && blindParams.blindsType == "Screen") {
@@ -875,9 +872,9 @@ def eventRefresh(evt) {
     }
     
     TRACE("[eventRefresh] ${evt.device} Source ${evt.source}")
+    checkForWind()
     checkForClouds()
     checkForSun()
-    checkForWind()
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -889,7 +886,6 @@ def stopSunpath(evt) {
     pause 5
 	unschedule(checkForSun)
     unschedule(checkForClouds)
-    //unschedule(checkForWind)
     unsubscribe(eventRefresh)    
 	return null
 }
@@ -904,7 +900,6 @@ def startSunpath(evt) {
     pause 5
 	scheduleEOD() 
 
-    //runEvery10Minutes(checkForWind)
     runIn(60, startScheduling)
     
     z_blinds.each {
@@ -971,6 +966,8 @@ private def operateBlind(blind) {
     	sendEvent([name: "operateBlind", value: blind])
     }
 	else sendEvent([name: "TEST operateBlind", value: blind])
+    state.devices[blind.device.id].lastAction = blind.action
+    state.devices[blind.device.id].reverse = blind.reverse
     pause 20
 }
 
@@ -1019,6 +1016,8 @@ private def fillBlindParams(findID) {
     blindParams.sodAction 			= settings?."z_sodAction_${findID}"
     blindParams.eodDone 			= state.devices[findID]?.eodDone
     blindParams.sodDone 			= state.devices[findID]?.sodDone
+    blindParams.lastAction 			= state.devices[findID]?.lastAction
+    blindParams.reverse 			= state.devices[findID]?.reverse
     if (blindParams.sodDone == null) blindParams.sodDone = true
     blindParams.firstSunAction		= state.devices[findID]?.firstSunAction
     if (blindParams.firstSunAction == null) blindParams.firstSunAction = false
@@ -1314,6 +1313,7 @@ def notifyNewVersion() {
     
     state.devices.each {
         state.devices[it.key].sodDone = false
+        state.devices[it.key].eodDone = false
         state.devices[it.key].firstSunAction = false
         state.devices[it.key].firstWindAction = false
         state.devices[it.key].firstTempAction = false
