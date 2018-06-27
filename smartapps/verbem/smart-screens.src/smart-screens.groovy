@@ -29,7 +29,8 @@
     V4.04	Small Pause in Operateblinds, when muliple screen it might skip some commands
     V4.05	Bug in SOD execution, was skipped for non screen types
     V4.06	ability to start SoD before sunrise
-    V4.07	Proper offset to sunrise, direct events to app, not to device 
+    V4.07	direct events to app, not to device 
+    V4.08	implement SOD as offset to sunrise
  
 */
 
@@ -40,7 +41,7 @@ import Calendar.*
 import groovy.time.*
 
 
-private def runningVersion() 	{"4.07"}
+private def runningVersion() 	{"4.08"}
 
 definition(
     name: "Smart Screens",
@@ -821,26 +822,32 @@ def checkForWind(evt) {
         /* This is just a convenient place as it gets done every 10 minutes.
         /* if an offset to sunrise exists it will prevail above sunriseTime
         /*-----------------------------------------------------------------------------------------*/
-        if (blindParams?.sunriseOffset != null && blindParams.sodDone == false) {
-            offset = blindParams.sunriseOffset * 60 * 1000
-            sunriseTime = Date.parse("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", sunriseString)
-            blindParams.sunriseTime = new Date(sunriseTime.time + offset) 
-        }
-        
-        if (blindParams.sunriseTime != null) {
-            sunriseTime = Date.parse("yyyy-MM-dd'T'HH:mm:ss.SSSZ", blindParams.sunriseTime).format("HH:mm", location.timeZone)
-            sunriseMinutes = sunriseTime.split(":")[0].toInteger()*60 + sunriseTime.split(":")[1].toInteger()
-    		if (thisMinutes >= sunriseMinutes && blindParams.sodDone == false) {
-            	TRACE("[checkForWind] Perform actions, reset sodDone for ${it}, check wind for Screen types")
-                if(state.windSpeed.toInteger() <= blindParams.windForceCloseMax && blindParams.blindsType == "Screen") {
-                    if (blindParams.sodAction) operateBlind([requestor: "SOD", device:it, action: blindParams.sodAction, reverse:false, t:thisMinutes, s:sunriseMinutes])
+        if (blindParams.sodDone == false) {
+            if (blindParams?.sunriseOffset != null) { //
+                def hour = blindParams.sunriseOffset.intdiv(60)            
+                def minutes = blindParams.sunriseOffset % 60
+                def xx = getSunriseAndSunset(sunriseOffset: "${String.format('%02d',hour)}:${String.format('%02d',minutes)}")
+                sunriseTime = xx.sunrise.format("HH:mm", location.timeZone)
+                log.info "SOD Offsetted Time: " + sunriseTime
+                sunriseMinutes = sunriseTime.split(":")[0].toInteger()*60 + sunriseTime.split(":")[1].toInteger()
+            }
+            else if (blindParams.sunriseTime != null) {
+                sunriseTime = Date.parse("yyyy-MM-dd'T'HH:mm:ss.SSSZ", blindParams.sunriseTime).format("HH:mm", location.timeZone)
+                log.info "SOD Defined Time: " + sunriseTime
+                sunriseMinutes = sunriseTime.split(":")[0].toInteger()*60 + sunriseTime.split(":")[1].toInteger()
+            }
+            else if (state.devices[it.id].sodDone == false) state.devices[it.id].sodDone = true
+            
+            if (sunriseMinutes && thisMinutes >= sunriseMinutes) {
+                TRACE("[checkForWind] Perform actions, reset sodDone for ${it}, check wind for Screen types")
+                if	(blindParams.blindsType == "Screen") {
+                    if (state.windSpeed.toInteger() <= blindParams.windForceCloseMax && blindParams.sodAction) operateBlind([requestor: "SOD", device:it, action: blindParams.sodAction, reverse:false, t:thisMinutes, s:sunriseMinutes])
                 } 
                 else if (blindParams.sodAction) operateBlind([requestor: "SOD", device:it, action: blindParams.sodAction, reverse:false, t:thisMinutes, s:sunriseMinutes])
                 state.devices[it.id].sodDone = true
-        	}
+            }
         }
-        else if (state.devices[it.id].sodDone == false) state.devices[it.id].sodDone = true
-        /*-----------------------------------------------------------------------------------------*/
+		/*-----------------------------------------------------------------------------------------*/
         /*	WIND determine if we need to close (or OPEN if wind speed is above allowed max for blind)
         /*-----------------------------------------------------------------------------------------*/ 
         if (state.windBearing) {
@@ -1007,7 +1014,7 @@ private def fillBlindParams(findID) {
     blindParams.openContact			= "Closed"
 	blindParams.sunsetOffset 		= settings?."z_sunsetOffset_${findID}"
     blindParams.eodAction 			= settings?."z_eodAction_${findID}"
-    blindParams.sunriseTime			= settings?."z_sunriseOffset_${findID}"
+    blindParams.sunriseOffset		= settings?."z_sunriseOffset_${findID}"
    	blindParams.sunriseTime			= settings?."z_sunriseTime_${findID}"
     blindParams.sodAction 			= settings?."z_sodAction_${findID}"
     blindParams.eodDone 			= state.devices[findID]?.eodDone
