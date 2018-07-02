@@ -33,6 +33,7 @@
     V4.08	implement SOD as offset to sunrise
     V4.09 	typo...inHouse InHouse
     V4.10	rewrite of EoD to be the same as SoD
+    V4.11	Fix in temperatureAction and pauseHandler
  
 */
 
@@ -43,7 +44,7 @@ import Calendar.*
 import groovy.time.*
 
 
-private def runningVersion() 	{"4.10"}
+private def runningVersion() 	{"4.11"}
 
 definition(
     name: "Smart Screens",
@@ -448,6 +449,7 @@ def initialize() {
     settings.each { k, v ->
     	if (k.contains("z_blindsOpenSensor")) {
         	subscribe(v, "contact.Closed", eventDoorClosed) 
+        	subscribe(v, "contact.Open", eventDoorOpen) 
         }
         if (k.contains("z_blindsThermostatMode")) {
         	subscribe(v, "thermostatMode", eventThermostatMode)
@@ -501,6 +503,29 @@ def eventDoorClosed(evt) {
     if (state.night == false) checkForSun()
 }
 
+def eventDoorOpen(evt) {
+	TRACE("[eventDoorOpen] ${evt.device} has opened") 
+ 	
+    if (state.night == true) return
+    def blindParams = [:]
+    def blindID
+
+    settings.findAll {it.key.contains("z_blindsOpenSensor_")}.each {
+    	if (it.value.toString() == evt.device.toString()) {
+        	blindID = it.key.split("z_blindsOpenSensor_")[1]
+        	blindParams = fillBlindParams(blindID) 
+        	TRACE("[eventDoorOpen] Door open reverse sun action ${blindParams.blindDev}")
+            if (blindParams.blindsType == "Screen") {                    
+                if((state.windSpeed.toInteger() < blindParams.windForceCloseMax && state.windBearing.matches(blindParams.blindsOrientation)) || state.windBearing.matches(blindParams.blindsOrientation) == false ) {
+                    operateBlind([requestor: "DoorOpen", device:blindParams.blindDev, action: blindParams.closeMaxAction, reverse:true])
+                }
+            }
+            if (blindParams.blindsType == "Shutter" || blindParams.blindsType == "InHouse Screen") {
+                operateBlind([requestor: "DoorOpen", device:blindParams.blindDev, action: blindParams.closeMaxAction, reverse:true])
+            }
+        }
+	}
+}
 def eventThermostatMode(evt) {  
     TRACE("[eventThermostatMode] ${evt.device} ${evt.value} mode event")
     def blindParams = [:]
@@ -527,7 +552,7 @@ def eventThermostatMode(evt) {
 /*-----------------------------------------------------------------------------------------*/
 def eventNetatmo(evt) {
 	TRACE("[eventNetatmo]")
-
+	
     def dev = evt.getDevice()
     def windAngle 		= calcBearing(dev.latestValue("WindAngle"))
     def gustStrength 	= dev.latestValue("GustStrength")
@@ -545,11 +570,11 @@ def eventNetatmo(evt) {
 
 def pauseHandler(evt) {
 
-	if (evt.value == "on" && state.pause == false) {
+	if (evt.value.toUpperCase() == "ON") {
     	state.pause = true
 		TRACE("[pauseHandler] ${evt.device} ${evt.value} state.pause -> ${state.pause}") 
     }
-    if (evt.value == "off" && state.pause == true) {
+    if (evt.value.toUpperCase() == "OFF") {
     	state.pause = false
 		TRACE("[pauseHandler] ${evt.device} ${evt.value} state.pause -> ${state.pause}") 
     }
@@ -964,7 +989,7 @@ private def operateBlind(blind) {
         return
     }
 
-	if (blindParams.openContact != "Closed") {
+	if (blindParams.openContact != "Closed" && blind.requestor != "DoorOpen") {
     	TRACE("[operateBlind] door/window ${blindParams.openContact} for ${blindParams.blindDev}, no action")
         return
     }
@@ -1025,21 +1050,34 @@ private def operateBlind(blind) {
 
 private def actionTemperature(blindParams) {
 	def rc = false
-    
     if (settings.z_EnableTemp != true || blindParams.extTempAction == null) return false
-    if (!state.cloudCover || state.cloudCover.toInteger() > settings.z_defaultTempCloud.toInteger()) return false
+
+    if (state.cloudCover && state.cloudCover.toInteger() > settings.z_defaultTempCloud.toInteger()) return false
     
-    if (!blindParams.intTempLogic) {    	
-    	if (state.extTemp.toInteger() > settings?.z_defaultExtTemp.toInteger()) rc = true
+    if (!blindParams.intTempLogic) {
+    	if (state.extTemp.toInteger() > settings?.z_defaultExtTemp.toInteger()) {
+        	rc = true
+        }
     }
 	else {    
         if (blindParams.intTempLogic == "OR") {    	
-            if (state.extTemp.toInteger() > settings?.z_defaultExtTemp.toInteger()) rc = true
-            if (blindParams.devTemp && blindParams.intTemp && blindParams.devTemp > blindParams.intTemp) rc = true
+            if (state.extTemp.toInteger() > settings?.z_defaultExtTemp.toInteger()) {
+            	rc = true
+            }
+            if (blindParams.devTemp && blindParams.intTemp && blindParams.devTemp > blindParams.intTemp) {
+            	rc = true
+            }
         }
         if (blindParams.intTempLogic == "AND") {
-            if (state.extTemp.toInteger() > settings?.z_defaultExtTemp.toInteger()) rc = true
-            if (rc == true && blindParams.devTemp && blindParams.intTemp && blindParams.devTemp > blindParams.intTemp) rc = true else rc = false
+            if (state.extTemp.toInteger() > settings?.z_defaultExtTemp.toInteger()) {
+            	rc = true
+            }
+            if (rc == true && blindParams.devTemp && blindParams.intTemp && blindParams.devTemp > blindParams.intTemp) {
+            	rc = true 
+            }
+            else {
+            	rc = false
+           	}
         }
     }    
 	return rc
