@@ -34,6 +34,7 @@
     V4.09 	typo...inHouse InHouse
     V4.10	rewrite of EoD to be the same as SoD
     V4.11	Fix in temperatureAction and pauseHandler
+    V4.12	Record lastAction timestamp, graceperiod of receiving events back is 60 seconds, all outside is considered external command 
  
 */
 
@@ -44,7 +45,7 @@ import Calendar.*
 import groovy.time.*
 
 
-private def runningVersion() 	{"4.11"}
+private def runningVersion() 	{"4.12"}
 
 definition(
     name: "Smart Screens",
@@ -441,10 +442,11 @@ def initialize() {
     schedule(timeBeforeSunset, notifyNewVersion)
   
     subscribe(z_sensors, "WindStrength", eventNetatmo)
+    subscribe(z_blinds, "windowShade", eventBlinds)
     
     settings.z_blinds.each {
     	subscribeToCommand(it, "refresh", eventRefresh)
-        }
+    }
     
     settings.each { k, v ->
     	if (k.contains("z_blindsOpenSensor")) {
@@ -494,6 +496,19 @@ private def getCountry() {
         	state.units = "metric"
             state.unitWind = "km/h"
        	}
+    }
+}
+def eventBlinds(evt) {
+	if (!evt.isStateChange()) return
+    
+    TRACE("[eventBlinds] ${evt.device} with id ${evt.device.id} changed to value ${evt.value}") 
+
+    if (state.devices[evt.device.id]?.lastActionTimestamp) {
+        if ((now() - state.devices[evt.device.id].lastActionTimestamp) > 60000) {
+        	TRACE("[eventBlinds] ${evt.device} received external action")
+    		sendEvent([name: "eventBlinds", value: "${evt.device} with id ${evt.device.id} changed to value ${evt.value}, lastaction EXTERNAL"])
+			state.devices[evt.device.id].lastAction = "External"
+        }
     }
 }
 
@@ -691,6 +706,20 @@ def getForecast() {
 				log.error returnList
         } 
     }
+    if (returnList != null) {
+        state.windBearing = returnList.windBearing
+        state.windSpeed = returnList.windSpeed
+        
+        if (settings.z_EnableNextWindSpeed && windParms.nextWindSpeed > windParms.windSpeed) {
+            TRACE("[getForecast] next hour wind info is used!")
+            state.windBearing = returnList.nextWindBearing
+            state.windSpeed = returnList.nextWindSpeed
+        }
+
+        if (state.units == "metric" && settings.z_weatherAPI.contains("WeatherUnderground") == false) {state.windSpeed = returnList.windSpeed * 3.6}
+        state.cloudCover = returnList.cloudCover
+        state.extTemp = returnList.temperature
+    }
 	TRACE("[getForecast] ${settings.z_weatherAPI} ${returnList}")
 	return returnList
 }
@@ -789,28 +818,11 @@ def checkForWind(evt) {
     state.cycles = state.cycles + 1
 
     state.sunBearing = getSunpath()
-    def windParms = [:]
-
-    if (evt == null) {evt = settings.z_weatherAPI}
-        
-    windParms = getForecast()
-    if (windParms == null) windParms = getForecast() //one retry
-    
-    if (windParms != null) {
-        if (!evt || (evt && evt != "NETATMO" && state?.netatmo == false)) {
-            state.windBearing = windParms.windBearing
-            state.windSpeed = windParms.windSpeed
-            if (settings.z_EnableNextWindSpeed && windParms.nextWindSpeed > windParms.windSpeed) {
-                TRACE("[checkForWind] next hour wind info is used!")
-                state.windBearing = windParms.nextWindBearing
-                state.windSpeed = windParms.nextWindSpeed
-            }
-        }
-		if (state.units == "metric" && settings.z_weatherAPI.contains("WeatherUnderground") == false) {state.windSpeed = windParms.windSpeed * 3.6}
-        state.cloudCover = windParms.cloudCover
-        state.extTemp = windParms.temperature
+	def forecast = getForecast()
+    if (!forecast) {  //retry
+    	pause 30
+    	getForecast()
     }
-
     if (state.netatmo) TRACE("[checkForWind] Netatmo data is used!")
     
     settings.z_blinds.each { dev ->
@@ -858,7 +870,7 @@ def checkForWind(evt) {
                 }
             }
         }
-        else TRACE("[checkForWind] Invalid windBearing in State ${windParms}")
+        else TRACE("[checkForWind] No windBearing in State ${getForecast()}")
     }
  	   
     return null
@@ -925,17 +937,14 @@ private def eodActions(blindParams) {
     }
 }
 
-def eventRefresh(evt) {
-
-	if (state.night == true) {
-        checkForWind()
-    	return
-    }
-    
+def eventRefresh(evt) {  
     TRACE("[eventRefresh] ${evt.device} Source ${evt.source}")
+    
     checkForWind()
-    checkForClouds()
-    checkForSun()
+	if (state.night == false) {
+    	checkForClouds()
+    	checkForSun()
+    }
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -981,27 +990,27 @@ private def operateBlind(blind) {
 
     if (blind.action == null) {
     	TRACE("[operateBlind] no action defined ${blind}")
-        return
+        return false
     }
 
     if (state.pause && blind.requestor != "Wind") {
     	TRACE("[operateBlind] PAUSE has been set ${blindParams.openContact} for ${blindParams.blindDev}, no action")
-        return
+        return false
     }
 
 	if (blindParams.openContact != "Closed" && blind.requestor != "DoorOpen") {
     	TRACE("[operateBlind] door/window ${blindParams.openContact} for ${blindParams.blindDev}, no action")
-        return
+        return false
     }
     
 	if (blindParams.sunriseTime != null && blindParams.sodDone == false && blind.requestor != "SOD") {
     	TRACE("[operateBlind] StartOfDay time not passed yet for ${blindParams.blindDev}, no action")
-        return
+        return false
     }
     
 	if (blindParams.eodDone == true) {
     	TRACE("[operateBlind] EndofDay time passed for ${blindParams.blindDev}, no action")
-        return
+        return false
     }
     
 	if (!blindParams.test) {        
@@ -1021,6 +1030,7 @@ private def operateBlind(blind) {
                 sendEvent([name: "operateBlind", value: blind])
                 state.devices[blind.device.id].lastAction = blind.action
     			state.devices[blind.device.id].reverse = blind.reverse
+                state.devices[blind.device.id].lastActionTimestamp = now()
                 pause 20
             }
        }
@@ -1040,12 +1050,14 @@ private def operateBlind(blind) {
                 sendEvent([name: "operateBlind", value: blind])
                 state.devices[blind.device.id].lastAction = blind.action
     			state.devices[blind.device.id].reverse = blind.reverse
-    			pause 20
+                state.devices[blind.device.id].lastActionTimestamp = now()
+                pause 20
             }
         }    	
     }
 	else sendEvent([name: "TEST operateBlind", value: blind])
 
+	return true
 }
 
 private def actionTemperature(blindParams) {
