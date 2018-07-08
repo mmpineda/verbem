@@ -38,6 +38,7 @@
     V5.00	Blind calibration process
     V5.01	CompletionTime check
     V5.02	check if state.devices exist, if not create
+    V5.03	Debug switch , call notifynewversion it will reset some stuff.
  
 */
 
@@ -48,7 +49,7 @@ import Calendar.*
 import groovy.time.*
 
 
-private def runningVersion() 	{"5.02"}
+private def runningVersion() 	{"5.03"}
 
 definition(
     name: "Smart Screens",
@@ -235,6 +236,7 @@ preferences {
         section("Options", hideable:true, hidden:true) {
             label title:"Assign a name", required:false
             input "z_TRACE", "bool", default: false, title: "Put out trace log", multiple: false, required: true
+            input "z_CallReset", "capability.switch", default: false, title: "Call Reset When On", multiple: false, required: false
             input "z_PauseSwitch", "capability.switch", default:false, title:"Switch that Pauses all scheduling", multiple: false, required:false
 
         }    
@@ -363,7 +365,7 @@ def pageConfigureBlinds(dev) {
 }
 
 /*-----------------------------------------------------------------------*/
-// Start of calibratiio
+// Start of calibration
 /*-----------------------------------------------------------------------*/
 
 def pageStartCal(params) {
@@ -549,6 +551,7 @@ def initialize() {
     runEvery10Minutes(checkForWind)
     
     if (z_PauseSwitch) subscribe(z_PauseSwitch, "switch", pauseHandler)
+    if (z_CallReset) subscribe(z_CallReset, "switch", resetHandler)
 
 }
 
@@ -681,6 +684,14 @@ def pauseHandler(evt) {
 		TRACE("[pauseHandler] ${evt.device} ${evt.value} state.pause -> ${state.pause}") 
     }
 }
+def resetHandler(evt) {
+
+	if (evt.value.toUpperCase() == "ON") {
+    	notifyNewVersion()
+		TRACE("[resetHandler] ${evt.device} ${evt.value} call reset") 
+    }
+}
+
 /*-----------------------------------------------------------------------------------------*/
 /*	This routine will get information relating to the weather at location and current time
 /*-----------------------------------------------------------------------------------------*/
@@ -1210,6 +1221,8 @@ private def actionTemperature(blindParams) {
 
 private def fillBlindParams(findID) {
 	def blindParams = [:]
+    if (!state.devices[findID]) state.devices[findID] = [:]
+    
     blindParams.blindsType 			= settings?."z_blindType_${findID}"     
     if (settings?."z_blindsOrientation_${findID}" == null) blindParams.blindsOrientation = "NA|NA"
     else blindParams.blindsOrientation = settings?."z_blindsOrientation_${findID}".join('|').replaceAll('\"','')
