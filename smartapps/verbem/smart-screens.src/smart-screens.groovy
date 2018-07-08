@@ -39,6 +39,7 @@
     V5.01	CompletionTime check
     V5.02	check if state.devices exist, if not create
     V5.03	Debug switch , call notifynewversion it will reset some stuff.
+    V5.04	Nextwindspeed check
  
 */
 
@@ -49,7 +50,7 @@ import Calendar.*
 import groovy.time.*
 
 
-private def runningVersion() 	{"5.03"}
+private def runningVersion() 	{"5.04"}
 
 definition(
     name: "Smart Screens",
@@ -815,7 +816,7 @@ def getForecast() {
         state.windBearing = returnList.windBearing
         state.windSpeed = returnList.windSpeed
         
-        if (settings.z_EnableNextWindSpeed && windParms.nextWindSpeed > windParms.windSpeed) {
+        if (settings.z_EnableNextWindSpeed && returnList.nextWindSpeed && returnList.nextWindSpeed > returnList.windSpeed) {
             TRACE("[getForecast] next hour wind info is used!")
             state.windBearing = returnList.nextWindBearing
             state.windSpeed = returnList.nextWindSpeed
