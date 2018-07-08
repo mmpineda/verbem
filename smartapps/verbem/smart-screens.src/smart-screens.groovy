@@ -37,6 +37,7 @@
     V4.12	Record lastAction timestamp, graceperiod of receiving events back is 60 seconds, all outside is considered external command 
     V5.00	Blind calibration process
     V5.01	CompletionTime check
+    V5.02	check if state.devices exist, if not create
  
 */
 
@@ -47,7 +48,7 @@ import Calendar.*
 import groovy.time.*
 
 
-private def runningVersion() 	{"5.01"}
+private def runningVersion() 	{"5.02"}
 
 definition(
     name: "Smart Screens",
@@ -77,6 +78,7 @@ preferences {
 	def pageSetupForecastIO() {
     TRACE("pageSetupForecastIO()")
 	if (!state.country) getCountry() 
+    if (!state.devices) state.devices = [:]
     
     def dni = "SmartScreens Pause Switch"
     def dev = getChildDevice(dni)
