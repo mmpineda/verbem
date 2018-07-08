@@ -36,6 +36,7 @@
     V4.11	Fix in temperatureAction and pauseHandler
     V4.12	Record lastAction timestamp, graceperiod of receiving events back is 60 seconds, all outside is considered external command 
     V5.00	Blind calibration process
+    V5.01	CompletionTime check
  
 */
 
@@ -46,7 +47,7 @@ import Calendar.*
 import groovy.time.*
 
 
-private def runningVersion() 	{"5.00"}
+private def runningVersion() 	{"5.01"}
 
 definition(
     name: "Smart Screens",
@@ -1234,7 +1235,7 @@ private def fillBlindParams(findID) {
     blindParams.sunriseOffset		= settings?."z_sunriseOffset_${findID}"
    	blindParams.sunriseTime			= settings?."z_sunriseTime_${findID}"
     blindParams.sodAction 			= settings?."z_sodAction_${findID}"
-    blindParams.completionTime		= state.devices[findID]?.completionTime ?: 0
+    if (state.devices[findID]?.completionTime) blindParams.completionTime = state.devices[findID].completionTime else blindParams.completionTime=  0
     blindParams.eodDone 			= state.devices[findID]?.eodDone
     blindParams.sodDone 			= state.devices[findID]?.sodDone
     blindParams.lastAction 			= state.devices[findID]?.lastAction
