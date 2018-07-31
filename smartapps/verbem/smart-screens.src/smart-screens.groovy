@@ -13,33 +13,14 @@
    	cloudCover percentage is the condition to Close (Sun is shining into your room)
    	Select interval to check conditions
   
- 
- 	V2.00	Add subscription to device refresh, this will execute the latest info back to the devices
- 	V3.00	Move to windowShade capability, and issue createchild command to create related component device for smart screens
-    V3.10	Add off season definition, change pause setting to pause switch, pause switch prevails off season
-    V3.11	Bug in check for wind , send event to non custom dth (domoticzBlinds)
-    V3.12	Bug in windcheck, should have replaced dev by it
-    V3.13	Add inHouse Screen type, move EOD processing to app from dth
-    V4.00	Add outside/inside temperature as an option for screencontrol, also control when Airco is turned on in Cool mode
-    		For windspeed/bearing it will look in the next forecasted hour as well to see if bad wether is coming, a setting will
-            enable to pick the highest speeds as actor
-	V4.01	bug in cool processing, state.devices was reset in EOD processing
-    V4.02	Reset SOD a little after midnight
-    V4.03 	nulls during clean setup fixed
-    V4.04	Small Pause in Operateblinds, when muliple screen it might skip some commands
-    V4.05	Bug in SOD execution, was skipped for non screen types
-    V4.06	ability to start SoD before sunrise
-    V4.07	direct events to app, not to device 
-    V4.08	implement SOD as offset to sunrise
-    V4.09 	typo...inHouse InHouse
-    V4.10	rewrite of EoD to be the same as SoD
-    V4.11	Fix in temperatureAction and pauseHandler
-    V4.12	Record lastAction timestamp, graceperiod of receiving events back is 60 seconds, all outside is considered external command 
     V5.00	Blind calibration process
     V5.01	CompletionTime check
     V5.02	check if state.devices exist, if not create
     V5.03	Debug switch , call notifynewversion it will reset some stuff.
     V5.04	Nextwindspeed check
+    V5.10	Dynamic intro
+    V5.11	Bug Fix
+    V5.12	Populate state.devices with more info
  
 */
 
@@ -50,13 +31,13 @@ import Calendar.*
 import groovy.time.*
 
 
-private def runningVersion() 	{"5.04"}
+private def runningVersion() 	{"5.12"}
 
 definition(
     name: "Smart Screens",
     namespace: "verbem",
     author: "Martin Verbeek",
-    description: "Automate Up and Down of Sun Screens, Blinds and Shutters based on Weather Conditions",
+    description: "Automate Up and Down of Sun Screens, Blinds, Shades and Shutters based on Weather Conditions",
     category: "Convenience",
     oauth: true,
     iconUrl: "https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/RollerShutter.png",
@@ -71,6 +52,7 @@ mappings {
 preferences {
     page name:"pageSetupForecastIO"
     page name:"pageConfigureBlinds"
+    page name:"pageConfigureDynamic"
     page name:"pageForecastIO"
     page name:"pageStartCal"
     page name:"pageStopCal"
@@ -197,7 +179,7 @@ preferences {
 	            input inputSensors
         }
                    
-        section("Temperature Control", hideable:true, hidden:true) {
+        section("Temperature Control Options", hideable:true, hidden:true) {
             
             paragraph image:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/Temperature.png", "Enable Temperature Protection (keep it Cool)"
 			input inputEnableTemp
@@ -218,7 +200,7 @@ preferences {
             if (settings.z_blinds) z_blinds.each {href "pageConfigureBlinds", title:"${it.name}", description:"", params: it}
         }   
         
-        section("Off Season between below dates", hideable:true, hidden:true) {           
+        section("Off Season Options", hideable:true, hidden:true) {           
             input inputMonthStart
             if (z_inputMonthStart) {
                 if (z_inputMonthStart.toString() == "2") input inputDayStart28
@@ -267,19 +249,15 @@ def pageConfigureBlinds(dev) {
                 def blindParams = fillBlindParams(devId)
                 def devType = it.typeName
                 def blindOptions = ["Down", "Up"]
-
+                def completionTime
+                
                 if (it.hasCommand("presetPosition")) blindOptions.add("Preset")
                 if (it.hasCommand("stop")) blindOptions.add("Stop")
-                def completionTime
+
                 if (it.completionTimeState?.value) completionTime = Date.parseToStringDate(it.completionTimeState.value).format('ss').toInteger()
-                if (it.typeName == "domoticzBlinds" && it.hasAttribute("completionTime")) {
-                	if (completionTime > 0) {
-                        blindOptions.add("Down 25%")
-                        blindOptions.add("Down 50%")
-                        blindOptions.add("Down 75%")
-                    }
-				}
-                else if (blindParams.completionTime > 0) {
+
+                if (blindParams.completionTime > 0) {
+                		blindOptions.add("Dynamic")
                         blindOptions.add("Down 25%")
                         blindOptions.add("Down 50%")
                         blindOptions.add("Down 75%")
@@ -293,7 +271,13 @@ def pageConfigureBlinds(dev) {
                     paragraph image:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/Settings.png", "General Settings"
                     input	"z_blindType_${devId}", "enum", options:["InHouse Screen","Screen","Shutter"], title:"In-house Screen, (sun)Screen or (roller)Shutter", required:true, multiple:false, submitOnChange:true
                     input 	"z_blindsOrientation_${devId}", "enum", options:["N", "NW", "W", "SW", "S", "SE", "E", "NE"],title:"Select Orientation",multiple:true,required:true
-                    input 	"z_blindsTest_${devId}", "bool", title: "Test operations, only events are sent", required:true, default:false
+                    
+					if (blindOptions.contains("Dynamic")) {               	
+                    	href ( name: "pageConfigureDynamic", page :"pageConfigureDynamic", title:"Input for Dynamic operations", description:"Tap to define input for Dynamic operations", params:blindParams)
+                    }
+                    
+                    input 	"z_blindStopSupported_${devId}", "bool", title: "Stop command supported", required:true, defaultValue:false
+                    input 	"z_blindsTest_${devId}", "bool", title: "Test operations, only events are sent", required:true, defaultValue:false
                     
                     paragraph image:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/Door.png", "Is there a related Door/Window"
                     input "z_blindsOpenSensor_${devId}", "capability.contactSensor", required:false, multiple:false, title:"No operation when contact is open"
@@ -301,26 +285,26 @@ def pageConfigureBlinds(dev) {
                     if (settings."z_blindType_${devId}" == "InHouse Screen") {
                         paragraph image:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/Sun.png", "Sun Protection"
                         input	"z_closeMaxAction_${devId}","enum",title:"Action to take", options: blindOptions, required:false
-                        input 	"z_cloudCover_${devId}","enum",title:"Protect until what cloudcover% (0=clear sky)", options:["10","20","30","40","50","60","70","80","90","100"],multiple:false,required:false,default:30                
+                        input 	"z_cloudCover_${devId}","enum",title:"Protect until what cloudcover% (0=clear sky)", options:["10","20","30","40","50","60","70","80","90","100"],multiple:false,required:false,defaultValue:30                
                     }
                     
                     if (settings."z_blindType_${devId}" == "Screen") {
                         paragraph image:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/Sun.png", "Sun Protection"
                         input	"z_closeMaxAction_${devId}","enum",title:"Action to take", options: blindOptions, required:false
-                        input 	"z_cloudCover_${devId}","enum",title:"Protect until what cloudcover% (0=clear sky)", options:["10","20","30","40","50","60","70","80","90","100"],multiple:false,required:false,default:30                
+                        input 	"z_cloudCover_${devId}","enum",title:"Protect until what cloudcover% (0=clear sky)", options:["10","20","30","40","50","60","70","80","90","100"],multiple:false,required:false,defaultValue:30                
 
                         paragraph image:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/NotSoMuchWind.png", "Sun Protection Only Below Windforce"
-                        input	"z_windForceCloseMax_${devId}","number",title:"Below Windspeed ${state.unitWind}",multiple:false,required:false,default:0                 
+                        input	"z_windForceCloseMax_${devId}","number",title:"Below Windspeed ${state.unitWind}",multiple:false,required:false,defaultValue:0                 
                     } 
                     
                     if (settings."z_blindType_${devId}" == "Shutter") {
                         paragraph image:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/Sun.png", "Sun Protection"
                         input	"z_closeMaxAction_${devId}","enum",title:"Action to take", options: blindOptions, required:false
-                        input 	"z_cloudCover_${devId}","enum",title:"Protect until what cloudcover% (0=clear sky)", options:["10","20","30","40","50","60","70","80","90","100"],multiple:false,required:false,default:30
+                        input 	"z_cloudCover_${devId}","enum",title:"Protect until what cloudcover% (0=clear sky)", options:["10","20","30","40","50","60","70","80","90","100"],multiple:false,required:false,defaultValue:30
 
                         paragraph image:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/LotsOfWind.png", "Wind Protection"
                         input	"z_closeMinAction_${devId}","enum",title:"Action to take", options: blindOptions, required:false
-                        input 	"z_windForceCloseMin_${devId}","number",title:"Above windspeed ${state.unitWind}",multiple:false,required:false,default:999                     
+                        input 	"z_windForceCloseMin_${devId}","number",title:"Above windspeed ${state.unitWind}",multiple:false,required:false,defaultValue:999                     
                     }
                     
                     if (settings.z_EnableTemp) {
@@ -334,7 +318,7 @@ def pageConfigureBlinds(dev) {
                         paragraph image:"https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/smart-screens.src/Temperature.png", "Keep it Cool ($location.temperatureScale)"                        
                                               
                         input	"z_extTempAction_${devId}","enum",title:"Action to take when outside temp above ${settings.z_defaultExtTemp}", options: blindOptions, required:false                     	                       
-                        input 	"z_intTempLogic_${devId}", "enum", required:false, multiple:false, title:"Above inside AND/OR outside temperature", options:["AND","OR"], default: settings.z_defaultintTempLogic, submitOnChange:true
+                        input 	"z_intTempLogic_${devId}", "enum", required:false, multiple:false, title:"Above inside AND/OR outside temperature", options:["AND","OR"], defaultValue: settings.z_defaultintTempLogic, submitOnChange:true
 
                         if (settings."z_intTempLogic_${devId}") {
                         	input	"z_intTemp_${devId}","number",title:"Above inside temperature", required:false, submitOnChange:true
@@ -364,7 +348,45 @@ def pageConfigureBlinds(dev) {
         }
     }
 }
+/*-----------------------------------------------------------------------*/
+//	 Show Configure Blinds Page
+/*-----------------------------------------------------------------------*/
+def pageConfigureDynamic(blindParams) {
+	def devId = blindParams.ID    
+    def pageProperties = [
+            name:       "pageConfigureDynamic",
+            title:      "Input dynamic behaviour for ${state.devName}",
+            nextPage:   "pageConfigureBlinds",
+            uninstall:  false
+        ]
+        
+    return dynamicPage(pageProperties) {
+        section(state.devName) {
+            if (settings."z_blindType_${devId}" == "Screen") {
+                input	"z_blindVH_${devId}", "enum", options:["Vertical","Horizontal"], title:"Vertical or Horizontal Screen", required:true, multiple:false, defaultValue:"Vertical", submitOnChange:true
+            }
 
+            def heightUnit = "cm" 
+            def height = 200 
+            def sunDistance = 100                      	
+
+            if (state.units != "metric") {
+                heightUnit = "inch"; 
+                height = 80; 
+                sunDistance = 40
+            }
+
+            input	"z_blindSunDistance_${devId}", "number", title:"Shadow on floor after how many ${heightUnit}", required:true, multiple:false, defaultValue: sunDistance
+            input	"z_blindWindowHeight_${devId}", "number", title:"Height of window in ${heightUnit}", required:true, multiple:false, defaultValue: height
+            input	"z_blindWindowOffset_${devId}", "number", title:"Distance of window from the floor in ${heightUnit}", required:true, multiple:false, defaultValue: 0, range: "0..${height}"
+
+            if (settings."z_blindVH_${devId}" == "Horizontal") {
+                input	"z_blindScreenHeight_${devId}", "number", title:"Length of screen in ${heightUnit}", required:true, multiple:false, defaultValue: height
+                input	"z_blindScreenAngle_${devId}", "number", title:"Horizontal angle of screen 0-60", required:true, multiple:false, defaultValue: 15, range: "0..60"
+            }
+        }
+    }
+}
 /*-----------------------------------------------------------------------*/
 // Start of calibration
 /*-----------------------------------------------------------------------*/
@@ -489,7 +511,7 @@ def pageForecastIO() {
 		}
     }
 }
-
+//******************************************************************************************************************************************************************************
 def installed() {
 	initialize()
 	TRACE("Installed with settings: ${settings}")
@@ -497,9 +519,9 @@ def installed() {
 
 def updated() {
 	unsubscribe()
-    unschedule(eodProcessing) // remnent from the past, remove later
 	initialize()
 	TRACE("Updated with settings: ${settings}")
+    resetCurrentLevel()
 }
 
 def initialize() {
@@ -592,7 +614,7 @@ def eventBlinds(evt) {
     TRACE("[eventBlinds] ${evt.device} with id ${evt.device.id} changed to value ${evt.value}") 
 
     if (state.devices[evt.device.id]?.lastActionTimestamp) {
-        if ((now() - state.devices[evt.device.id].lastActionTimestamp) > 60000) {
+        if ((now() - state.devices[evt.device.id].lastActionTimestamp) > 120000) {
         	TRACE("[eventBlinds] ${evt.device} received external action")
     		sendEvent([name: "eventBlinds", value: "${evt.device} with id ${evt.device.id} changed to value ${evt.value}, lastaction EXTERNAL"])
 			state.devices[evt.device.id].lastAction = "External"
@@ -619,16 +641,7 @@ def eventDoorOpen(evt) {
         	blindParams = fillBlindParams(blindID) 
         	TRACE("[eventDoorOpen] Door open reverse sun action ${blindParams.blindDev}")
             operateBlind([requestor: "DoorOpen", device:blindParams.blindDev, action: blindParams.closeMaxAction, reverse:true])
-            /*
-            if (blindParams.blindsType == "Screen") {                    
-                if((state.windSpeed.toInteger() < blindParams.windForceCloseMax && state.windBearing.matches(blindParams.blindsOrientation)) || state.windBearing.matches(blindParams.blindsOrientation) == false ) {
-                    operateBlind([requestor: "DoorOpen", device:blindParams.blindDev, action: blindParams.closeMaxAction, reverse:true])
-                }
-            }
-            if (blindParams.blindsType == "Shutter" || blindParams.blindsType == "InHouse Screen") {
-                operateBlind([requestor: "DoorOpen", device:blindParams.blindDev, action: blindParams.closeMaxAction, reverse:true])
-            } */
-        }
+         }
 	}
 }
 
@@ -885,7 +898,7 @@ def checkForSun(evt) {
         	}
         }
         // reverse action when Sun not on Window
-        if (!blindParams.cool && !state.sunBearing.matches(blindParams.blindsOrientation) && blindParams.firstSunAction ) {
+        if (!blindParams.cool && !state.sunBearing.matches(blindParams.blindsOrientation) && blindParams.firstSunAction == true ) {
             if (blindParams.blindsType == "Screen") {                    
                 if((state.windSpeed.toInteger() < blindParams.windForceCloseMax && state.windBearing.matches(blindParams.blindsOrientation)) || state.windBearing.matches(blindParams.blindsOrientation) == false ) {
                     operateBlind([requestor: "Sun", device:it, action: blindParams.closeMaxAction, reverse:true])
@@ -909,7 +922,7 @@ def checkForClouds() {
 
     settings.z_blinds.each {
         def blindParams = fillBlindParams(it.id)
-        if (!blindParams.cool && state.sunBearing.matches(blindParams.blindsOrientation)) {
+        if (!blindParams.cool && state.sunBearing.matches(blindParams.blindsOrientation) && blindParams.firstSunAction == true) {
 			if (state.cloudCover.toInteger() > blindParams.cloudCover) {
                 operateBlind([requestor: "Clouds", device:it, action: blindParams.closeMaxAction, reverse:true]) 
 				if (!blindParams.firstCloudAction) state.devices[it.id].firstCloudAction = true
@@ -947,11 +960,6 @@ def checkForWind(evt) {
     if (state.pause) return
 
     TRACE("[checkForWind]")
-
-	if (state.night == false) {
-        if (state.cycles % 2 == 0) runIn(30, checkForSun)
-        if (state.cycles % 9 == 0) runIn(60, checkForClouds)
-    }
     
 	settings.z_blinds.each {
         def blindParams = fillBlindParams(it.id)
@@ -984,9 +992,18 @@ def checkForWind(evt) {
         }
         else TRACE("[checkForWind] No windBearing in State ${getForecast()}")
     }
- 	   
+
+	def sp = sunCalc()
+
+	if (state.night == false) {
+    	if (sp.altitude > 0) {
+            if (state.cycles % 2 == 0) runIn(30, checkForSun)
+            if (state.cycles % 9 == 0) runIn(60, checkForClouds)
+        }
+    } 	   
     return null
 }
+
 private def sodActions(blindParams) {
     def sunriseString = location.currentValue("sunriseTime")
     def offset
@@ -1053,10 +1070,8 @@ def eventRefresh(evt) {
     TRACE("[eventRefresh] ${evt.device} Source ${evt.source}")
     
     checkForWind()
-	if (state.night == false) {
-    	checkForClouds()
-    	checkForSun()
-    }
+    checkForSun()
+    checkForClouds()
 }
 
 /*-----------------------------------------------------------------------------------------*/
@@ -1066,8 +1081,6 @@ def stopSunpath(evt) {
 	TRACE("[stopSunpath] Stop Scheduling")
     state.night = true
     pause 5
-	unschedule(checkForSun)
-    unschedule(checkForClouds)
     unsubscribe(eventRefresh)    
 	return null
 }
@@ -1079,21 +1092,14 @@ def startSunpath(evt) {
 	TRACE("[startSunpath] Start Scheduling")
     state.night = false
     state.pause = offSeason()
+    state.cycles = 0
     pause 5
-	//scheduleEOD() 
-
-    runIn(60, startScheduling)
     
     z_blinds.each {
     	if (it.hasCommand("refresh")) subscribeToCommand(it, "refresh", eventRefresh)
         }
            
 	return null
-}
-
-def startScheduling() {
-    //runEvery3Hours(checkForClouds)    
-    //runEvery30Minutes(checkForSun)
 }
 
 private def operateBlind(blind) {
@@ -1127,7 +1133,7 @@ private def operateBlind(blind) {
     
 	if (!blindParams.test) {        
         if (blind.reverse == true) {
-        	if (blindParams.reverse != blind.reverse || blindParams.reverse && blindParams.lastAction != blind.action) {
+        	if (blind.action == "Dynamic" || (blindParams.reverse != blind.reverse || blindParams.reverse && blindParams.lastAction != blind.action)) {
                 TRACE("[operateBlind] : ${blind}")
                 if (blind.action == "Down") blind.device.open()
                 if (blind.action == "Up") blind.device.close()
@@ -1137,6 +1143,9 @@ private def operateBlind(blind) {
                 if (blind.action == "Down 50%") blind.device.open()
                 if (blind.action == "Down 75%") blind.device.open()
                 sendEvent([name: "operateBlind", value: blind])
+                if (blind.action == "Dynamic" && blindParams.lastAction != blind.action) {
+                	state.devices[blind.device.id].currentLevel = 0
+                }
                 state.devices[blind.device.id].lastAction = blind.action
     			state.devices[blind.device.id].reverse = blind.reverse
                 state.devices[blind.device.id].lastActionTimestamp = now()
@@ -1144,7 +1153,7 @@ private def operateBlind(blind) {
             }
        }
         else {
-        	if (blindParams.reverse != blind.reverse || !blindParams.reverse && blindParams.lastAction != blind.action) {
+        	if (blind.action == "Dynamic" || (blindParams.reverse != blind.reverse || !blindParams.reverse && blindParams.lastAction != blind.action)) {
                 TRACE("[operateBlind] : ${blind}")
                 if (blind.action == "Down") blind.device.close()
                 if (blind.action == "Up") blind.device.open()
@@ -1156,11 +1165,15 @@ private def operateBlind(blind) {
                     if (blind.action == "Down 75%") blind.device.setLevel(75)
                 }
                 else {
-                    if (blind.action == "Down 25%") actionPercentage([id : blind.device.id, percentage:25])
-                    if (blind.action == "Down 50%") actionPercentage([id : blind.device.id, percentage:50])
-                    if (blind.action == "Down 75%") actionPercentage([id : blind.device.id, percentage:75])
+                	if (blind.action == "Dynamic") 	actionPercentage([id : blind.device.id, percentage:calculateLevel(blindParams), dynamic:true])
+                    if (blind.action == "Down 25%") actionPercentage([id : blind.device.id, percentage:25, dynamic:false])
+                    if (blind.action == "Down 50%") actionPercentage([id : blind.device.id, percentage:50, dynamic:false])
+                    if (blind.action == "Down 75%") actionPercentage([id : blind.device.id, percentage:75, dynamic:false])
                 }
                 sendEvent([name: "operateBlind", value: blind])
+                if (blind.action == "Dynamic" && blindParams.lastAction != blind.action) {
+                	state.devices[blind.device.id].currentLevel = 0
+                }
                 state.devices[blind.device.id].lastAction = blind.action
     			state.devices[blind.device.id].reverse = blind.reverse
                 state.devices[blind.device.id].lastActionTimestamp = now()
@@ -1172,19 +1185,119 @@ private def operateBlind(blind) {
 
 	return true
 }
+
 private def actionPercentage(blind) {
-	def blindParams = fillBlindParams(blind.id)
+	eTRACE("[actionPercentage] ${blind}")
+    def blindParams = fillBlindParams(blind.id)
+	if ((blindParams.currentLevel == 0 && blind.dynamic) || !blind.dynamic) { // first dynamic call or postition 25/50/75
+    	eTRACE("[actionPercentage] ${blind} first call")
+        blindParams.blindDev.open()
+        runIn(blindParams.completionTime, startMoving, [overwrite: false, data: blind])  
+        sendEvent(blindParams.blindDev, [name:'windowShade', value:"opening" as String])
+    }
+	if (blindParams.currentLevel > 0 && blind.dynamic) {
+    	eTRACE("[actionPercentage] ${blind} dynamic call")
+    	startMoving(blind) // dynamic call just move the shade further down 
+    }
+    state.devices[blind.id].lastActionTimestamp = now()
 }
 
-def startOpenAndClose(blind){
+def startMoving(blind) {
 	def blindParams = fillBlindParams(blind.id)
-	runIn()
+	eTRACE("[startMoving] ${blind} currentLevel : ${blindParams.currentLevel}")
+	def Sec = Math.round(blindParams.completionTime*blind.percentage.toInteger()/100) 
+    
+    if (blindParams.currentLevel < 100) {
+        if (Sec != 0) {
+            eTRACE("[startMoving] ${blindParams.blindDev} ${Sec} seconds")
+            if (Sec > 0) {
+                blindParams.blindDev.close()
+                if (Sec > 2) Sec = Sec - 1i
+                runIn(Sec, stopClosing, [overwrite: false, data: blind])  
+                sendEvent(blindParams.blindDev, [name:'windowShade', value:"closing" as String])
+            }
+            if (Sec < 0) {	// this can happen with dynamic call.
+                blindParams.blindDev.open()
+                if (Sec < -2) Sec = Sec + 1i
+                runIn(Math.abs(Sec), stopOpening, [overwrite: false, data: blind])  
+                sendEvent(blindParams.blindDev, [name:'windowShade', value:"opening" as String])
+            }
+            state.devices[blind.id].lastActionTimestamp = now()
+        }
+        else eTRACE("[startMoving] ${blindParams.blindDev} ${Sec} seconds, no Action needed")
+    }
+   	else eTRACE("[startMoving] ${blindParams.blindDev} 100%, no Action needed")
 }
 
-def closeAgain(blind) {
+def stopClosing(blind) {
+	eTRACE("[stopClosing] ${blind}")
 	def blindParams = fillBlindParams(blind.id)
+    state.devices[blind.id].currentLevel = (state.devices[blind.id].currentLevel + blind.percentage).toInteger()
+    if (state.devices[blind.id].currentLevel < 0)  state.devices[blind.id].currentLevel = 0 
+    if (blindParams.stopSupported) blindParams.blindDev.presetPosition()
+    else blindParams.blindDev.close()
+    pause 5
+    sendEvent(blindParams.blindDev, [name:'windowShade', value:"partially open" as String])
+    state.devices[blind.id].lastActionTimestamp = now()
 }
 
+def stopOpening(blind) {
+	eTRACE("[stopOpening] ${blind}")
+    state.devices[blind.id].currentLevel = (state.devices[blind.id].currentLevel + blind.percentage).toInteger()
+    if (state.devices[blind.id].currentLevel < 0)  state.devices[blind.id].currentLevel = 0 
+	def blindParams = fillBlindParams(blind.id)
+    if (blindParams.stopSupported) blindParams.blindDev.presetPosition()
+    else blindParams.blindDev.open()   
+    pause 5
+    sendEvent(blindParams.blindDev, [name:'windowShade', value:"partially open" as String])
+}
+
+
+private def calculateLevel(blind) {
+	if (!blind.blindsWindowHeight) return
+    
+	def sp = sunCalc()
+    sp.altitude = sp.altitude.toDouble()
+    double radians = Math.toRadians(sp.altitude)
+	double percentage 
+    def openingNeeded = Math.round(((Math.tan(radians) * 100).toInteger()))
+    eTRACE("[calculateLevel] oN ${openingNeeded} bS ${blind.sunDistance} Alt ${sp.altitude}")
+    
+    if (blind.blindsVH == "Vertical") {
+		openingNeeded = openingNeeded - blind.blindsWindowOffset
+		percentage = 1 - (openingNeeded / blind.blindsWindowHeight.toInteger())
+        percentage = (Math.round(percentage * 10) * 10).toInteger()		//make it round on the nearest 10ssss
+        eTRACE("[calculateLevel] V-Shade length needed is ${openingNeeded}, percentage is ${percentage.toInteger()}")
+        if (percentage > 90) percentage = 100i
+    }
+    
+    if (blind.blindsVH == "Horizontal") {
+        double alpha = 90 - sp.altitude						// calc alpha angle
+        double gamma = 90 - blind.blindScreenAngle			// calc gamma angle 
+        double beta = 180 - alpha - gamma  					// calc beta angle
+        int c = (blind.blindsWindowHeight+blind.blindsWindowOffset) - openingNeeded	// calc triangle side c
+        alpha = Math.sin(Math.toRadians(alpha))				// sinus for angle alpha
+        beta = Math.sin(Math.toRadians(beta))				// sinus for angle beta
+        double a = c * alpha / beta      					// sinus rule for calculating side a
+        percentage = a / blind.blindScreenHeight.toInteger()
+        percentage = (Math.round(percentage * 10) * 10).toInteger()		//make it round on the nearest 10ssss
+        if (percentage > 90) percentage = 100i
+        eTRACE("[calculateLevel] H-Shade length needed is ${Math.round(a)}, percentage is ${percentage.toInteger()}")
+    }
+    
+    if (blind.currentLevel < 0 || blind.currentLevel > 100) {
+    	state.devices[blind.ID].currentLevel = 0  // RESET
+        blind.currentLevel = 0
+    }
+    
+    if (blind.currentLevel == 0) return percentage
+    if (blind.currentLevel == 100) return 0i
+    return percentage - blind.currentLevel
+        
+}
+//-----------------------------------------------
+//	Action based on Temperature
+//-----------------------------------------------
 private def actionTemperature(blindParams) {
 	def rc = false
     if (settings.z_EnableTemp != true || blindParams.extTempAction == null) return false
@@ -1196,25 +1309,16 @@ private def actionTemperature(blindParams) {
         	rc = true
         }
     }
-	else {    
-        if (blindParams.intTempLogic == "OR") {    	
+	else {  
+    	if (blindParams.intTempSensor) {
             if (state.extTemp.toInteger() > settings?.z_defaultExtTemp.toInteger()) {
-            	rc = true
+                rc = true
             }
-            if (blindParams.devTemp && blindParams.intTemp && blindParams.devTemp > blindParams.intTemp) {
-            	rc = true
-            }
-        }
-        if (blindParams.intTempLogic == "AND") {
-            if (state.extTemp.toInteger() > settings?.z_defaultExtTemp.toInteger()) {
-            	rc = true
-            }
-            if (rc == true && blindParams.devTemp && blindParams.intTemp && blindParams.devTemp > blindParams.intTemp) {
-            	rc = true 
-            }
-            else {
-            	rc = false
-           	}
+            if (blindParams.intTempLogic == "OR") {    	
+                if (blindParams.devTemp && blindParams.intTemp && blindParams.devTemp > blindParams.intTemp) rc = true
+            } // AND
+            else if (rc == true && blindParams.devTemp && blindParams.intTemp && blindParams.devTemp > blindParams.intTemp) rc = true
+                 else rc = false
         }
     }    
 	return rc
@@ -1222,13 +1326,32 @@ private def actionTemperature(blindParams) {
 
 private def fillBlindParams(findID) {
 	def blindParams = [:]
-    if (!state.devices[findID]) state.devices[findID] = [:]
+
+    if (!state.devices[findID]) {
+    	state.devices[findID] = [:]
+        state.devices[findID].sodDone = false
+        state.devices[findID].eodDone = false
+        state.devices[findID].firstSunAction = false
+        state.devices[findID].firstWindAction = false
+        state.devices[findID].firstTempAction = false
+        state.devices[findID].firstCloudAction = false
+        state.devices[findID].cool = false
+    }  
     
-    blindParams.blindsType 			= settings?."z_blindType_${findID}"     
+    blindParams.blindsType 			= settings?."z_blindType_${findID}"  
+    blindParams.stopSupported		= settings?."z_blindStopSupported_${findID}"  
     if (settings?."z_blindsOrientation_${findID}" == null) blindParams.blindsOrientation = "NA|NA"
     else blindParams.blindsOrientation = settings?."z_blindsOrientation_${findID}".join('|').replaceAll('\"','')
-    
-    blindParams.windForceCloseMax 	= settings?."z_windForceCloseMax_${findID}"
+	blindParams.blindsVH 			= settings?."z_blindVH_${findID}"  
+	blindParams.blindsWindowHeight	= settings?."z_blindWindowHeight_${findID}"  
+	blindParams.blindsWindowOffset	= settings?."z_blindWindowOffset_${findID}" 
+    if (!blindParams.blindsWindowOffset) blindParams.blindsWindowOffset = 0
+	blindParams.blindScreenHeight	= settings?."z_blindScreenHeight_${findID}"  
+	blindParams.blindScreenAngle	= settings?."z_blindScreenAngle_${findID}"  
+	blindParams.sunDistance			= settings?."z_sunDistance_${findID}"
+    if (blindParams.sunDistance && state.units != "metric") blindParams.sunDistance == blindParams.sunDistance * 2.5 / 100   // inch to meters (approx)
+    if (!blindParams.sunDistance) 	blindParams.sunDistance = 1
+	blindParams.windForceCloseMax 	= settings?."z_windForceCloseMax_${findID}"
     if (blindParams.windForceCloseMax) blindParams.windForceCloseMax = blindParams.windForceCloseMax.toInteger() 
     else  {
     	if (blindParams.blindsType == "Screen" ) blindParams.windForceCloseMax = -1 else blindParams.windForceCloseMax = 999
@@ -1256,6 +1379,7 @@ private def fillBlindParams(findID) {
     blindParams.sodDone 			= state.devices[findID]?.sodDone
     blindParams.lastAction 			= state.devices[findID]?.lastAction
     blindParams.reverse 			= state.devices[findID]?.reverse
+    blindParams.currentLevel		= state.devices[findID]?.currentLevel
     if (blindParams.sodDone == null) blindParams.sodDone = true
     blindParams.firstSunAction		= state.devices[findID]?.firstSunAction
     if (blindParams.firstSunAction == null) blindParams.firstSunAction = false
@@ -1277,9 +1401,10 @@ private def fillBlindParams(findID) {
     blindParams.ID					= findID
     
     if (settings.z_EnableTemp == true) blindParams.actOnTemp = state.devices[findID]?.actOnTemp ?: false else blindParams.actOnTemp = false
-    if (blindParams.intTempSensor) blindParams.devTemp = blindParams.intTempSensor.currentValue("temperature").toDouble().round(0).toInteger()
+    if (blindParams.intTempSensor?.currentValue("temperature")) blindParams.devTemp = blindParams.intTempSensor.currentValue("temperature").toDouble().round(0).toInteger()
+    else blindParams.intTempLogic = null
     if (blindParams.blindsOpenSensor) blindParams.openContact = blindParams.blindsOpenSensor.currentValue("contact") ?: "Closed"
-	if (!blindParams.intTemp) blindParams.intTemp = settings?.z_defaultIntTemp ?: 200 else blindParams.intTemp = blindParams.intTemp.toInteger()
+	if (!blindParams.intTemp || blindParams.intTemp == "") blindParams.intTemp = settings?.z_defaultIntTemp ?: 200 else blindParams.intTemp = blindParams.intTemp.toInteger()
     
 	return blindParams
 }
@@ -1323,10 +1448,12 @@ private def calcBearing(degree) {
         } 
  
 }
+private def eTRACE(message) {
+	log.error message
+}
+
 private def TRACE(message) {
-
-if(settings.z_TRACE) {log.trace message}
-
+	if(settings.z_TRACE) {log.trace message}
 }
 
 private def offSeason() {
@@ -1510,8 +1637,15 @@ def notifyNewVersion() {
         state.devices[it.key].firstTempAction = false
         state.devices[it.key].firstCloudAction = false
         state.devices[it.key].cool = false
+        if (state.devices[it.key].completionTime && state.devices[it.key].completionTime > 0) state.devices[it.key].currentLevel = 0
         pause 2
     }
 }
+def resetCurrentLevel() {
 
+	state.devices.each {
+        if (state.devices[it.key].completionTime && state.devices[it.key].completionTime > 0) state.devices[it.key].currentLevel = 0
+        pause 2
+    }
+}
 private def appVerInfo()		{ return getWebData([uri: "https://raw.githubusercontent.com/verbem/SmartThingsPublic/master/smartapps/verbem/SmartScreensData", contentType: "text/plain; charset=UTF-8"], "changelog") }
