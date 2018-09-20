@@ -1,3 +1,6 @@
 Version 2.00
 
   Initial github release
+  
+Version 5.13	
+  Fix pause switch behaviour, create separate offSeason switch in state
