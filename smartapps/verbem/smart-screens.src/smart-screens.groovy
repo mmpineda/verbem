@@ -22,6 +22,7 @@
     V5.11	Bug Fix
     V5.12	Populate state.devices with more info
     V5.13	Fix pause switch behaviour, create separate offSeason switch in state
+    V5.14	Sun in sync with Wind events
  
 */
 
@@ -32,7 +33,7 @@ import Calendar.*
 import groovy.time.*
 
 
-private def runningVersion() 	{"5.12"}
+private def runningVersion() 	{"5.14"}
 
 definition(
     name: "Smart Screens",
@@ -89,7 +90,17 @@ def pageSetupForecastIO() {
         install:    true,
         uninstall:  true
     ]
-    
+     
+    def inputSunFrequency = [
+        name:       "z_SunFrequency",
+        type:       "number",
+        default:	2,
+        title:      "Sun check how many times per hour",
+        multiple:   false,
+		submitOnChange: false,
+		required:   true
+    ]
+   
     def inputEnableTemp = [
         name:       "z_EnableTemp",
         type:       "bool",
@@ -1045,7 +1056,8 @@ def checkForWind(evt) {
 
 	if (state.night == false) {
     	if (sp.altitude > 0) {
-            if (state.cycles % 2 == 0) runIn(30, checkForSun)
+            //if (state.cycles % 2 == 0) runIn(30, checkForSun)
+            runIn(30, checkForSun)
             if (state.cycles % 9 == 0) runIn(60, checkForClouds)
         }
     } 	   
