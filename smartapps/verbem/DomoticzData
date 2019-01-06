@@ -1,3 +1,6 @@
+Version 7.20
+    Changes to groups and scenes, also new domotticzOnOff, domoticzScene, domoticzSelectorState are needed
+
 Version 7.19
     Bug Fixing
 
