@@ -3,7 +3,7 @@
  *
  *  Author: Martin Verbeek 
  *
- *  Copyright 2018 Martin Verbeek
+ *  Copyright 2019 Martin Verbeek
  *
  *
  *	1.00 Initial Release, thanks to Anthony S for version control
@@ -30,6 +30,7 @@
  *	1.23 routine to add buttons for HUE effect:colorloop, effect:none, alert:none, alert:select, alert:lselect
  *	1.24 send tempScale attribute
  *	1.25 duplicate childs for tap an switch solved
+ *	2.00 HubId in device
  *	
  */
 
@@ -44,7 +45,7 @@ definition(
 		iconX2Url: "https://s3.amazonaws.com/smartapp-icons/Partner/hue@2x.png",
 		singleInstance: true
 )
-private def runningVersion() 	{"1.25"}
+private def runningVersion() 	{"2.00"}
 
 preferences {
 	page(name:pageMain)
@@ -132,7 +133,8 @@ def pageBridges() {
                         else {                         
                         	paragraph username
                         	input "z_BridgesUsernameAPI_${serialNumber}", "text", required:true, title:"Username for API", submitOnChange:true, description:username
-                        }                        
+                        }
+                        
                     }
                     
                 }
@@ -193,10 +195,11 @@ private removeChildDevices(delete) {
 
 def initialize() {
 	TRACE("Initializing")
-    
+	    
     schedule("2015-01-09T12:00:00.000-0600", notifyNewVersion)
 	
     if (settings.z_Bridges) {
+    	cleanupDevices()
     	subscribeToMotionEvents()
         subscribe(location, "mode", handleChangeMode)
         subscribe(location, "alarmSystemStatus", handleAlarmStatus)
@@ -338,6 +341,20 @@ def monitorSensorStop(evt) {
 	TRACE("[monitorSensor] Motion Stopped for ${evt.displayName.toString()}")
 }
 
+def cleanupDevices() {
+//  get rid of devices without corresponding bridge
+	def removeChilds = []
+	getChildDevices().each { dev ->
+    	def found = false
+        settings.z_Bridges.each { bridge ->
+        	def serialNumber = bridge.currentValue("serialNumber")
+            log.info serialNumber + " - " + dev.deviceNetworkId.split("/")[0].toString() + "|"
+            if (serialNumber.toString() == dev.deviceNetworkId.split("/")[0].toString()) {found = true; log.info "Found bridge for ${dev.deviceNetworkId}"}
+        }
+        if (!found) removeChilds.add(dev.deviceNetworkId)
+    }
+    log.error removeChilds
+}
 
 def monitorSensor(evt) {
 
@@ -508,7 +525,7 @@ def handleRooms(physicalgraph.device.HubResponse hubResponse) {
             def groupDev = getChildDevice(dni)
             if (!groupDev) {
             	TRACE("[handleRooms] add room ${dni} ${group.name}")
-            	groupDev = addChildDevice("verbem", "domoticzOnOff", dni, null, [name:group.name, label:group.name, completedSetup:true])
+            	groupDev = addChildDevice("verbem", "domoticzOnOff", dni, getHubID(), [name:group.name, label:group.name, completedSetup:true])
            	}
             else {
                 if (group.name != groupDev.name) {
@@ -695,7 +712,7 @@ def handlePoll(physicalgraph.device.HubResponse hubResponse) {
                     if (devType != null) {
                         TRACE("[handlePoll] Add Sensor ${dni} ${sensor.type} ${devType} ${sensor.name} ${getMac(sensor.uniqueid)}")
 
-                        sensorDev = addChildDevice("verbem", devType, dni, null, [name:sensor.name, label:sensor.name, completedSetup:true])
+                        sensorDev = addChildDevice("verbem", devType, dni, getHubID(), [name:sensor.name, label:sensor.name, completedSetup:true])
 
                         state.devices[dni] = [
                             'lastUpdated'	: sensor.state.lastupdated, 
@@ -1125,6 +1142,13 @@ private def parseEventMessage(String description) {
     event
 }
 
+private def getHubID(){
+    TRACE("[getHubID]")
+    def hubID
+    def hubs = location.hubs.findAll{ it.type == physicalgraph.device.HubType.PHYSICAL } 
+    if (hubs.size() == 1) hubID = hubs[0].id 
+    return hubID
+}
 private def TRACE(message) {
     if(z_Trace) {log.trace message}
 }
