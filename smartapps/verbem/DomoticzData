@@ -1,3 +1,15 @@
+Version 7.25
+    energy used not energyMeter
+
+Version 7.24
+    Power Report changes
+
+Version 7.23
+    Testing with getUrl for websettings/storesettings form, looks good
+
+Version 7.22
+    SetPower for power/energy virtual devices defined in Domoticz
+
 Version 7.21
     Some enhancements to the setup screens
 
