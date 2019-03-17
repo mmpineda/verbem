@@ -1,3 +1,15 @@
+Version 7.30	
+    bug fix power
+    
+Version 7.29
+    consumptionlow to consumptionLow
+    
+Version 7.28
+    bug in refreshdevices when settings.roomplans = nul
+    
+Version 7.27
+    kill push notifications
+
 Version 7.26
     Alive checker improved
 
